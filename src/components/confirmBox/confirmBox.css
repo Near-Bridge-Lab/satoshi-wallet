@@ -1,0 +1,67 @@
+.title {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 1);
+}
+
+.chians {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 50px;
+}
+
+.time {
+    text-align: center;
+    font-size: 16px;
+    margin-top: 30px;
+}
+
+.processing {
+    font-size: 14px;
+    color: rgba(126, 138, 147, 1);
+    margin: 18px 0 0;
+    text-align: center;
+
+}
+
+.srcBtn {
+    background: rgba(255, 122, 0, 0.1);
+    border-radius: 8px;
+    color: rgba(255, 122, 0, 1);
+    font-size: 12px;
+    cursor: pointer;
+    width: 74px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 23px auto 0;
+}
+
+.btn {
+    display: block;
+    width: 100%;
+    height: 50px;
+    line-height: 50px;
+    background: rgba(255, 122, 0, 1);
+    color: rgba(0, 2, 44, 1);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 23px;
+}
+
+.loading {
+    animation: l2 1s infinite;
+}
+
+@keyframes l2 {
+    to {
+        transform: rotate(.5turn)
+    }
+}
