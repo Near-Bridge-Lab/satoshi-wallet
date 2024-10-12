@@ -132,8 +132,8 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     if (open && publicClient && evmAccount && userOpBundle) {
       publicClient
         .getBalance({ address: evmAccount as Hex })
-        .then((result) => setNativeBalance(result))
-        .catch((error) => {
+        .then((result: any) => setNativeBalance(result))
+        .catch((error: any) => {
           console.log('🚀 ~ getBalance ~ error:', error);
           events.emit(EventName.sendUserOpResult, {
             error,

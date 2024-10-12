@@ -1,10 +1,17 @@
 {
-  "extends": "./tsconfig-out.json",
   "compilerOptions": {
-    "module": "ESNext",
+     "module": "ESNext",
     "target": "ES2019",
-    "declaration": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "preserveSymlinks": true,
     "declarationDir": "dist",
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "declaration": true,
     "jsx": "react-jsx",
     "outDir": "dist",
     "plugins": [
