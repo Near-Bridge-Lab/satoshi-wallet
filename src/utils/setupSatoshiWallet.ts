@@ -37,7 +37,6 @@ const contractId = 'dev1-nsp.testnet'
 
 const state: any = {
     saveAccount(account: string) {
-        console.log('saveAccount:', account)
         window.localStorage.setItem('satoshi-account', account)
     },
     removeAccount() {
@@ -65,7 +64,6 @@ const state: any = {
         this.savePublicKey(publicKey)
     },
     getAccount() {
-        console.log('getAccount:', window.localStorage.getItem('satoshi-account'))
         return window.localStorage.getItem('satoshi-account')
     },
     getPublicKey() {
@@ -115,7 +113,6 @@ const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
 
     async function signIn ({ contractId, methodNames }: any){
-        console.log('signIn:', contractId, methodNames)
         console.log(provider)
         const accountId = state.getAccount()
         const publicKey = state.getPublicKey()
@@ -312,7 +309,7 @@ const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         return result;
     }
 
-    return wallet;
+    return wallet as any;
 }
 
 function getNonceFromApi(accountId: string) {
