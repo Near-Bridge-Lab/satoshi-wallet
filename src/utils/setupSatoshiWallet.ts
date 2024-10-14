@@ -271,7 +271,7 @@ const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
             csna: outcome.csna,
             near_transactions: [outcome.near_transactions],
             "gas_token": token,
-            "gas_limit": '2000',
+            "gas_limit": '3000',
             nonce: (Number(outcome.nonce)).toString(),
         }
 
