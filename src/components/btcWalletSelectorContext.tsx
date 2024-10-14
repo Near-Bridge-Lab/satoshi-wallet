@@ -38,7 +38,7 @@ export function BtcWalletSelectorContextProvider({ children }: { children: React
       },
       
     }}
-    autoConnect={false}
+    autoConnect={true}
     connectors={[new UnisatConnector()]}
   >
     {children}
