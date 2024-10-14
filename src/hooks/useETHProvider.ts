@@ -9,7 +9,8 @@ import { EventName } from '../types/eventName';
 import events, { getPendingSignEventAccount } from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
-export const useETHProvider = () => {
+
+export const useETHProvider: any = () => {
   const { evmAccount, smartAccount, getSmartAccountInfo } = useConnectProvider();
   const [chainId, setChainId] = useState<number>();
 
