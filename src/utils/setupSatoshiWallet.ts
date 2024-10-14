@@ -165,9 +165,7 @@ const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     async function getAccounts() {
         const accountId = state.getAccount()
-         // @ts-ignore
-        accountId ? setupWalletButton(options.network.networkId, wallet as any,window.btcContext):removeWalletButton()
-
+        initWalletButton(options.network.networkId, accountId, wallet);
         return [{ accountId: state.getAccount() }];
     }
 
@@ -293,6 +291,7 @@ const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         console.log('result:', result)
 
         if (result.result_code === 0) {
+            console.log('txHash:', hash)
             const result=await pollTransactionStatus(options.network.networkId, hash)
             return result;
         } else {
@@ -341,7 +340,7 @@ function uploadCAWithdraw(data: any) {
 }
 
 export function setupSatoshiWallet({
-    iconUrl = 'https://www.thefaucet.org/images/logo.jpg',
+    iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
     deprecated = false,
     btcContext
 }: CAWalletParams): WalletModuleFactory<InjectedWallet> {
@@ -375,6 +374,22 @@ function toHex(originalString: string) {
     return hexString
 }
 
+function initWalletButton(network:string, accountId:string, wallet:any) {
+    const checkAndSetupWalletButton=()=>{
+        // @ts-ignore
+        if(accountId && window.btcContext.account) {
+            // @ts-ignore
+            setupWalletButton(network, wallet, window.btcContext);
+        }else{
+            removeWalletButton();
+            setTimeout(() => {
+                checkAndSetupWalletButton();
+            }, 5000);
+        }
+    }
+    checkAndSetupWalletButton();
+}
+
 const rcpUrls={
     mainnet:['https://near.lava.build','https://rpc.mainnet.near.org','https://free.rpc.fastnear.com','https://near.drpc.org'],
     testnet:['https://near-testnet.lava.build','https://rpc.testnet.near.org','https://near-testnet.drpc.org']
@@ -391,27 +406,30 @@ async function pollTransactionStatus(network: string, hash: string) {
         )
     );
 
-    const maxAttempts = 10;
+    const maxAttempts = 3;
     let attempt = 0;
 
     while (attempt < maxAttempts) {
-        try {
-            attempt++;
+        attempt++;
     
-            const result = await provider.txStatus(hash, 'unused', 'FINAL');
-            console.log('Polling result:', result);
-
-            if (result && result.status) {
-                return result;
+        const result = await provider.txStatus(hash, 'unused', 'FINAL').catch((error) => {
+            console.log(error.message)
+            console.error(`Failed to fetch transaction status: ${error.message}`);
+            if(attempt===maxAttempts) {
+                throw new Error(`Transaction not found: ${hash}`);
             }
-
-            console.warn('Received empty or invalid result, retrying...');
-        } catch (error) {
-            console.error('RPC request failed, will retry...', error);
+            return;
+        });
+        if (result && result.status) {
+            console.log(result);
+            return result;
         }
-        await delay(5000);
+       
+        await delay(10000);
+        console.log(`RPC request failed, will retry ${maxAttempts - attempt} more times`);
+
     }
-    throw new Error(`Transaction status polling failed after ${maxAttempts} attempts.`);
+   
 }
 
 
