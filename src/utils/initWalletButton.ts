@@ -9,8 +9,7 @@ export function setupWalletButton(
   if (document.getElementById('satoshi-wallet-button')) return;
 
   const iframe = createIframe({
-    iframeUrl: network === 'testnet' ? 'http://localhost:3100' : 'https://wallet.satoshibridge.top',
-    // iframeUrl: network === 'testnet' ? 'https://wallet-dev.satoshibridge.top' : 'https://wallet.satoshibridge.top',
+    iframeUrl: network === 'testnet' ? 'https://wallet-dev.satoshibridge.top' : 'https://wallet.satoshibridge.top',
     iframeStyle: { width: '400px', height: '650px' },
   });
 
