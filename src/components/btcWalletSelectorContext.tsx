@@ -35,8 +35,10 @@ export function BtcWalletSelectorContextProvider({ children }: { children: React
       },
       walletOptions: {
         visible: true,
-      }
+      },
+      
     }}
+    autoConnect={false}
     connectors={[new UnisatConnector()]}
   >
     {children}
