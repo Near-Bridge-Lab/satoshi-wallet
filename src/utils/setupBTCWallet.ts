@@ -24,7 +24,7 @@ import { setupWalletButton, removeWalletButton } from "./initWalletButton";
 const { signedDelegate, transfer, functionCall } = actionCreators;
 
 
-interface CAWalletParams {
+interface BTCWalletParams {
     iconUrl?: string;
     deprecated?: boolean;
     btcContext?: any;
@@ -37,22 +37,22 @@ const contractId = 'dev1-nsp.testnet'
 
 const state: any = {
     saveAccount(account: string) {
-        window.localStorage.setItem('satoshi-account', account)
+        window.localStorage.setItem('btc-wallet-account', account)
     },
     removeAccount() {
-        window.localStorage.removeItem('satoshi-account')
+        window.localStorage.removeItem('btc-wallet-account')
     },
     savePublicKey(publicKey: string) {
-        window.localStorage.setItem('satoshi-publickey', publicKey)
+        window.localStorage.setItem('btc-wallet-publickey', publicKey)
     },
     removePublicKey() {
-        window.localStorage.removeItem('satoshi-publickey')
+        window.localStorage.removeItem('btc-wallet-publickey')
     },
     saveBtcPublicKey(publicKey: string) {
-        window.localStorage.setItem('satoshi-btc-publickey', publicKey)
+        window.localStorage.setItem('btc-wallet-btc-publickey', publicKey)
     },
     removeBtcPublicKey() {
-        window.localStorage.removeItem('satoshi-btc-publickey')
+        window.localStorage.removeItem('btc-wallet-btc-publickey')
     },
     clear() {
         this.removeAccount()
@@ -64,19 +64,19 @@ const state: any = {
         this.savePublicKey(publicKey)
     },
     getAccount() {
-        return window.localStorage.getItem('satoshi-account')
+        return window.localStorage.getItem('btc-wallet-account')
     },
     getPublicKey() {
-        return window.localStorage.getItem('satoshi-publickey')
+        return window.localStorage.getItem('btc-wallet-publickey')
     },
     getBtcPublicKey() {
-        return window.localStorage.getItem('satoshi-btc-publickey')
+        return window.localStorage.getItem('btc-wallet-btc-publickey')
     }
 }
 
 
 
-const SatoshiWallet: WalletBehaviourFactory<InjectedWallet> = async ({
+const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     metadata,options,
     store,
     emitter,
@@ -339,30 +339,30 @@ function uploadCAWithdraw(data: any) {
     }).then(res => res.json())
 }
 
-export function setupSatoshiWallet({
+export function setupBTCWallet({
     iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
     deprecated = false,
     btcContext
-}: CAWalletParams): WalletModuleFactory<InjectedWallet> {
+}: BTCWalletParams): WalletModuleFactory<InjectedWallet> {
 
-    const satoshiWallet: any = async () => {
+    const btcWallet: any = async () => {
         return {
-            id: 'satoshi-wallet',
+            id: 'btc-wallet',
             type: 'injected',
             metadata: {
-                name: 'SatoshiWallet',
-                description: 'SatoshiWallet',
+                name: 'BTC Wallet',
+                description: 'BTC Wallet',
                 iconUrl,
                 downloadUrl: iconUrl,
                 deprecated,
                 available: true,
                 btcContext,
             },
-            init: SatoshiWallet,
+            init: BTCWallet,
         }
     }
 
-    return satoshiWallet
+    return btcWallet
 }
 
 function toHex(originalString: string) {
@@ -436,7 +436,7 @@ async function pollTransactionStatus(network: string, hash: string) {
 export default {
     // useBtcWalletSelector,
     // BtcWalletSelectorContextProvider,
-    setupSatoshiWallet,
+    setupBTCWallet,
 }
 
 
