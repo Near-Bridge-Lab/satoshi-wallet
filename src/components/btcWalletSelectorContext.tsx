@@ -73,6 +73,7 @@ export function useBtcWalletSelector() {
   const publicKey = useRef<any>(null)
   const signMessageFn = useRef<any>(null)
   const connectorRef = useRef<any>(null)
+  const providerRef = useRef<any>(null)
   const [updater, setUpdater] = useState<any>(1)
   const context = useContext(WalletSelectorContext);
   
@@ -81,6 +82,7 @@ export function useBtcWalletSelector() {
       getPublicKey().then((res) => {
         publicKey.current = res
       })
+      providerRef.current = provider
     }
   }, [provider, updater])
 
@@ -114,7 +116,7 @@ export function useBtcWalletSelector() {
     autoConnect: async () => {
       let times = 0
       while (!connectorRef.current) {
-        await sleep(1000)
+        await sleep(500)
         if (times++ > 10) {
           return null
         }
@@ -141,6 +143,18 @@ export function useBtcWalletSelector() {
     },
     getContext: () => {
       return context
+    },
+    getBalance: async () => {
+      let times = 0
+      while (!providerRef.current) {
+        await sleep(500)
+        if (times++ > 10) {
+          return null
+        }
+      }
+
+      const { total } = await providerRef.current.getBalance()
+      return total
     }
   }
 }
