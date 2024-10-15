@@ -28,6 +28,7 @@ interface BTCWalletParams {
     iconUrl?: string;
     deprecated?: boolean;
     btcContext?: any;
+    autoConnect?: boolean;
 }
 
 const base_url = 'https://api.dev.satoshibridge.top/v1'
@@ -74,17 +75,17 @@ const state: any = {
     }
 }
 
-
+let inter: any = null
 
 const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
-    metadata,options,
+    metadata,
+    options,
     store,
     emitter,
     logger,
     id,
     provider,
 }) => {
-    // const { login, logout, account } = useBtcWalletSelector()
 
     const wallet = {
         signIn,
@@ -95,6 +96,38 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         signAndSendTransaction,
         signAndSendTransactions
     }
+    if (!inter) {
+        inter = setInterval(async () => {
+            // @ts-ignore
+            const btcContext = window.btcContext
+    
+            // return
+            if (btcContext) {
+                clearInterval(inter)
+                const context = btcContext.getContext()
+    
+                context.on('updatePublicKey', async (btcPublicKey: string) => {
+                    const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey)
+                    emitter.emit('accountsChanged', {
+                        accounts: [{
+                            accountId: nearTempAddress,
+                            // active: true
+                        }]
+                    })
+                })
+    
+                console.log('metadata.autoConnect:', metadata)
+
+                // @ts-ignore
+                if (metadata.autoConnect && localStorage.getItem('near-wallet-selector:selectedWalletId') === '"btc-wallet"') {
+                    // btcContext.autoConnect()
+                }
+    
+                clearInterval(inter)
+            }
+        }, 500)
+    }
+    
 
     async function viewMethod({ method, args = {} }: {
         method: string,
@@ -112,26 +145,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     };
 
 
-    async function signIn ({ contractId, methodNames }: any){
-        console.log(provider)
-        const accountId = state.getAccount()
-        const publicKey = state.getPublicKey()
-        // @ts-ignore
-        const btcContext = window.btcContext
-
-        console.log('metadata:', metadata)
-
-        if (accountId && publicKey) {
-            return [{
-                accountId,
-                publicKey,
-            }]
-        }
-
-        const btcAccount = await btcContext.login()
-        const btcPublicKey = await btcContext.getPublicKey()
-
-
+    async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
         const nearTempAddress = await viewMethod({
             method: 'get_chain_signature_near_account',
             args: { 'btc_public_key': btcPublicKey }
@@ -145,6 +159,31 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         state.saveAccount(nearTempAddress)
         state.savePublicKey(nearTempPublicKey)
         state.saveBtcPublicKey(btcPublicKey)
+
+        return {
+            nearTempAddress,
+            nearTempPublicKey
+        }
+    }
+
+    async function signIn({ contractId, methodNames }: any) {
+        console.log(provider)
+        const accountId = state.getAccount()
+        const publicKey = state.getPublicKey()
+        // @ts-ignore
+        const btcContext = window.btcContext
+
+        if (accountId && publicKey) {
+            return [{
+                accountId,
+                publicKey,
+            }]
+        }
+
+        const btcAccount = await btcContext.login()
+        const btcPublicKey = await btcContext.getPublicKey()
+
+        const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey)
 
         return [
             {
@@ -161,6 +200,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         state.clear()
         window.localStorage.removeItem('near-wallet-selector:selectedWalletId')
         removeWalletButton()
+        // clearInterval(inter)
     }
 
     async function getAccounts() {
@@ -177,27 +217,11 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         throw new Error(`Method not supported by ${metadata.name}`);
     }
 
-    async function signAndSendTransaction({ signerId, receiverId, actions }: any){
+    async function signAndSendTransaction({ signerId, receiverId, actions }: any) {
         // @ts-ignore
         const btcContext = window.btcContext
-
-
-
-        // console.log(btcContext)
-
-        // const v = btcContext.getContext()
-
-        // console.log(v)
-
-        // v.setIsProcessing(true)
-
-        // return 
-
         const accountId = state.getAccount()
         const publicKey = state.getPublicKey()
-
-       
-
         const newActions = actions.map((action: any) => {
             switch (action.type) {
                 case 'FunctionCall':
@@ -292,7 +316,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
         if (result.result_code === 0) {
             console.log('txHash:', hash)
-            const result=await pollTransactionStatus(options.network.networkId, hash)
+            const result = await pollTransactionStatus(options.network.networkId, hash)
             return result;
         } else {
             return null
@@ -300,10 +324,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     }
 
-    async function signAndSendTransactions({ transactions }: any){
-        const result=await Promise.all(transactions.map(async (transaction: any) => {
-                return await signAndSendTransaction(transaction)
-            }
+    async function signAndSendTransactions({ transactions }: any) {
+        const result = await Promise.all(transactions.map(async (transaction: any) => {
+            return await signAndSendTransaction(transaction)
+        }
         ))
         return result;
     }
@@ -342,9 +366,9 @@ function uploadCAWithdraw(data: any) {
 export function setupBTCWallet({
     iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
     deprecated = false,
+    autoConnect = true,
     btcContext
 }: BTCWalletParams): WalletModuleFactory<InjectedWallet> {
-
     const btcWallet: any = async () => {
         return {
             id: 'btc-wallet',
@@ -356,9 +380,11 @@ export function setupBTCWallet({
                 downloadUrl: iconUrl,
                 deprecated,
                 available: true,
+                autoConnect,
                 btcContext,
             },
             init: BTCWallet,
+
         }
     }
 
@@ -374,13 +400,13 @@ function toHex(originalString: string) {
     return hexString
 }
 
-function initWalletButton(network:string, accountId:string, wallet:any) {
-    const checkAndSetupWalletButton=()=>{
+function initWalletButton(network: string, accountId: string, wallet: any) {
+    const checkAndSetupWalletButton = () => {
         // @ts-ignore
-        if(accountId && window.btcContext.account) {
+        if (accountId && window.btcContext.account) {
             // @ts-ignore
             setupWalletButton(network, wallet, window.btcContext);
-        }else{
+        } else {
             removeWalletButton();
             setTimeout(() => {
                 checkAndSetupWalletButton();
@@ -390,19 +416,19 @@ function initWalletButton(network:string, accountId:string, wallet:any) {
     checkAndSetupWalletButton();
 }
 
-const rcpUrls={
-    mainnet:['https://near.lava.build','https://rpc.mainnet.near.org','https://free.rpc.fastnear.com','https://near.drpc.org'],
-    testnet:['https://near-testnet.lava.build','https://rpc.testnet.near.org','https://near-testnet.drpc.org']
+const rcpUrls = {
+    mainnet: ['https://near.lava.build', 'https://rpc.mainnet.near.org', 'https://free.rpc.fastnear.com', 'https://near.drpc.org'],
+    testnet: ['https://near-testnet.lava.build', 'https://rpc.testnet.near.org', 'https://near-testnet.drpc.org']
 }
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-  
+
 async function pollTransactionStatus(network: string, hash: string) {
     const provider = new providers.FailoverRpcProvider(
         Object.values(rcpUrls[network as keyof typeof rcpUrls]).map(
-        (url) => new providers.JsonRpcProvider({ url })
+            (url) => new providers.JsonRpcProvider({ url })
         )
     );
 
@@ -411,11 +437,11 @@ async function pollTransactionStatus(network: string, hash: string) {
 
     while (attempt < maxAttempts) {
         attempt++;
-    
+
         const result = await provider.txStatus(hash, 'unused', 'FINAL').catch((error) => {
             console.log(error.message)
             console.error(`Failed to fetch transaction status: ${error.message}`);
-            if(attempt===maxAttempts) {
+            if (attempt === maxAttempts) {
                 throw new Error(`Transaction not found: ${hash}`);
             }
             return;
@@ -424,12 +450,12 @@ async function pollTransactionStatus(network: string, hash: string) {
             console.log(result);
             return result;
         }
-       
+
         await delay(10000);
         console.log(`RPC request failed, will retry ${maxAttempts - attempt} more times`);
 
     }
-   
+
 }
 
 

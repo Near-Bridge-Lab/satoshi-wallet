@@ -5,16 +5,30 @@ import { UnisatConnector, OKXConnector } from '../connector'
 import { useBTCProvider, useConnectModal } from '../hooks'
 
 import ComfirmBox from './confirmBox';
+import { InitContextHook } from './hook';
 
 const WalletSelectorContext =
   React.createContext<any>(null);
 
-export function BtcWalletSelectorContextProvider({ children }: { children: React.ReactNode }) {
+export function BtcWalletSelectorContextProvider({ children, autoConnect = false }: { children: React.ReactNode, autoConnect?: boolean }) {
   const [isProcessing, setIsProcessing] = useState(false)
 
   const walletSelectorContextValue = useMemo(() => {
+    const simpleFn: any = {}
+
     return {
       setIsProcessing,
+      emit: (eventName: string, e: any) => {
+        if (simpleFn[eventName] && simpleFn[eventName].length) {
+          simpleFn[eventName].forEach((fn: (e: any) => void) => {
+            fn(e)
+          })
+        }
+      },
+      on: (eventName: string, fn: (e: any) => void) => {
+        simpleFn[eventName] = simpleFn[eventName] || []
+        simpleFn[eventName].push(fn)
+      },
     }
   }, [])
 
@@ -38,7 +52,7 @@ export function BtcWalletSelectorContextProvider({ children }: { children: React
       },
       
     }}
-    autoConnect={true}
+    autoConnect={autoConnect}
     connectors={[new UnisatConnector()]}
   >
     {children}
@@ -47,16 +61,18 @@ export function BtcWalletSelectorContextProvider({ children }: { children: React
         setIsProcessing(false)
       }}/>
     }
+    <InitContextHook />
   </BTCConnectProvider>
   </WalletSelectorContext.Provider>
 }
 
 export function useBtcWalletSelector() {
   // @ts-ignore
-  const { openConnectModal, openConnectModalAsync, disconnect } = useConnectModal();
-  const { accounts, sendBitcoin, getPublicKey, provider, signMessage } = useBTCProvider();
+  const { openConnectModal, openConnectModalAsync, disconnect, requestDirectAccount } = useConnectModal();
+  const { accounts, sendBitcoin, getPublicKey, provider, signMessage, connector } = useBTCProvider();
   const publicKey = useRef<any>(null)
   const signMessageFn = useRef<any>(null)
+  const connectorRef = useRef<any>(null)
   const [updater, setUpdater] = useState<any>(1)
   const context = useContext(WalletSelectorContext);
   
@@ -72,15 +88,38 @@ export function useBtcWalletSelector() {
     signMessageFn.current = signMessage
   }, [signMessage])
 
+  useEffect(() => {
+    if (connector) {
+      connector.on('accountsChanged', (account) => {
+        if (account) {
+          getPublicKey().then((res) => {
+            publicKey.current = res
+            context.emit('updatePublicKey', res)
+          })
+        }
+      })
+    }
+    connectorRef.current = connector
+  }, [connector])
+
   return {
     login: async () => {
       setUpdater(updater + 1)
       if (openConnectModal) {
         await openConnectModal()
-        
       }
 
       return null
+    },
+    autoConnect: async () => {
+      let times = 0
+      while (!connectorRef.current) {
+        await sleep(1000)
+        if (times++ > 10) {
+          return null
+        }
+      }
+      await requestDirectAccount(connectorRef.current);
     },
     logout: () => {
       disconnect && disconnect()

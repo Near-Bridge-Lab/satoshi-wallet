@@ -16,5 +16,5 @@ export const useBTCProvider = () => {
     [connector]
   );
 
-  return { provider, accounts, getPublicKey, signMessage, getNetwork, switchNetwork, sendBitcoin, sendInscription };
+  return { provider, accounts, getPublicKey, signMessage, getNetwork, switchNetwork, sendBitcoin, sendInscription, connector };
 };
