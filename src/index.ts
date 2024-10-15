@@ -2,7 +2,7 @@ export * from './connector';
 export { ConnectProvider } from './context';
 export * from './hooks';
 export * from './components/btcWalletSelectorContext'
-export * from './utils/setupSatoshiWallet'
+export * from './utils/setupBTCWallet'
 export * from './components/hook'
 export const getVersion = () => {
   return '__buildVersion';

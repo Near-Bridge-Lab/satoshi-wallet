@@ -1,6 +1,6 @@
 {
-  "name": "satoshi-wallet",
-  "version": "1.2.1",
+  "name": "btc-wallet",
+  "version": "0.0.1",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -10,8 +10,7 @@
     "dist",
     "esm"
   ],
-  "author": "Particle Network",
-  "homepage": "https://particle.network",
+  "author": "BTC Wallet",
   "publishConfig": {
     "access": "public"
   },
@@ -26,8 +25,7 @@
     "bitcoin",
     "wallet",
     "connectkit",
-    "mpc",
-    "particle"
+    "mpc"
   ],
   "sideEffects": false,
   "scripts": {
