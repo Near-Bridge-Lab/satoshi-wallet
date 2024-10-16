@@ -338,7 +338,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const intention = {
       chain_id: "397",
       csna: accountId,
-      near_transactions: newTransactions.map((t) => Array.from(t.txBytes)),
+      near_transactions: newTransactions.map((t) => Array.from(t.txHex)),
       gas_token: token,
       gas_limit: "3000",
       nonce: Number(nonce).toString(),
