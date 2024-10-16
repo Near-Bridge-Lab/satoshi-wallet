@@ -78,6 +78,7 @@ function createIframe({
 }): HTMLIFrameElement {
   const iframe = document.createElement('iframe');
   iframe.id = 'satoshi-wallet-iframe';
+  iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
   Object.assign(iframe.style, {
