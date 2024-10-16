@@ -24,7 +24,7 @@ interface GlobalState {
   accounts: string[];
   provider: any;
   disconnect: () => void;
-  requestDirectAccount: (connector: BaseConnector) => void;
+  requestDirectAccount: (connector: BaseConnector) => any;
   getPublicKey: () => Promise<string>;
   signMessage: (message: string) => Promise<string>;
   evmAccount?: string;
@@ -231,12 +231,15 @@ export const ConnectProvider = ({
 
   const requestDirectAccount = useCallback(
     async (connector: BaseConnector) => {
+      console.log(111)
       let accounts = await connector.getAccounts();
       console.log('requestAccount start, autoConnect', accounts, autoConnect);
       if (accounts.length === 0) {
         accounts = await connector.requestAccounts();
       }
       setAccounts(accounts);
+
+      return accounts
     },
     []
   );
@@ -245,6 +248,7 @@ export const ConnectProvider = ({
     if (connector) {
       requestAccount(connector).catch((e: any) => {
         console.log('get account error', e);
+
         setAccounts([]);
       });
     } else {

@@ -101,7 +101,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
             // @ts-ignore
             const btcContext = window.btcContext
     
-            // return
             if (btcContext) {
                 clearInterval(inter)
                 const context = btcContext.getContext()
@@ -111,7 +110,14 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
                     emitter.emit('accountsChanged', {
                         accounts: [{
                             accountId: nearTempAddress,
-                            // active: true
+                        }]
+                    })
+                })
+
+                context.on('btcLoginError', async (e: any) => {
+                    emitter.emit('accountsChanged', {
+                        accounts: [{
+                            accountId: '',
                         }]
                     })
                 })
@@ -120,7 +126,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
                 // @ts-ignore
                 if (metadata.autoConnect && localStorage.getItem('near-wallet-selector:selectedWalletId') === '"btc-wallet"') {
-                    // btcContext.autoConnect()
+                    console.log(4444)
+                    btcContext.autoConnect()
                 }
     
                 clearInterval(inter)

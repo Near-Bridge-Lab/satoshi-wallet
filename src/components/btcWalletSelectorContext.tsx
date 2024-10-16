@@ -52,7 +52,7 @@ export function BtcWalletSelectorContextProvider({ children, autoConnect = false
       },
       
     }}
-    autoConnect={autoConnect}
+    autoConnect={false}
     connectors={[new UnisatConnector()]}
   >
     {children}
@@ -91,17 +91,25 @@ export function useBtcWalletSelector() {
   }, [signMessage])
 
   useEffect(() => {
+    const fn = (account: any) => {
+      if (account) {
+        getPublicKey().then((res) => {
+          publicKey.current = res
+          context.emit('updatePublicKey', res)
+        })
+      }
+    }
+
     if (connector) {
-      connector.on('accountsChanged', (account) => {
-        if (account) {
-          getPublicKey().then((res) => {
-            publicKey.current = res
-            context.emit('updatePublicKey', res)
-          })
-        }
-      })
+      connector.on('accountsChanged', fn)
     }
     connectorRef.current = connector
+
+    return () => {
+      if (connector) {
+        connector.removeListener('accountsChanged', fn)
+      }
+    }
   }, [connector])
 
   return {
@@ -121,7 +129,10 @@ export function useBtcWalletSelector() {
           return null
         }
       }
-      await requestDirectAccount(connectorRef.current);
+      requestDirectAccount(connectorRef.current).catch((e: any) => {
+        context.emit('btcLoginError')
+      });
+      
     },
     logout: () => {
       disconnect && disconnect()
