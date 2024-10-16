@@ -1,0 +1,9 @@
+/.next/
+/out/
+/build/
+.local
+node_modules
+
+**/*.svg
+**/*.sh
+*.yaml
