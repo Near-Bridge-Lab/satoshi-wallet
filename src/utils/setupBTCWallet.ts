@@ -296,9 +296,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         const newTransactions = params.transactions.map((transaction, index) => {
             let nearNonceNumber = accessKey.nonce + BigInt(1);
             if (nearNonceApi) {
-                nearNonceNumber =
-                    Number(nearNonceApi.result_data) > nearNonceNumber
-                        ? BigInt(Number(nearNonceApi.result_data))
+                nearNonceNumber =  
+                    BigInt(nearNonceApi.result_data) > nearNonceNumber
+                        ? BigInt((nearNonceApi.result_data))
                         : nearNonceNumber;
             }
             const newActions = transaction.actions
@@ -339,9 +339,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
         const nonceApi = await getNonceFromApi(accountId as string);
 
-        const nonce = nonceApi?.result_data
-            ? Number(nonceApi?.result_data)
-            : accountInfo.nonce;
+        const nonce = Number(nonceApi?.result_data) > Number(accountInfo.nonce)
+            ? String(nonceApi?.result_data)
+            : String(accountInfo.nonce);
 
         const intention = {
             chain_id: "397",
@@ -349,7 +349,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
             near_transactions: newTransactions.map((t) => t.txHex),
             gas_token: token,
             gas_limit: "3000",
-            nonce: Number(nonce).toString(),
+            nonce,
         };
 
         const strIntention = JSON.stringify(intention);
