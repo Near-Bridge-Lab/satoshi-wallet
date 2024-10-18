@@ -325,7 +325,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
                 baseDecode(header.hash),
             );
             const txBytes = encodeTransaction(_transaction);
-            const txHex = toHex(txBytes.toString());
+            const txHex = Array.from(txBytes, (byte)=> ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');;
+            console.log('txHex:', txHex)
+
             const hash = bs58.encode(new Uint8Array(sha256.array(txBytes)));
             return { txBytes, txHex, hash };
         });
@@ -344,7 +346,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         const intention = {
             chain_id: "397",
             csna: accountId,
-            near_transactions: newTransactions.map((t) => Array.from(t.txHex)),
+            near_transactions: newTransactions.map((t) => t.txHex),
             gas_token: token,
             gas_limit: "3000",
             nonce: Number(nonce).toString(),
