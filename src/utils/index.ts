@@ -49,7 +49,8 @@ export async function copyToClipboard(text: string) {
   });
 }
 
-export const defaultTokenIcon = 'https://static.particle.network/token-list/defaultToken/default.png';
+export const defaultTokenIcon =
+  'https://static.particle.network/token-list/defaultToken/default.png';
 
 export const ipfsToSrc = (ipfs: string) => {
   if (!ipfs || !ipfs.startsWith('ipfs://')) {
@@ -62,10 +63,12 @@ export const ipfsToSrc = (ipfs: string) => {
 export const checkBTCVersion = (
   accountContracts: AAOptions['accountContracts'],
   accountContractKey: string,
-  version: string
+  version: string,
 ) => {
   if (!accountContracts[accountContractKey]) {
     return false;
   }
   return accountContracts[accountContractKey].some((item) => item.version === version);
 };
+
+export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,15 +1,22 @@
-import { Wallet } from '@near-wallet-selector/core';
+import type { Wallet } from '@near-wallet-selector/core';
+import { delay } from '.';
 
-export function setupWalletButton(
-  network: string,
-  wallet: Wallet,
-  originalWallet: { account: string | null; getPublicKey: () => Promise<string> },
-) {
+interface OriginalWallet {
+  account: string | null;
+  getPublicKey: () => Promise<string>;
+}
 
-  if (document.getElementById('satoshi-wallet-button')) return;
+export function setupWalletButton(network: string, wallet: Wallet, originalWallet: OriginalWallet) {
+  if (document.getElementById('satoshi-wallet-button')) {
+    sendInitializeData(wallet, originalWallet);
+    return;
+  }
 
   const iframe = createIframe({
-    iframeUrl: network === 'testnet' ? 'https://wallet-dev.satoshibridge.top' : 'https://wallet.satoshibridge.top',
+    iframeUrl:
+      network === 'testnet'
+        ? 'https://wallet-dev.satoshibridge.top'
+        : 'https://wallet.satoshibridge.top',
     iframeStyle: { width: '400px', height: '650px' },
   });
 
@@ -49,7 +56,9 @@ function createFloatingButtonWithIframe({
 
   document.body.appendChild(button);
 
-  const iframeVisible = localStorage.getItem('iframeVisible') === 'true' || localStorage.getItem('iframeVisible') === null;
+  const iframeVisible =
+    localStorage.getItem('iframeVisible') === 'true' ||
+    localStorage.getItem('iframeVisible') === null;
   button.src = iframeVisible ? closeImageUrl : openImageUrl;
   iframe.style.display = iframeVisible ? 'block' : 'none';
 
@@ -97,41 +106,50 @@ function createIframe({
   return iframe;
 }
 
+async function sendInitializeData(wallet: Wallet, originalWallet: OriginalWallet) {
+  await delay(1000);
+  const accountId = (await wallet?.getAccounts())?.[0].accountId;
+  const originalAccountId = originalWallet.account;
+  const originalPublicKey = await originalWallet.getPublicKey();
+  const iframe = document.getElementById('satoshi-wallet-iframe') as HTMLIFrameElement | null;
+  console.log('sendInitializeData', accountId, originalAccountId, originalPublicKey);
+  if (iframe?.contentWindow && iframe.contentDocument?.readyState === 'complete') {
+    console.log('sendInitializeData postMessage');
+    iframe.contentWindow.postMessage({
+      action: 'initializeData',
+      success: true,
+      data: {
+        accountId,
+        originalAccountId,
+        originalPublicKey,
+      },
+    });
+  }
+}
+
 async function setupButtonClickHandler(
   button: HTMLImageElement,
   iframe: HTMLIFrameElement,
   wallet: Wallet,
-  originalWallet: { account: string | null; getPublicKey: () => Promise<string> },
+  originalWallet: OriginalWallet,
 ) {
-  const accountId = (await wallet?.getAccounts())?.[0].accountId;
-  const originalAccountId = originalWallet.account;
-  const originalPublicKey = await originalWallet.getPublicKey();
-
-  console.log('accountId', accountId);
-  console.log('originalAccountId', originalAccountId);
-  console.log('originalPublicKey', originalPublicKey);
-
+  iframe.onload = () => sendInitializeData(wallet, originalWallet);
   const iframeSrc = new URL(iframe.src);
   iframeSrc.searchParams.set('origin', window.location.origin);
-  if (accountId) iframeSrc.searchParams.set('accountId', accountId);
-  if (originalAccountId) iframeSrc.searchParams.set('originalAccountId', originalAccountId);
-  if (originalPublicKey) iframeSrc.searchParams.set('originalPublicKey', originalPublicKey);
-
   iframe.src = iframeSrc.toString();
-
   window.addEventListener('message', async (event) => {
     if (event.origin !== iframeSrc.origin) return;
-    const { action, requestId, params } = event.data;
+    const { action, requestId, data } = event.data;
 
     if (action === 'signAndSendTransaction') {
       console.log('signAndSendTransaction message', event.data);
       try {
-        const result = await wallet.signAndSendTransaction(params);
+        const result = await wallet.signAndSendTransaction(data);
         console.log('signAndSendTransaction result', result);
         event.source?.postMessage(
           {
             requestId,
-            result,
+            data,
             success: true,
           },
           { targetOrigin: event.origin },

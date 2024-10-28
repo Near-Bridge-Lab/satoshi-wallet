@@ -17,6 +17,7 @@ import { setupWalletButton, removeWalletButton } from './initWalletButton';
 
 // export * from './btcWalletSelectorContext'
 import type { useBtcWalletSelector } from './../components/btcWalletSelectorContext';
+import { delay } from '.';
 
 const { transfer, functionCall } = actionCreators;
 
@@ -119,18 +120,14 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       if (btcContext) {
         clearInterval(inter);
         const context = btcContext.getContext();
-
         const accountId = state.getAccount();
         initWalletButton(options.network.networkId, accountId, wallet);
 
         context.on('updatePublicKey', async (btcPublicKey: string) => {
-          const { nearTempAddress, nearTempPublicKey } =
-            await getNearAccountByBtcPublicKey(btcPublicKey);
-          console.log('accountsChanged:', nearTempAddress, btcContext.account);
-          removeWalletButton();
-          setTimeout(() => {
-            initWalletButton(options.network.networkId, nearTempAddress, wallet);
-          }, 1000);
+          const { nearTempAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
+          console.info('accountsChanged:', nearTempAddress, btcContext.account);
+
+          initWalletButton(options.network.networkId, nearTempAddress, wallet);
 
           emitter.emit('accountsChanged', {
             accounts: [
@@ -155,7 +152,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
           metadata.autoConnect &&
           localStorage.getItem('near-wallet-selector:selectedWalletId') === '"btc-wallet"'
         ) {
-          btcContext.autoConnect();
+          await btcContext.autoConnect();
         }
 
         clearInterval(inter);
@@ -216,6 +213,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const btcPublicKey = await btcContext.getPublicKey();
 
     const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+
+    initWalletButton(options.network.networkId, accountId, wallet);
 
     return [
       {
@@ -428,18 +427,19 @@ function toHex(originalString: string) {
   return hexString;
 }
 
-function initWalletButton(network: string, accountId: string, wallet: any) {
+async function initWalletButton(network: string, accountId: string, wallet: any) {
+  await delay(2000);
+  console.log('initWalletButton', accountId, window.btcContext.account);
   const checkAndSetupWalletButton = () => {
-    // @ts-ignore
     if (accountId && window.btcContext.account) {
-      // @ts-ignore
       setupWalletButton(network, wallet, window.btcContext);
     } else {
       removeWalletButton();
+    }
+    !window.btcContext.account &&
       setTimeout(() => {
         checkAndSetupWalletButton();
-      }, 5000);
-    }
+      }, 10000);
   };
   checkAndSetupWalletButton();
 }
@@ -457,10 +457,6 @@ const rcpUrls = {
     'https://near-testnet.drpc.org',
   ],
 };
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function pollTransactionStatuses(network: string, hashes: string[]) {
   const provider = new providers.FailoverRpcProvider(

@@ -28,7 +28,7 @@ const buildConfig = {
     {
       name: 'external',
       setup(build) {
-        let filter = /^[^./]|^\.[^./]|^\.\.[^/]/;
+        const filter = /^[^./]|^\.[^./]|^\.\.[^/]/;
         build.onResolve({ filter }, (args) => ({
           external: true,
           path: args.path,
