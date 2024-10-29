@@ -1,5 +1,4 @@
 import type { Wallet } from '@near-wallet-selector/core';
-import { delay } from '.';
 
 interface OriginalWallet {
   account: string | null;
@@ -7,8 +6,8 @@ interface OriginalWallet {
 }
 
 export function setupWalletButton(network: string, wallet: Wallet, originalWallet: OriginalWallet) {
+  console.log('setupWalletButton');
   if (document.getElementById('satoshi-wallet-button')) {
-    sendInitializeData(wallet, originalWallet);
     return;
   }
 
@@ -106,37 +105,25 @@ function createIframe({
   return iframe;
 }
 
-async function sendInitializeData(wallet: Wallet, originalWallet: OriginalWallet) {
-  await delay(1000);
-  const accountId = (await wallet?.getAccounts())?.[0].accountId;
-  const originalAccountId = originalWallet.account;
-  const originalPublicKey = await originalWallet.getPublicKey();
-  const iframe = document.getElementById('satoshi-wallet-iframe') as HTMLIFrameElement | null;
-  console.log('sendInitializeData', accountId, originalAccountId, originalPublicKey);
-  if (iframe?.contentWindow && iframe.contentDocument?.readyState === 'complete') {
-    console.log('sendInitializeData postMessage');
-    iframe.contentWindow.postMessage({
-      action: 'initializeData',
-      success: true,
-      data: {
-        accountId,
-        originalAccountId,
-        originalPublicKey,
-      },
-    });
-  }
-}
-
 async function setupButtonClickHandler(
   button: HTMLImageElement,
   iframe: HTMLIFrameElement,
   wallet: Wallet,
   originalWallet: OriginalWallet,
 ) {
-  iframe.onload = () => sendInitializeData(wallet, originalWallet);
+  const accountId = (await wallet?.getAccounts())?.[0].accountId;
+  const originalAccountId = originalWallet.account;
+  const originalPublicKey = await originalWallet.getPublicKey();
+  console.log({ accountId, originalAccountId, originalPublicKey });
   const iframeSrc = new URL(iframe.src);
   iframeSrc.searchParams.set('origin', window.location.origin);
+  accountId && iframeSrc.searchParams.set('accountId', accountId);
+  originalAccountId && iframeSrc.searchParams.set('originalAccountId', originalAccountId);
+  originalPublicKey && iframeSrc.searchParams.set('originalPublicKey', originalPublicKey);
+
   iframe.src = iframeSrc.toString();
+  console.log('iframe src', iframe.src);
+
   window.addEventListener('message', async (event) => {
     if (event.origin !== iframeSrc.origin) return;
     const { action, requestId, data } = event.data;

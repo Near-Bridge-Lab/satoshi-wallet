@@ -428,18 +428,18 @@ function toHex(originalString: string) {
 }
 
 async function initWalletButton(network: string, accountId: string, wallet: any) {
-  await delay(2000);
+  await delay(1000);
   console.log('initWalletButton', accountId, window.btcContext.account);
   const checkAndSetupWalletButton = () => {
     if (accountId && window.btcContext.account) {
       setupWalletButton(network, wallet, window.btcContext);
     } else {
       removeWalletButton();
+      !window.btcContext.account &&
+        setTimeout(() => {
+          checkAndSetupWalletButton();
+        }, 5000);
     }
-    !window.btcContext.account &&
-      setTimeout(() => {
-        checkAndSetupWalletButton();
-      }, 10000);
   };
   checkAndSetupWalletButton();
 }
