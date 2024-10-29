@@ -112,22 +112,25 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransaction,
     signAndSendTransactions,
   };
+
+  initWalletButton(options.network.networkId, wallet);
+
   if (!inter) {
     inter = setInterval(async () => {
       // @ts-ignore
       const btcContext = window.btcContext;
 
+      console.log('inter btcContext:', btcContext);
+
       if (btcContext) {
         clearInterval(inter);
         const context = btcContext.getContext();
-        const accountId = state.getAccount();
-        initWalletButton(options.network.networkId, accountId, wallet);
 
         context.on('updatePublicKey', async (btcPublicKey: string) => {
           const { nearTempAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
-          console.info('accountsChanged:', nearTempAddress, btcContext.account);
 
-          initWalletButton(options.network.networkId, nearTempAddress, wallet);
+          removeWalletButton();
+          initWalletButton(options.network.networkId, wallet);
 
           emitter.emit('accountsChanged', {
             accounts: [
@@ -197,8 +200,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     console.log(provider);
     const accountId = state.getAccount();
     const publicKey = state.getPublicKey();
-    // @ts-ignore
+
     const btcContext = window.btcContext;
+
+    initWalletButton(options.network.networkId, wallet);
 
     if (accountId && publicKey) {
       return [
@@ -213,8 +218,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const btcPublicKey = await btcContext.getPublicKey();
 
     const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
-
-    initWalletButton(options.network.networkId, accountId, wallet);
 
     return [
       {
@@ -362,6 +365,24 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     }
   }
 
+  async function initWalletButton(network: string, wallet: any) {
+    const checkAndSetupWalletButton = () => {
+      const accountId = state.getAccount();
+      const btcContext = window.btcContext;
+      console.log('checkAndSetupWalletButton:', accountId, btcContext.account);
+      if (accountId && btcContext.account) {
+        setupWalletButton(network, wallet, btcContext);
+      } else {
+        removeWalletButton();
+        setTimeout(() => {
+          checkAndSetupWalletButton();
+        }, 5000);
+      }
+    };
+    await delay(1000);
+    checkAndSetupWalletButton();
+  }
+
   return wallet as any;
 };
 
@@ -425,23 +446,6 @@ function toHex(originalString: string) {
   let hexString = hexArray.join('');
   hexString = hexString.replace(/(^0+)/g, '');
   return hexString;
-}
-
-async function initWalletButton(network: string, accountId: string, wallet: any) {
-  await delay(1000);
-  console.log('initWalletButton', accountId, window.btcContext.account);
-  const checkAndSetupWalletButton = () => {
-    if (accountId && window.btcContext.account) {
-      setupWalletButton(network, wallet, window.btcContext);
-    } else {
-      removeWalletButton();
-      !window.btcContext.account &&
-        setTimeout(() => {
-          checkAndSetupWalletButton();
-        }, 5000);
-    }
-  };
-  checkAndSetupWalletButton();
 }
 
 const rcpUrls = {

@@ -19,6 +19,15 @@ export function setupWalletButton(network: string, wallet: Wallet, originalWalle
     iframeStyle: { width: '400px', height: '650px' },
   });
 
+  iframe.addEventListener('mouseenter', () => {
+    if (document.activeElement !== iframe) {
+      document.activeElement?.setAttribute('tabindex', 'null');
+      setTimeout(() => {
+        iframe.focus();
+      }, 0);
+    }
+  });
+
   const button = createFloatingButtonWithIframe({
     openImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn.png',
     closeImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn-active.png',
@@ -72,6 +81,10 @@ function createFloatingButtonWithIframe({
     button.src = isCurrentlyVisible ? openImageUrl : closeImageUrl;
 
     localStorage.setItem('iframeVisible', String(!isCurrentlyVisible));
+
+    setTimeout(() => {
+      iframe.focus();
+    }, 0);
   };
 
   return button;
@@ -96,7 +109,7 @@ function createIframe({
     zIndex: '100000',
     boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
     borderRadius: '10px',
-    display: 'block', // 初始状态为显示
+    display: 'block',
     ...iframeStyle,
   });
 
