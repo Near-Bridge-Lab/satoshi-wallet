@@ -114,6 +114,10 @@ export function useBtcWalletSelector() {
 
   return {
     login: async () => {
+      const account = accounts && accounts.length ? accounts[0] : null
+      if (account) {
+        return account
+      }
       setUpdater(updater + 1)
       if (openConnectModal) {
         await openConnectModal()
@@ -136,6 +140,7 @@ export function useBtcWalletSelector() {
     },
     logout: () => {
       disconnect && disconnect()
+      context.emit('btcLogOut')
     },
     account: accounts && accounts.length ? accounts[0] : null,
     getPublicKey: async () => {

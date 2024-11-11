@@ -31,6 +31,7 @@ interface BTCWalletParams {
   iconUrl?: string;
   deprecated?: boolean;
   autoConnect?: boolean;
+  syncLogOut?: boolean;
 }
 
 const config: Record<
@@ -148,6 +149,13 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
           });
         });
 
+        context.on('btcLogOut', async (e: any) => {
+          console.log(3333)
+          emitter.emit('accountsChanged', {
+            accounts: [],
+          });
+        });
+
         console.log('metadata.autoConnect:', metadata);
 
         if (
@@ -229,7 +237,11 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   async function signOut() {
     const btcContext = window.btcContext;
-    btcContext.logout();
+    // @ts-ignore
+    if (metadata.syncLogOut) {
+      btcContext.logout();
+    }
+    
     state.clear();
     window.localStorage.removeItem('near-wallet-selector:selectedWalletId');
     removeWalletButton();
@@ -418,6 +430,7 @@ export function setupBTCWallet({
   iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
   deprecated = false,
   autoConnect = true,
+  syncLogOut = true
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
   const btcWallet: any = async () => {
     return {
@@ -431,6 +444,7 @@ export function setupBTCWallet({
         deprecated,
         available: true,
         autoConnect,
+        syncLogOut,
       },
       init: BTCWallet,
     };
@@ -506,7 +520,5 @@ async function pollTransactionStatuses(network: string, hashes: string[]) {
 }
 
 export default {
-  // useBtcWalletSelector,
-  // BtcWalletSelectorContextProvider,
   setupBTCWallet,
 };
