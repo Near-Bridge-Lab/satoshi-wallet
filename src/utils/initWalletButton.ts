@@ -5,6 +5,12 @@ interface OriginalWallet {
   getPublicKey: () => Promise<string>;
 }
 
+const walletUrlConfig: { [key: string]: string } = {
+  dev: 'https://wallet-dev.satoshibridge.top',
+  testnet: 'https://wallet-test.satoshibridge.top',
+  mainnet: 'https://wallet.satoshibridge.top',
+};
+
 export function setupWalletButton(network: string, wallet: Wallet, originalWallet: OriginalWallet) {
   console.log('setupWalletButton');
   if (document.getElementById('satoshi-wallet-button')) {
@@ -12,10 +18,7 @@ export function setupWalletButton(network: string, wallet: Wallet, originalWalle
   }
 
   const iframe = createIframe({
-    iframeUrl:
-      network === 'testnet'
-        ? 'https://wallet-dev.satoshibridge.top'
-        : 'https://wallet.satoshibridge.top',
+    iframeUrl: walletUrlConfig[network],
     iframeStyle: { width: '400px', height: '650px' },
   });
 

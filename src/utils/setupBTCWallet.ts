@@ -32,6 +32,7 @@ interface BTCWalletParams {
   deprecated?: boolean;
   autoConnect?: boolean;
   syncLogOut?: boolean;
+  isDev?: boolean;
 }
 
 const config: Record<
@@ -42,6 +43,11 @@ const config: Record<
     contractId: string;
   }
 > = {
+  dev: {
+    base_url: 'https://api.dev.satoshibridge.top/v1',
+    token: 'nbtc1-nsp.testnet',
+    contractId: 'dev1-nsp.testnet',
+  },
   testnet: {
     base_url: 'https://api.testnet.satoshibridge.top/v1',
     token: 'nbtc2-nsp.testnet',
@@ -114,7 +120,11 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransactions,
   };
 
-  initWalletButton(options.network.networkId, wallet);
+  const currentConfig =
+    'isDev' in metadata && metadata.isDev ? config.dev : config[options.network.networkId];
+  const walletNetwork = 'isDev' in metadata && metadata.isDev ? 'dev' : options.network.networkId;
+
+  initWalletButton(walletNetwork, wallet);
 
   if (!inter) {
     inter = setInterval(async () => {
@@ -131,7 +141,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
           const { nearTempAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
           removeWalletButton();
-          initWalletButton(options.network.networkId, wallet);
+          initWalletButton(walletNetwork, wallet);
 
           emitter.emit('accountsChanged', {
             accounts: [
@@ -150,7 +160,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         });
 
         context.on('btcLogOut', async (e: any) => {
-          console.log(3333)
+          console.log(3333);
           emitter.emit('accountsChanged', {
             accounts: [],
           });
@@ -172,14 +182,13 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function viewMethod({ method, args = {} }: { method: string; args: any }) {
-    const res: any = await provider.query({
+    const res = await provider.query<any>({
       request_type: 'call_function',
-      account_id: config[options.network.networkId].contractId,
+      account_id: currentConfig.contractId,
       method_name: method,
       args_base64: Buffer.from(JSON.stringify(args)).toString('base64'),
       finality: 'optimistic',
     });
-
     return JSON.parse(Buffer.from(res.result).toString());
   }
 
@@ -205,13 +214,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function signIn({ contractId, methodNames }: any) {
-    console.log(provider);
     const accountId = state.getAccount();
     const publicKey = state.getPublicKey();
 
     const btcContext = window.btcContext;
 
-    initWalletButton(options.network.networkId, wallet);
+    initWalletButton(walletNetwork, wallet);
 
     if (accountId && publicKey) {
       return [
@@ -241,7 +249,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     if (metadata.syncLogOut) {
       btcContext.logout();
     }
-    
+
     state.clear();
     window.localStorage.removeItem('near-wallet-selector:selectedWalletId');
     removeWalletButton();
@@ -291,7 +299,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const publicKeyFormat = PublicKey.from(publicKey);
 
-    const nearNonceApi = await getNearNonceFromApi(options.network.networkId, accountId);
+    const nearNonceApi = await getNearNonceFromApi(currentConfig.base_url, accountId);
 
     const newTransactions = params.transactions.map((transaction, index) => {
       let nearNonceNumber = accessKey.nonce + BigInt(1);
@@ -339,7 +347,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       args: { account_id: accountId },
     });
 
-    const nonceApi = await getNonceFromApi(options.network.networkId, accountId as string);
+    const nonceApi = await getNonceFromApi(currentConfig.base_url, accountId as string);
 
     const nonce =
       Number(nonceApi?.result_data) > Number(accountInfo.nonce)
@@ -350,16 +358,27 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       chain_id: '397',
       csna: accountId,
       near_transactions: newTransactions.map((t) => t.txHex),
-      gas_token: config[options.network.networkId].token,
-      gas_limit: '3000',
       nonce,
+      gas_token: currentConfig.token,
+      gas_limit: '3000',
+      use_near_pay_gas: false,
     };
+
+    const nearAccount = await provider.query<any>({
+      request_type: 'view_account',
+      account_id: accountId,
+      finality: 'final',
+    });
+    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    if (availableBalance > 0.2) {
+      intention.use_near_pay_gas = true;
+    }
 
     const strIntention = JSON.stringify(intention);
 
     const signature = await btcContext.signMessage(strIntention);
 
-    const result = await uploadBTCTx(options.network.networkId, {
+    const result = await uploadBTCTx(currentConfig.base_url, {
       sig: signature,
       btcPubKey: state.getBtcPublicKey(),
       data: toHex(strIntention),
@@ -398,8 +417,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   return wallet as any;
 };
 
-function getNonceFromApi(network: string, accountId: string) {
-  return fetch(`${config[network].base_url}/nonce?csna=${accountId}`, {
+function getNonceFromApi(url: string, accountId: string) {
+  return fetch(`${url}/nonce?csna=${accountId}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -407,8 +426,8 @@ function getNonceFromApi(network: string, accountId: string) {
   }).then((res) => res.json());
 }
 
-function getNearNonceFromApi(network: string, accountId: string) {
-  return fetch(`${config[network].base_url}/nonceNear?csna=${accountId}`, {
+function getNearNonceFromApi(url: string, accountId: string) {
+  return fetch(`${url}/nonceNear?csna=${accountId}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -416,8 +435,8 @@ function getNearNonceFromApi(network: string, accountId: string) {
   }).then((res) => res.json());
 }
 
-function uploadBTCTx(network: string, data: any) {
-  return fetch(`${config[network].base_url}/receiveTransaction`, {
+function uploadBTCTx(url: string, data: any) {
+  return fetch(`${url}/receiveTransaction`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -430,9 +449,10 @@ export function setupBTCWallet({
   iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
   deprecated = false,
   autoConnect = true,
-  syncLogOut = true
+  syncLogOut = true,
+  isDev = false,
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
-  const btcWallet: any = async () => {
+  const btcWallet = async () => {
     return {
       id: 'btc-wallet',
       type: 'injected',
@@ -445,9 +465,10 @@ export function setupBTCWallet({
         available: true,
         autoConnect,
         syncLogOut,
+        isDev,
       },
       init: BTCWallet,
-    };
+    } as any;
   };
 
   return btcWallet;
