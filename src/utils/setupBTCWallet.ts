@@ -358,10 +358,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       chain_id: '397',
       csna: accountId,
       near_transactions: newTransactions.map((t) => t.txHex),
-      nonce,
       gas_token: currentConfig.token,
       gas_limit: '3000',
       use_near_pay_gas: false,
+      nonce,
     };
 
     const nearAccount = await provider.query<any>({
