@@ -1,9 +1,10 @@
 export * from './connector';
 export { ConnectProvider } from './context';
 export * from './hooks';
-export * from './components/btcWalletSelectorContext'
-export * from './utils/setupBTCWallet'
-export * from './components/hook'
+export * from './components/btcWalletSelectorContext';
+export * from './utils/setupBTCWallet';
+export * from './components/hook';
+export * from './utils/bridgeSupplyUtils';
 export const getVersion = () => {
   return '__buildVersion';
 };

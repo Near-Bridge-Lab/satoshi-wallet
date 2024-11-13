@@ -18,7 +18,8 @@ import { setupWalletButton, removeWalletButton } from './initWalletButton';
 // export * from './btcWalletSelectorContext'
 import type { useBtcWalletSelector } from './../components/btcWalletSelectorContext';
 import { delay } from '.';
-
+import { walletConfig, nearRpcUrls } from '../config';
+import request from './request';
 const { transfer, functionCall } = actionCreators;
 
 declare global {
@@ -34,31 +35,6 @@ interface BTCWalletParams {
   syncLogOut?: boolean;
   isDev?: boolean;
 }
-
-const config: Record<
-  string,
-  {
-    base_url: string;
-    token: string;
-    contractId: string;
-  }
-> = {
-  dev: {
-    base_url: 'https://api.dev.satoshibridge.top/v1',
-    token: 'nbtc1-nsp.testnet',
-    contractId: 'dev1-nsp.testnet',
-  },
-  testnet: {
-    base_url: 'https://api.testnet.satoshibridge.top/v1',
-    token: 'nbtc2-nsp.testnet',
-    contractId: 'dev2-nsp.testnet',
-  },
-  mainnet: {
-    base_url: 'https://api.mainnet.satoshibridge.top/v1',
-    token: '',
-    contractId: '',
-  },
-};
 
 const state: any = {
   saveAccount(account: string) {
@@ -121,7 +97,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   };
 
   const currentConfig =
-    'isDev' in metadata && metadata.isDev ? config.dev : config[options.network.networkId];
+    'isDev' in metadata && metadata.isDev
+      ? walletConfig.dev
+      : walletConfig[options.network.networkId];
   const walletNetwork = 'isDev' in metadata && metadata.isDev ? 'dev' : options.network.networkId;
 
   initWalletButton(walletNetwork, wallet);
@@ -418,31 +396,18 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 };
 
 function getNonceFromApi(url: string, accountId: string) {
-  return fetch(`${url}/nonce?csna=${accountId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  }).then((res) => res.json());
+  return request<any>(`${url}/v1/nonce?csna=${accountId}`);
 }
 
 function getNearNonceFromApi(url: string, accountId: string) {
-  return fetch(`${url}/nonceNear?csna=${accountId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  }).then((res) => res.json());
+  return request<any>(`${url}/v1/nonceNear?csna=${accountId}`);
 }
 
 function uploadBTCTx(url: string, data: any) {
-  return fetch(`${url}/receiveTransaction`, {
+  return request<any>(`${url}/v1/receiveTransaction`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  }).then((res) => res.json());
+    body: data,
+  });
 }
 
 export function setupBTCWallet({
@@ -483,23 +448,9 @@ function toHex(originalString: string) {
   return hexString;
 }
 
-const rcpUrls = {
-  mainnet: [
-    'https://near.lava.build',
-    'https://rpc.mainnet.near.org',
-    'https://free.rpc.fastnear.com',
-    'https://near.drpc.org',
-  ],
-  testnet: [
-    'https://near-testnet.lava.build',
-    'https://rpc.testnet.near.org',
-    'https://near-testnet.drpc.org',
-  ],
-};
-
 async function pollTransactionStatuses(network: string, hashes: string[]) {
   const provider = new providers.FailoverRpcProvider(
-    Object.values(rcpUrls[network as keyof typeof rcpUrls]).map(
+    Object.values(nearRpcUrls[network as keyof typeof nearRpcUrls]).map(
       (url) => new providers.JsonRpcProvider({ url }),
     ),
   );
