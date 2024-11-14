@@ -113,6 +113,7 @@ function createIframe({
     boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
     borderRadius: '10px',
     display: 'block',
+    border: 'none',
     ...iframeStyle,
   });
 
@@ -138,7 +139,6 @@ async function setupButtonClickHandler(
   originalPublicKey && iframeSrc.searchParams.set('originalPublicKey', originalPublicKey);
 
   iframe.src = iframeSrc.toString();
-  console.log('iframe src', iframe.src);
 
   window.addEventListener('message', async (event) => {
     if (event.origin !== iframeSrc.origin) return;

@@ -107,8 +107,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       // @ts-ignore
       const btcContext = window.btcContext;
 
-      console.log('inter btcContext:', btcContext);
-
       if (btcContext) {
         clearInterval(inter);
         const context = btcContext.getContext();
@@ -136,13 +134,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         });
 
         context.on('btcLogOut', async (e: any) => {
-          console.log(3333);
           emitter.emit('accountsChanged', {
             accounts: [],
           });
         });
-
-        console.log('metadata.autoConnect:', metadata);
 
         if (
           'autoConnect' in metadata &&
@@ -360,8 +355,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       data: toHex(strIntention),
     });
 
-    console.log('result:', result);
-
     if (result.result_code === 0) {
       const hash = newTransactions.map((t) => t.hash);
       console.log('txHash:', hash);
@@ -376,7 +369,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const checkAndSetupWalletButton = () => {
       const accountId = state.getAccount();
       const btcContext = window.btcContext;
-      console.log('checkAndSetupWalletButton:', accountId, btcContext.account);
+      console.log('checkAndSetupWalletButton:', {
+        nearAccountId: accountId,
+        btcAccountId: btcContext.account,
+      });
       if (accountId && btcContext.account) {
         setupWalletButton(network, wallet, btcContext);
       } else {

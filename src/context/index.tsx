@@ -205,7 +205,6 @@ export const ConnectProvider = ({
   const requestAccount = useCallback(
     async (connector: BaseConnector) => {
       let accounts = await connector.getAccounts();
-      console.log('requestAccount start, autoConnect', accounts, autoConnect);
       if (accounts.length === 0 && autoConnect) {
         accounts = await connector.requestAccounts();
       }
@@ -216,7 +215,6 @@ export const ConnectProvider = ({
 
   const requestDirectAccount = useCallback(async (connector: BaseConnector) => {
     let accounts = await connector.getAccounts();
-    console.log('requestAccount start, autoConnect', accounts, autoConnect);
     if (accounts.length === 0) {
       accounts = await connector.requestAccounts();
     }
@@ -228,7 +226,7 @@ export const ConnectProvider = ({
   useEffect(() => {
     if (connector) {
       requestAccount(connector).catch((e: any) => {
-        console.log('get account error', e);
+        console.error('get account error', e);
 
         setAccounts([]);
       });
