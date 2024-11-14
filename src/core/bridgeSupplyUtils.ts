@@ -1,7 +1,7 @@
 import { providers } from 'near-api-js';
 import Big from 'big.js';
 import { walletConfig, btcRpcUrls, nearRpcUrls } from '../config';
-import request from './request';
+import request from '../utils/request';
 
 async function nearViewMethod<T>(
   contractId: string,
@@ -42,11 +42,12 @@ async function getDepositAddress(
   return res;
 }
 
-async function getGasPrice(btcRpcUrl: string): Promise<number> {
+async function getGasPrice(network: string): Promise<number> {
   const defaultFeeRate = 100;
   try {
-    const res = await request<Record<string, number>>(`${btcRpcUrl}/fee-estimates`);
-    const feeRate = res[6]; // 6 blocks confirmation target
+    const btcRpcUrl = btcRpcUrls[network as keyof typeof btcRpcUrls];
+    const res = await fetch(`${btcRpcUrl}/v1/fees/recommended`).then((res) => res.json());
+    const feeRate = res.fastestFee;
     return feeRate || defaultFeeRate;
   } catch (error) {
     return defaultFeeRate;
@@ -80,14 +81,29 @@ async function receiveDepositMsg(
 }
 
 async function checkTransactionStatus(baseUrl: string, txHash: string) {
-  const res = await request<any>(`${baseUrl}/v1/bridgeFromTx?fromTxHash=${txHash}`);
+  const res = await request<any>(`${baseUrl}/v1/bridgeFromTx?fromTxHash=${txHash}`, {
+    timeout: 60000,
+    pollingInterval: 5000,
+    maxPollingAttempts: 10,
+    shouldStopPolling: (res) => res.result_code === 0,
+  });
   return res;
 }
 
-export async function executeBurrowSupply(
-  amount: string,
-  environment: 'dev' | 'testnet' | 'mainnet',
-): Promise<void> {
+interface ExecuteBurrowSupplyParams {
+  /** btc amount, e.g. 0.01 */
+  amount: string;
+  /** fee rate, if not provided, will use the recommended fee rate from the btc node */
+  feeRate?: number;
+  /** environment, default is mainnet */
+  environment?: 'dev' | 'testnet' | 'mainnet';
+}
+
+export async function executeBurrowSupply({
+  amount,
+  feeRate,
+  environment = 'mainnet',
+}: ExecuteBurrowSupplyParams): Promise<void> {
   try {
     if (typeof window === 'undefined' || !window.btcContext) {
       throw new Error('BTC Provider is not initialized.');
@@ -97,7 +113,6 @@ export async function executeBurrowSupply(
     const network = environment === 'dev' ? 'testnet' : environment;
 
     const config = walletConfig[environment];
-    const btcRpcUrl = btcRpcUrls[network];
 
     const btcPublicKey = await btcProvider.getPublicKey();
 
@@ -106,11 +121,13 @@ export async function executeBurrowSupply(
     }
 
     const address = await getDepositAddress(btcPublicKey, config.contractId, network);
-    const feeRate = await getGasPrice(btcRpcUrl);
-    const txHash = await sendBitcoin(btcProvider, address, amount, feeRate);
-    await receiveDepositMsg(config.base_url, { btcPublicKey, txHash });
-    const status = await checkTransactionStatus(config.base_url, txHash);
-    console.log('Transaction Status:', status);
+    const _feeRate = feeRate || (await getGasPrice(network));
+    console.log('feeRate', _feeRate);
+    const txHash = await sendBitcoin(btcProvider, address, amount, _feeRate);
+    const receiveDepositMsgRes = await receiveDepositMsg(config.base_url, { btcPublicKey, txHash });
+    console.log('receiveDepositMsg resp:', receiveDepositMsgRes);
+    const checkTransactionStatusRes = await checkTransactionStatus(config.base_url, txHash);
+    console.log('checkTransactionStatus resp:', checkTransactionStatusRes);
   } catch (error) {
     console.error('Error executing Bridge+BurrowSupply:', error);
   }

@@ -10,7 +10,7 @@ import useModalStateValue from '../hooks/useModalStateValue';
 import type { AccountInfo } from '../types/accountInfo';
 import { EventName } from '../types/eventName';
 import { checkBTCVersion } from '../utils';
-import { getBTCAAAddress, getBTCAccountInfo } from '../utils/ethereumUtils';
+
 import events from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
@@ -31,10 +31,13 @@ interface GlobalState {
   smartAccount?: SmartAccount;
   switchNetwork: (network: 'livenet' | 'testnet') => Promise<void>;
   getNetwork: () => Promise<'livenet' | 'testnet'>;
-  sendBitcoin: (toAddress: string, satoshis: number, options?: { feeRate: number }) => Promise<string>;
+  sendBitcoin: (
+    toAddress: string,
+    satoshis: number,
+    options?: { feeRate: number },
+  ) => Promise<string>;
   accountContract: AccountContract;
   setAccountContract: (accountContract: AccountContract) => void;
-  getSmartAccountInfo: () => Promise<AccountInfo | undefined>;
 }
 
 const ConnectContext = createContext<GlobalState>({} as any);
@@ -69,7 +72,11 @@ export const ConnectProvider = ({
     openModal: openConnectModal,
   } = useModalStateValue();
 
-  const { closeModal: closeSignModal, isModalOpen: signModalOpen, openModal: openSignModal } = useModalStateValue();
+  const {
+    closeModal: closeSignModal,
+    isModalOpen: signModalOpen,
+    openModal: openSignModal,
+  } = useModalStateValue();
 
   const [connectorId, setConnectorId] = useState<string>();
   const [accounts, setAccounts] = useState<string[]>([]);
@@ -77,8 +84,9 @@ export const ConnectProvider = ({
   const [accountContract, _setAccountContract] = useState<AccountContract>({
     name: Object.keys(options.aaOptions.accountContracts)?.[0] || 'BTC',
     version:
-      options.aaOptions.accountContracts[Object.keys(options.aaOptions.accountContracts)?.[0] || 'BTC']?.[0].version ||
-      '1.0.0',
+      options.aaOptions.accountContracts[
+        Object.keys(options.aaOptions.accountContracts)?.[0] || 'BTC'
+      ]?.[0].version || '1.0.0',
   });
 
   const setAccountContract = useCallback(
@@ -89,7 +97,7 @@ export const ConnectProvider = ({
       localStorage.setItem(SAContractKey, JSON.stringify(config));
       _setAccountContract(config);
     },
-    [options.aaOptions.accountContracts, _setAccountContract]
+    [options.aaOptions.accountContracts, _setAccountContract],
   );
 
   useEffect(() => {
@@ -131,7 +139,7 @@ export const ConnectProvider = ({
       const signature = await connector.signMessage(message);
       return signature;
     },
-    [connector]
+    [connector],
   );
 
   const sendBitcoin = useCallback(
@@ -143,7 +151,7 @@ export const ConnectProvider = ({
       const signature = await connector.sendBitcoin(toAddress, satoshis, options);
       return signature;
     },
-    [connector]
+    [connector],
   );
 
   const getNetwork = useCallback(async () => {
@@ -161,7 +169,7 @@ export const ConnectProvider = ({
       }
       await connector.switchNetwork(network);
     },
-    [connector]
+    [connector],
   );
 
   const smartAccount = useMemo(() => {
@@ -172,12 +180,19 @@ export const ConnectProvider = ({
     if (
       !(window as any).__bitcoinSmartAccount ||
       ((window as any)?.__bitcoinSmartAccount &&
-        ((window as any)?.__bitcoinSmartAccount.smartAccountContract.version !== accountContract.version ||
-          (window as any)?.__bitcoinSmartAccount.smartAccountContract.name !== accountContract.name))
+        ((window as any)?.__bitcoinSmartAccount.smartAccountContract.version !==
+          accountContract.version ||
+          (window as any)?.__bitcoinSmartAccount.smartAccountContract.name !==
+            accountContract.name))
     ) {
       const smartAccount = new SmartAccount(
-        new AASignerProvider(evmSupportChainIds, options.projectId, options.clientKey, options.rpcUrls) as any,
-        options
+        new AASignerProvider(
+          evmSupportChainIds,
+          options.projectId,
+          options.clientKey,
+          options.rpcUrls,
+        ) as any,
+        options,
       );
       smartAccount.setSmartAccountContract(accountContract);
       (window as any).__bitcoinSmartAccount = smartAccount;
@@ -186,36 +201,6 @@ export const ConnectProvider = ({
     (window as any).__bitcoinSmartAccount.provider.personalSign = signMessage;
     return (window as any).__bitcoinSmartAccount as SmartAccount;
   }, [options, evmSupportChainIds, getPublicKey, signMessage, accountContract]);
-
-  useEffect(() => {
-    if (accounts.length > 0 && smartAccount) {
-      getBTCAAAddress(smartAccount, accounts[0], accountContract.name, accountContract.version)
-        .then((res) => {
-          setEVMAccount(res);
-        })
-        .catch((e) => {
-          setEVMAccount(undefined);
-          console.error('smartAccount getAddress error', e);
-          // ignore
-        });
-    } else {
-      setEVMAccount(undefined);
-    }
-  }, [accountContract, accounts, smartAccount]);
-
-  const getSmartAccountInfo = useCallback(async () => {
-    if (accounts.length > 0 && smartAccount) {
-      const accountInfo = await getBTCAccountInfo(
-        smartAccount,
-        accounts[0],
-        accountContract.name,
-        accountContract.version
-      );
-      setEVMAccount(accountInfo.smartAccountAddress);
-      return accountInfo;
-    }
-    return undefined;
-  }, [accounts, smartAccount, accountContract, setEVMAccount]);
 
   const requestAccount = useCallback(
     async (connector: BaseConnector) => {
@@ -226,23 +211,19 @@ export const ConnectProvider = ({
       }
       setAccounts(accounts);
     },
-    [autoConnect]
+    [autoConnect],
   );
 
-  const requestDirectAccount = useCallback(
-    async (connector: BaseConnector) => {
-      console.log(111)
-      let accounts = await connector.getAccounts();
-      console.log('requestAccount start, autoConnect', accounts, autoConnect);
-      if (accounts.length === 0) {
-        accounts = await connector.requestAccounts();
-      }
-      setAccounts(accounts);
+  const requestDirectAccount = useCallback(async (connector: BaseConnector) => {
+    let accounts = await connector.getAccounts();
+    console.log('requestAccount start, autoConnect', accounts, autoConnect);
+    if (accounts.length === 0) {
+      accounts = await connector.requestAccounts();
+    }
+    setAccounts(accounts);
 
-      return accounts
-    },
-    []
-  );
+    return accounts;
+  }, []);
 
   useEffect(() => {
     if (connector) {
@@ -311,7 +292,7 @@ export const ConnectProvider = ({
             ...options.walletOptions?.customStyle,
             supportChains: supportChains as any,
           },
-        }
+        },
       );
       console.log('walletEntryPlugin init');
     }
@@ -389,7 +370,6 @@ export const ConnectProvider = ({
         sendBitcoin,
         accountContract: accountContract,
         setAccountContract: setAccountContract,
-        getSmartAccountInfo,
       }}
     >
       {children}

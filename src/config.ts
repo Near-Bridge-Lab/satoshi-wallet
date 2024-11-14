@@ -42,6 +42,6 @@ export const nearRpcUrls = {
 };
 
 export const btcRpcUrls = {
-  mainnet: 'https://blockstream.info/api',
-  testnet: 'https://blockstream.info/testnet/api',
+  mainnet: 'https://mempool.space/api',
+  testnet: 'https://mempool.space/testnet/api',
 };

@@ -13,13 +13,11 @@ import { encodeTransaction } from 'near-api-js/lib/transaction';
 import { baseDecode } from '@near-js/utils';
 import bs58 from 'bs58';
 import { sha256 } from 'js-sha256';
-import { setupWalletButton, removeWalletButton } from './initWalletButton';
-
-// export * from './btcWalletSelectorContext'
-import type { useBtcWalletSelector } from './../components/btcWalletSelectorContext';
-import { delay } from '.';
+import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
+import type { useBtcWalletSelector } from './btcWalletSelectorContext';
+import { delay } from '../utils';
 import { walletConfig, nearRpcUrls } from '../config';
-import request from './request';
+import request from '../utils/request';
 const { transfer, functionCall } = actionCreators;
 
 declare global {

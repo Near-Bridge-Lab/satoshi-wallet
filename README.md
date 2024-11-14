@@ -1,9 +1,63 @@
-# Particle BTC Connect
+# BTC Wallet
 
-First Account Abstraction Protocol on Bitcoin
+BTC Wallet is a toolkit that enables the use of Bitcoin on the NEAR blockchain through the Satoshi protocol. It provides seamless integration for managing Bitcoin transactions and interactions within the NEAR ecosystem.
 
-## Learn More
+## Features
 
-- [Documentation](https://docs.particle.network/developers/btc-connect)
-- [Website](https://particle.network)
-- [Dashbord](https://dashboard.particle.network)
+- **NEAR Integration**: Leverage the Satoshi protocol to use Bitcoin on the NEAR blockchain.
+
+## Installation
+
+Install `btc-wallet` using npm or yarn:
+
+```bash
+pnpm install btc-wallet
+or
+yarn add btc-wallet
+```
+
+## Usage
+
+### Initialize BTC Wallet
+
+To use BTC Wallet in your project, wrap your application with the `BtcWalletSelectorContextProvider`:
+
+```javascript
+import BtcWalletSelectorContextProvider from 'btc-wallet';
+function App() {
+  return (
+    <BtcWalletSelectorContextProvider>
+      {/* Your application components */}
+    </BtcWalletSelectorContextProvider>
+  );
+}
+```
+
+### Setup Wallet Selector
+
+Integrate BTC Wallet with NEAR's wallet selector:
+
+```javascript
+import { setupWalletSelector } from '@near-wallet-selector/core';
+import { setupBTCWallet } from 'btc-wallet';
+setupWalletSelector({
+  network: 'mainnet', // or 'testnet'
+  modules: [setupBTCWallet()],
+});
+```
+
+### Execute Burrow Supply
+
+To execute a Burrow supply operation, use the `executeBurrowSupply` function:
+
+```javascript
+import { executeBurrowSupply } from 'btc-wallet';
+executeBurrowSupply({
+  amount: '0.01', // BTC amount
+  environment: 'mainnet', // or 'testnet'
+}).then(() => {
+  console.log('Burrow supply executed successfully');
+}).catch((error) => {
+  console.error('Error executing Burrow supply:', error);
+});
+```

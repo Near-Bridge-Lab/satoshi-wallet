@@ -1,5 +1,10 @@
 import { intToHex } from '@ethereumjs/util';
-import type { SendTransactionParams, Transaction, UserOpBundle, UserOpParams } from '@particle-network/aa';
+import type {
+  SendTransactionParams,
+  Transaction,
+  UserOpBundle,
+  UserOpParams,
+} from '@particle-network/aa';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createWalletClient, custom, type PublicClient } from 'viem';
 import { useConnectProvider } from '../context';
@@ -9,9 +14,8 @@ import { EventName } from '../types/eventName';
 import events, { getPendingSignEventAccount } from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
-
 export const useETHProvider: any = () => {
-  const { evmAccount, smartAccount, getSmartAccountInfo } = useConnectProvider();
+  const { evmAccount, smartAccount } = useConnectProvider();
   const [chainId, setChainId] = useState<number>();
 
   useEffect(() => {
@@ -42,7 +46,7 @@ export const useETHProvider: any = () => {
         });
       }
     },
-    [smartAccount?.provider]
+    [smartAccount?.provider],
   );
 
   const getFeeQuotes = useCallback(
@@ -52,7 +56,7 @@ export const useETHProvider: any = () => {
       }
       return smartAccount.getFeeQuotes(tx);
     },
-    [smartAccount]
+    [smartAccount],
   );
 
   const buildUserOp = useCallback(
@@ -63,7 +67,7 @@ export const useETHProvider: any = () => {
       const result = await smartAccount.buildUserOperation({ tx, feeQuote, tokenPaymasterAddress });
       return result;
     },
-    [smartAccount]
+    [smartAccount],
   );
 
   const sendUserOp = useCallback(
@@ -111,7 +115,7 @@ export const useETHProvider: any = () => {
         });
       });
     },
-    [smartAccount, buildUserOp]
+    [smartAccount, buildUserOp],
   );
 
   const publicClient = useMemo(() => {
@@ -122,7 +126,11 @@ export const useETHProvider: any = () => {
   }, [smartAccount, chainId]);
 
   const provider = useMemo(() => {
-    const ethereumProvider = new EthereumProvider(sendUserOp, smartAccount?.provider as any, evmAccount);
+    const ethereumProvider = new EthereumProvider(
+      sendUserOp,
+      smartAccount?.provider as any,
+      evmAccount,
+    );
     return ethereumProvider;
   }, [evmAccount, sendUserOp, smartAccount?.provider]);
 
@@ -137,7 +145,6 @@ export const useETHProvider: any = () => {
     /** @deprecated please use account */
     evmAccount,
     account: evmAccount,
-    getSmartAccountInfo,
     switchChain,
     chainId,
     getFeeQuotes,

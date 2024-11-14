@@ -17,7 +17,7 @@ const buildConfig = {
     '.woff2': 'file',
     '.ttf': 'file',
   },
-  // drop: process.env.NODE_ENV !== 'development' ? ['console', 'debugger'] : [],
+  drop: process.env.NODE_ENV !== 'development' ? ['console.log', 'debugger'] : [],
   plugins: [
     replace({
       include: /src\/index.ts$/,

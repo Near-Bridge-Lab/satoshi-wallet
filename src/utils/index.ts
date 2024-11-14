@@ -16,11 +16,6 @@ export function shortString(str: any): string {
   return '';
 }
 
-/**
- * 复制到剪贴板
- * @param {string} text
- * @returns {Promise<void>}
- */
 export async function copyToClipboard(text: string) {
   const clipboardCopy = async () => {
     if (navigator.clipboard) {

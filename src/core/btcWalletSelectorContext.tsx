@@ -4,8 +4,8 @@ import { ConnectProvider as BTCConnectProvider } from '../context';
 import { UnisatConnector, OKXConnector } from '../connector';
 import { useBTCProvider, useConnectModal } from '../hooks';
 
-import ComfirmBox from './confirmBox';
-import { InitContextHook } from './hook';
+import ComfirmBox from '../components/confirmBox';
+import { delay } from '../utils';
 
 const WalletSelectorContext = React.createContext<any>(null);
 
@@ -71,10 +71,18 @@ export function BtcWalletSelectorContextProvider({
             }}
           />
         )}
-        <InitContextHook />
+        <InitBtcWalletSelectorContext />
       </BTCConnectProvider>
     </WalletSelectorContext.Provider>
   );
+}
+
+function InitBtcWalletSelectorContext() {
+  const context = useBtcWalletSelector();
+  useEffect(() => {
+    window.btcContext = context;
+  }, [context]);
+  return null;
 }
 
 export function useBtcWalletSelector() {
@@ -141,7 +149,7 @@ export function useBtcWalletSelector() {
     autoConnect: async () => {
       let times = 0;
       while (!connectorRef.current) {
-        await sleep(500);
+        await delay(500);
         if (times++ > 10) {
           return null;
         }
@@ -158,7 +166,7 @@ export function useBtcWalletSelector() {
     getPublicKey: async () => {
       let times = 0;
       while (!publicKey.current) {
-        await sleep(1000);
+        await delay(1000);
         if (times++ > 10) {
           return null;
         }
@@ -175,7 +183,7 @@ export function useBtcWalletSelector() {
     getBalance: async () => {
       let times = 0;
       while (!providerRef.current) {
-        await sleep(500);
+        await delay(500);
         if (times++ > 10) {
           return null;
         }
@@ -186,10 +194,4 @@ export function useBtcWalletSelector() {
     },
     sendBitcoin,
   };
-}
-
-function sleep(time: number) {
-  return new Promise(function (resolve) {
-    setTimeout(resolve, time);
-  });
 }

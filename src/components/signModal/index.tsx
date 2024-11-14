@@ -22,12 +22,22 @@ import Modal from '../modal';
 import TransactionDetails from '../transactionDetails';
 import styles from './sign.module.scss';
 
-const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: () => void }) => {
+const SignModal = ({
+  open,
+  onClose,
+  onOpen,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onOpen: () => void;
+}) => {
   const [userOpBundle, setUserOpBundle] = useState<UserOpBundle>();
   const [notRemindChecked, setNotRemindChecked] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [deserializeLoading, setDeserializeLoading] = useState<boolean>(false);
-  const [deserializeResult, setDeserializeResult] = useState<EVMDeserializeTransactionResult[] | undefined>();
+  const [deserializeResult, setDeserializeResult] = useState<
+    EVMDeserializeTransactionResult[] | undefined
+  >();
   const [disabled, setDisabled] = useState<boolean>(false);
   const [showNotRemind, setShowNotRemind] = useState<boolean>(true);
   const [nativeBalance, setNativeBalance] = useState<bigint>();
@@ -204,7 +214,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
             requestArguments.method == EVMMethod.personalSign
               ? EventName.personalSignResult
               : EventName.signTypedDataResult,
-            { result: hash }
+            { result: hash },
           );
         } catch (error) {
           events.emit(
@@ -213,7 +223,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
               : EventName.signTypedDataResult,
             {
               error,
-            }
+            },
           );
         } finally {
           setLoading(false);
@@ -230,15 +240,15 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
         .filter(
           (item) =>
             item.estimatedChanges.natives?.[0]?.nativeChange &&
-            item.estimatedChanges.natives[0].nativeChange.startsWith('-')
+            item.estimatedChanges.natives[0].nativeChange.startsWith('-'),
         )
-        .map((item) => BigInt(item.estimatedChanges?.natives?.[0]?.nativeChange?.replace('-', '') || 0))
+        .map((item) =>
+          BigInt(item.estimatedChanges?.natives?.[0]?.nativeChange?.replace('-', '') || 0),
+        )
         .reduce((accumulator, currentValue) => accumulator + currentValue, BigInt(0));
       if (userOpBundle.userOp.paymasterAndData.length > 2) {
-        // 计算余额，需大于等于nativeChange
         setDisabled(nativeBalance < nativeChange);
       } else {
-        // 计算余额，需大于等于gasFee+nativeChange
         setDisabled(nativeBalance < gasFee + nativeChange);
       }
     }
@@ -260,7 +270,12 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
   }, [requestArguments]);
 
   return (
-    <Modal open={open} onClose={onClose} isDismissable={false} contentClassName={styles.modalContent}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      isDismissable={false}
+      contentClassName={styles.modalContent}
+    >
       <>
         <img className={styles.closeBtn} src={close} onClick={closeModal}></img>
 
@@ -284,7 +299,11 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           </CopyText>
         </div>
 
-        <div className={styles.detailsContent + (deserializeResult || requestArguments ? ` ${styles.fill}` : '')}>
+        <div
+          className={
+            styles.detailsContent + (deserializeResult || requestArguments ? ` ${styles.fill}` : '')
+          }
+        >
           {deserializeResult &&
             deserializeResult.map((details, index) => (
               <TransactionDetails key={`${details.type}-${index}`} details={details} />
@@ -294,8 +313,9 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
         </div>
 
         {gasFee && (
-          <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(gasFee)} ${chainInfo?.nativeCurrency
-            .symbol}`}</div>
+          <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(gasFee)} ${
+            chainInfo?.nativeCurrency.symbol
+          }`}</div>
         )}
 
         <Button
