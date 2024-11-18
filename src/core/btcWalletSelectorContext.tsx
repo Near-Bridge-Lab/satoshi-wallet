@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConnectProvider as BTCConnectProvider } from '../context';
-import { UnisatConnector, OKXConnector } from '../connector';
+import { UnisatConnector, XverseConnector, OKXConnector } from '../connector';
 import { useBTCProvider, useConnectModal } from '../hooks';
 
 import ComfirmBox from '../components/confirmBox';
@@ -17,6 +17,8 @@ export function BtcWalletSelectorContextProvider({
   autoConnect?: boolean;
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const connectors = [new UnisatConnector(), new XverseConnector()];
 
   const walletSelectorContextValue = useMemo(() => {
     const simpleFn: any = {};
@@ -59,7 +61,7 @@ export function BtcWalletSelectorContextProvider({
           },
         }}
         autoConnect={false}
-        connectors={[new UnisatConnector()]}
+        connectors={connectors}
       >
         {children}
         {isProcessing && (
