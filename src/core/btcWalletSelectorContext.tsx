@@ -161,7 +161,9 @@ export function useBtcWalletSelector() {
       });
     },
     logout: () => {
-      disconnect && disconnect();
+      const accountId = accounts && accounts.length ? accounts[0] : null;
+      if (!accountId) return;
+      disconnect?.();
       context.emit('btcLogOut');
     },
     account: accounts && accounts.length ? accounts[0] : null,

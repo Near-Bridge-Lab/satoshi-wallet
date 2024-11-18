@@ -215,6 +215,11 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function signOut() {
+    const accountId = state.getAccount();
+    const publicKey = state.getPublicKey();
+    if (!(accountId && publicKey)) {
+      return;
+    }
     const btcContext = window.btcContext;
     // @ts-ignore
     if (metadata.syncLogOut) {
