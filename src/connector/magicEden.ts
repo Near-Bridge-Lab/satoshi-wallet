@@ -1,4 +1,4 @@
-import icon from '../icons/magic-eden.png';
+import icon from '../icons/magicEden.png';
 import { type WalletMetadata } from './base';
 import { InjectedConnector } from './injected';
 
