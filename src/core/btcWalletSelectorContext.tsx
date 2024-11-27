@@ -102,13 +102,11 @@ export function useBtcWalletSelector() {
   // @ts-ignore
   const { openConnectModal, openConnectModalAsync, disconnect, requestDirectAccount } =
     useConnectModal();
-  const { accounts, sendBitcoin, getPublicKey, provider, signMessage, connector } =
+  const { accounts, sendBitcoin, getPublicKey, provider, signMessage, connector, getNetwork } =
     useBTCProvider();
   const publicKey = useRef<any>(null);
   const signMessageFn = useRef<any>(null);
   const connectorRef = useRef<any>(null);
-  const providerRef = useRef<any>(null);
-  const [updater, setUpdater] = useState<any>(1);
   const context = useContext(WalletSelectorContext);
 
   useEffect(() => {
@@ -116,9 +114,8 @@ export function useBtcWalletSelector() {
       getPublicKey().then((res) => {
         publicKey.current = res;
       });
-      providerRef.current = provider;
     }
-  }, [provider, updater]);
+  }, [provider]);
 
   useEffect(() => {
     signMessageFn.current = signMessage;
@@ -146,67 +143,52 @@ export function useBtcWalletSelector() {
     };
   }, [connector]);
 
-  return {
-    login: async () => {
-      const account = accounts && accounts.length ? accounts[0] : null;
-      if (account) {
-        return account;
-      }
-      setUpdater(updater + 1);
-      if (openConnectModal) {
-        await openConnectModal();
-      }
-
-      return null;
-    },
-    autoConnect: async () => {
-      let times = 0;
-      while (!connectorRef.current) {
-        await delay(500);
-        if (times++ > 10) {
-          return null;
+  const hook = useMemo(() => {
+    return {
+      login: async () => {
+        const account = accounts && accounts.length ? accounts[0] : null;
+        if (account) {
+          return account;
         }
-      }
-      requestDirectAccount(connectorRef.current).catch((e: any) => {
-        context.emit('btcLoginError');
-      });
-    },
-    logout: () => {
-      const accountId = accounts && accounts.length ? accounts[0] : null;
-      if (!accountId) return;
-      disconnect?.();
-      context.emit('btcLogOut');
-    },
-    account: accounts && accounts.length ? accounts[0] : null,
-    getPublicKey: async () => {
-      let times = 0;
-      while (!publicKey.current) {
-        await delay(1000);
-        if (times++ > 10) {
-          return null;
+        if (openConnectModal) {
+          await openConnectModal();
         }
-      }
 
-      return publicKey.current;
-    },
-    signMessage: (msg: string) => {
-      return signMessageFn.current(msg);
-    },
-    getContext: () => {
-      return context;
-    },
-    getBalance: async () => {
-      let times = 0;
-      while (!providerRef.current) {
-        await delay(500);
-        if (times++ > 10) {
-          return null;
-        }
-      }
-
-      const { total } = await providerRef.current.getBalance();
-      return total;
-    },
+        return null;
+      },
+      autoConnect: async () => {
+        requestDirectAccount(connectorRef.current).catch((e: any) => {
+          context.emit('btcLoginError');
+        });
+      },
+      logout: () => {
+        const accountId = accounts && accounts.length ? accounts[0] : null;
+        if (!accountId) return;
+        disconnect?.();
+        context.emit('btcLogOut');
+      },
+      account: accounts && accounts.length ? accounts[0] : null,
+      getPublicKey: () => {
+        return publicKey.current;
+      },
+      signMessage: (msg: string) => {
+        return signMessageFn.current(msg);
+      },
+      getContext: () => {
+        return context;
+      },
+      getNetwork,
+      sendBitcoin,
+    };
+  }, [
+    accounts,
+    context,
+    disconnect,
+    getNetwork,
+    openConnectModal,
+    requestDirectAccount,
     sendBitcoin,
-  };
+  ]);
+
+  return hook;
 }

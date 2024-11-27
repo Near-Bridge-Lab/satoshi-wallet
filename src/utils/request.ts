@@ -12,7 +12,10 @@ const cache = new Map<string, { timestamp: number; data: any }>();
 
 const defaultCacheTimeout = 3000;
 
-export default async function request<T>(url: string, options?: RequestOptions<T>): Promise<T> {
+export default async function request<T = any>(
+  url: string,
+  options?: RequestOptions<T>,
+): Promise<T> {
   const defaultHeaders = {
     'Content-Type': 'application/json',
   };

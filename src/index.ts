@@ -3,7 +3,7 @@ export { ConnectProvider } from './context';
 export * from './hooks';
 export * from './core/btcWalletSelectorContext';
 export * from './core/setupBTCWallet';
-export * from './core/bridgeSupplyUtils';
+export * from './core/btcUtils';
 export const getVersion = () => {
   return '__buildVersion';
 };

@@ -1,9 +1,14 @@
 import EventEmitter from 'events';
-import type { Address, GetAddressOptions, SendBtcTransactionOptions, SignMessageOptions } from 'sats-connect';
+import type {
+  Address,
+  GetAddressOptions,
+  SendBtcTransactionOptions,
+  SignMessageOptions,
+} from 'sats-connect';
 import icon from '../icons/xverse.png';
 import { BaseConnector, type WalletMetadata } from './base';
 export class XverseConnector extends BaseConnector {
-  #network = 'Mainnet'; // Testnet
+  #network = 'Testnet'; // Testnet
   #event = new EventEmitter();
   constructor() {
     super();

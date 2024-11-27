@@ -2,8 +2,16 @@ import { useCallback } from 'react';
 import { useConnectProvider } from '../context';
 
 export const useBTCProvider = () => {
-  const { connector, provider, accounts, getPublicKey, signMessage, getNetwork, switchNetwork, sendBitcoin } =
-    useConnectProvider();
+  const {
+    connector,
+    provider,
+    accounts,
+    getPublicKey,
+    signMessage,
+    getNetwork,
+    switchNetwork,
+    sendBitcoin,
+  } = useConnectProvider();
 
   const sendInscription = useCallback(
     async (address: string, inscriptionId: string, options?: { feeRate: number }) => {
@@ -13,8 +21,18 @@ export const useBTCProvider = () => {
       const result = await connector.sendInscription(address, inscriptionId, options);
       return result;
     },
-    [connector]
+    [connector],
   );
 
-  return { provider, accounts, getPublicKey, signMessage, getNetwork, switchNetwork, sendBitcoin, sendInscription, connector };
+  return {
+    provider,
+    accounts,
+    getPublicKey,
+    signMessage,
+    getNetwork,
+    switchNetwork,
+    sendBitcoin,
+    sendInscription,
+    connector,
+  };
 };

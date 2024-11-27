@@ -336,19 +336,19 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       near_transactions: newTransactions.map((t) => t.txHex),
       gas_token: currentConfig.token,
       gas_limit: '3000',
-      use_near_pay_gas: false,
+      // use_near_pay_gas: false,
       nonce,
     };
 
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
-    });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
-    if (availableBalance > 0.2) {
-      intention.use_near_pay_gas = true;
-    }
+    // const nearAccount = await provider.query<any>({
+    //   request_type: 'view_account',
+    //   account_id: accountId,
+    //   finality: 'final',
+    // });
+    // const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    // if (availableBalance > 0.2) {
+    //   intention.use_near_pay_gas = true;
+    // }
 
     const strIntention = JSON.stringify(intention);
 
@@ -374,10 +374,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const checkAndSetupWalletButton = () => {
       const accountId = state.getAccount();
       const btcContext = window.btcContext;
-      console.log('checkAndSetupWalletButton:', {
-        nearAccountId: accountId,
-        btcAccountId: btcContext.account,
-      });
+
       if (accountId && btcContext.account) {
         setupWalletButton(network, wallet, btcContext);
       } else {
