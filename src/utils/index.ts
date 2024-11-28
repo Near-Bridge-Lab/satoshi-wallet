@@ -67,3 +67,31 @@ export const checkBTCVersion = (
 };
 
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function retryOperation<T>(
+  operation: () => Promise<T> | T,
+  shouldStop: (result: T) => boolean,
+  {
+    maxRetries = 3,
+    delayMs = 1000,
+  }: {
+    maxRetries?: number;
+    delayMs?: number;
+  } = {},
+): Promise<T> {
+  let retries = 0;
+
+  while (retries <= maxRetries) {
+    const result = await operation();
+    if (shouldStop(result)) {
+      return result;
+    }
+    if (retries === maxRetries) {
+      console.warn('Max retries reached');
+      return result;
+    }
+    retries++;
+    await delay(delayMs);
+  }
+  throw new Error('Unexpected execution path');
+}

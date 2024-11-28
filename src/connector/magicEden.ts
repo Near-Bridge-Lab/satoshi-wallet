@@ -9,7 +9,7 @@ import icon from '../icons/magicEden.png';
 import { BaseConnector, type WalletMetadata } from './base';
 
 export class MagicEdenConnector extends BaseConnector {
-  #network = 'Testnet'; // Testnet
+  #network = 'Mainnet'; // Testnet
   #event = new EventEmitter();
 
   constructor() {

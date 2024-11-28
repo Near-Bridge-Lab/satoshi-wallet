@@ -15,7 +15,7 @@ import bs58 from 'bs58';
 import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
-import { delay } from '../utils';
+import { delay, retryOperation } from '../utils';
 import { walletConfig, nearRpcUrls } from '../config';
 import request from '../utils/request';
 const { transfer, functionCall } = actionCreators;
@@ -200,9 +200,16 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         },
       ];
     }
+    await btcContext.login();
+    const btcPublicKey = await retryOperation(btcContext.getPublicKey, (res) => !!res, {
+      maxRetries: 40,
+      delayMs: 3000,
+    });
 
-    const btcAccount = await btcContext.login();
-    const btcPublicKey = await btcContext.getPublicKey();
+    console.log('btcPublicKey:', btcPublicKey);
+    if (!btcPublicKey) {
+      throw new Error('No connected BTC wallet, please connect your BTC wallet first.');
+    }
 
     const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 

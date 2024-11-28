@@ -2,7 +2,7 @@ import { providers } from 'near-api-js';
 import Big from 'big.js';
 import { walletConfig, btcRpcUrls, nearRpcUrls } from '../config';
 import request from '../utils/request';
-import { delay } from '../utils';
+import { retryOperation } from '../utils';
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -85,23 +85,20 @@ export async function getBtcGasPrice(): Promise<number> {
   }
 }
 
-let retryCount = 0;
 export async function getBtcBalance() {
-  const { account } = getBtcProvider();
+  const { account } = await retryOperation(getBtcProvider, (res) => !!res.account);
+
   if (!account) {
-    retryCount++;
-    if (retryCount > 3) {
-      throw new Error('BTC Account is not available.');
-    }
-    await delay(1000);
-    return getBtcBalance();
+    console.error('BTC Account is not available.');
+    return { rawBalance: 0, balance: 0 };
   }
-  retryCount = 0;
+
   const btcRpcUrl = await getBtcRpcUrl();
   const res = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
-  const rawBalance = res.reduce((acc: number, cur: any) => acc + cur.value, 0);
+  const rawBalance = res
+    .filter((item: any) => item?.status?.confirmed)
+    ?.reduce((acc: number, cur: any) => acc + cur.value, 0);
   const balance = rawBalance / 10 ** 8;
-  console.log('btc balance:', balance);
   return { rawBalance, balance };
 }
 
