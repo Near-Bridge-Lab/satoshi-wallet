@@ -3,26 +3,30 @@ export const walletConfig: Record<
   {
     base_url: string;
     token: string;
-    contractId: string;
+    accountContractId: string;
+    bridgeContractId: string;
     walletUrl: string;
   }
 > = {
   dev: {
     base_url: 'https://api.dev.satoshibridge.top',
-    token: 'nbtc1-nsp.testnet',
-    contractId: 'dev1-nsp.testnet',
+    token: 'nbtc-dev.testnet',
+    accountContractId: 'acc-dev.testnet',
+    bridgeContractId: 'brg-dev.testnet',
     walletUrl: 'https://wallet-dev.satoshibridge.top',
   },
   testnet: {
     base_url: 'https://api.testnet.satoshibridge.top',
     token: 'nbtc2-nsp.testnet',
-    contractId: 'dev2-nsp.testnet',
+    accountContractId: 'dev2-nsp.testnet',
+    bridgeContractId: 'brg2-nsp.testnet',
     walletUrl: 'https://wallet-test.satoshibridge.top',
   },
   mainnet: {
     base_url: 'https://api.mainnet.satoshibridge.top',
     token: '',
-    contractId: '',
+    accountContractId: '',
+    bridgeContractId: '',
     walletUrl: 'https://wallet.satoshibridge.top',
   },
 };
@@ -35,8 +39,8 @@ export const nearRpcUrls = {
     'https://near.drpc.org',
   ],
   testnet: [
-    'https://near-testnet.lava.build',
     'https://rpc.testnet.near.org',
+    'https://near-testnet.lava.build',
     'https://near-testnet.drpc.org',
   ],
 };

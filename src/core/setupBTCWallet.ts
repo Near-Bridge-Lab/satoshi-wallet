@@ -4,7 +4,7 @@ import type {
   WalletModuleFactory,
   WalletBehaviourFactory,
 } from '@near-wallet-selector/core';
-import { providers, transactions } from 'near-api-js';
+import { transactions } from 'near-api-js';
 import type { AccessKeyViewRaw } from 'near-api-js/lib/providers/provider';
 import { actionCreators } from '@near-js/transactions';
 
@@ -16,8 +16,9 @@ import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
 import { delay, retryOperation } from '../utils';
-import { walletConfig, nearRpcUrls } from '../config';
+import { walletConfig } from '../config';
 import request from '../utils/request';
+import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 const { transfer, functionCall } = actionCreators;
 
 declare global {
@@ -152,27 +153,22 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     }, 500);
   }
 
-  async function viewMethod({ method, args = {} }: { method: string; args: any }) {
-    const res = await provider.query<any>({
-      request_type: 'call_function',
-      account_id: currentConfig.contractId,
-      method_name: method,
-      args_base64: Buffer.from(JSON.stringify(args)).toString('base64'),
-      finality: 'optimistic',
-    });
-    return JSON.parse(Buffer.from(res.result).toString());
+  async function nearCall<T>(contractId: string, methodName: string, args: any) {
+    return nearCallFunction<T>(contractId, methodName, args, { provider });
   }
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
-    const nearTempAddress = await viewMethod({
-      method: 'get_chain_signature_near_account',
-      args: { btc_public_key: btcPublicKey },
-    });
+    const nearTempAddress = await nearCall<string>(
+      currentConfig.accountContractId,
+      'get_chain_signature_near_account_id',
+      { btc_public_key: btcPublicKey },
+    );
 
-    const nearTempPublicKey = await viewMethod({
-      method: 'get_chain_signature_near_account_public_key',
-      args: { btc_public_key: btcPublicKey },
-    });
+    const nearTempPublicKey = await nearCall<string>(
+      currentConfig.accountContractId,
+      'get_chain_signature_near_account_public_key',
+      { btc_public_key: btcPublicKey },
+    );
 
     state.saveAccount(nearTempAddress);
     state.savePublicKey(nearTempPublicKey);
@@ -282,15 +278,16 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const publicKeyFormat = PublicKey.from(publicKey);
 
-    const nearNonceApi = await getNearNonceFromApi(currentConfig.base_url, accountId);
+    const { result_data: nearNonceFromApi } = await getNearNonceFromApi(
+      currentConfig.base_url,
+      accountId,
+    );
 
     const newTransactions = params.transactions.map((transaction, index) => {
       let nearNonceNumber = accessKey.nonce + BigInt(1);
-      if (nearNonceApi) {
+      if (nearNonceFromApi) {
         nearNonceNumber =
-          BigInt(nearNonceApi.result_data) > nearNonceNumber
-            ? BigInt(nearNonceApi.result_data)
-            : nearNonceNumber;
+          BigInt(nearNonceFromApi) > nearNonceNumber ? BigInt(nearNonceFromApi) : nearNonceNumber;
       }
       const newActions = transaction.actions
         .map((action) => {
@@ -325,16 +322,20 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       return { txBytes, txHex, hash };
     });
 
-    const accountInfo = await viewMethod({
-      method: 'get_account',
-      args: { account_id: accountId },
-    });
+    const accountInfo = await nearCall<{ nonce: string }>(
+      currentConfig.accountContractId,
+      'get_account',
+      { account_id: accountId },
+    );
 
-    const nonceApi = await getNonceFromApi(currentConfig.base_url, accountId as string);
+    const { result_data: nonceFromApi } = await getNonceFromApi(
+      currentConfig.base_url,
+      accountId as string,
+    );
 
     const nonce =
-      Number(nonceApi?.result_data) > Number(accountInfo.nonce)
-        ? String(nonceApi?.result_data)
+      Number(nonceFromApi) > Number(accountInfo.nonce)
+        ? String(nonceFromApi)
         : String(accountInfo.nonce);
 
     const intention = {
@@ -343,19 +344,19 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       near_transactions: newTransactions.map((t) => t.txHex),
       gas_token: currentConfig.token,
       gas_limit: '3000',
-      // use_near_pay_gas: false,
+      use_near_pay_gas: false,
       nonce,
     };
 
-    // const nearAccount = await provider.query<any>({
-    //   request_type: 'view_account',
-    //   account_id: accountId,
-    //   finality: 'final',
-    // });
-    // const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
-    // if (availableBalance > 0.2) {
-    //   intention.use_near_pay_gas = true;
-    // }
+    const nearAccount = await provider.query<any>({
+      request_type: 'view_account',
+      account_id: accountId,
+      finality: 'final',
+    });
+    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    if (availableBalance > 0.2) {
+      intention.use_near_pay_gas = true;
+    }
 
     const strIntention = JSON.stringify(intention);
 
@@ -399,11 +400,11 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 };
 
 function getNonceFromApi(url: string, accountId: string) {
-  return request<any>(`${url}/v1/nonce?csna=${accountId}`);
+  return request<{ result_data: string }>(`${url}/v1/nonce?csna=${accountId}`);
 }
 
 function getNearNonceFromApi(url: string, accountId: string) {
-  return request<any>(`${url}/v1/nonceNear?csna=${accountId}`);
+  return request<{ result_data: string }>(`${url}/v1/nonceNear?csna=${accountId}`);
 }
 
 function uploadBTCTx(url: string, data: any) {
@@ -449,49 +450,6 @@ function toHex(originalString: string) {
   let hexString = hexArray.join('');
   hexString = hexString.replace(/(^0+)/g, '');
   return hexString;
-}
-
-async function pollTransactionStatuses(network: string, hashes: string[]) {
-  const provider = new providers.FailoverRpcProvider(
-    Object.values(nearRpcUrls[network as keyof typeof nearRpcUrls]).map(
-      (url) => new providers.JsonRpcProvider({ url }),
-    ),
-  );
-
-  const maxAttempts = 3;
-
-  // Helper function to poll status for a single transaction hash
-  const pollStatus = async (hash: string) => {
-    let attempt = 0;
-
-    while (attempt < maxAttempts) {
-      attempt++;
-
-      try {
-        const result = await provider.txStatus(hash, 'unused', 'FINAL');
-
-        if (result && result.status) {
-          console.log(`Transaction ${hash} result:`, result);
-          return result;
-        }
-      } catch (error: any) {
-        console.error(`Failed to fetch transaction status for ${hash}: ${error.message}`);
-      }
-
-      if (attempt === maxAttempts) {
-        throw new Error(`Transaction not found after max attempts: ${hash}`);
-      }
-
-      // Delay before next attempt
-      await delay(10000);
-      console.log(`RPC request failed for ${hash}, retrying ${maxAttempts - attempt} more times`);
-    }
-  };
-
-  // Poll all transaction statuses in parallel
-  const results = await Promise.all(hashes.map((hash) => pollStatus(hash)));
-
-  return results;
 }
 
 export default {

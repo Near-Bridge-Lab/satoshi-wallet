@@ -11,7 +11,6 @@ import {
 import { useBTCProvider, useConnectModal } from '../hooks';
 
 import ComfirmBox from '../components/confirmBox';
-import { delay } from '../utils';
 
 const WalletSelectorContext = React.createContext<any>(null);
 
@@ -32,7 +31,7 @@ export function BtcWalletSelectorContextProvider({
   ];
 
   const walletSelectorContextValue = useMemo(() => {
-    const simpleFn: any = {};
+    const simpleFn: Record<string, ((e: any) => void)[]> = {};
 
     return {
       setIsProcessing,
@@ -115,7 +114,7 @@ export function useBtcWalletSelector() {
         publicKey.current = res;
       });
     }
-  }, [provider]);
+  }, [getPublicKey, provider]);
 
   useEffect(() => {
     signMessageFn.current = signMessage;
@@ -141,20 +140,16 @@ export function useBtcWalletSelector() {
         connector.removeListener('accountsChanged', fn);
       }
     };
-  }, [connector]);
+  }, [connector, context, getPublicKey]);
 
   const hook = useMemo(() => {
     return {
       login: async () => {
-        const account = accounts && accounts.length ? accounts[0] : null;
-        if (account) {
-          return account;
+        const account = accounts?.[0];
+        if (!account) {
+          openConnectModal?.();
         }
-        if (openConnectModal) {
-          await openConnectModal();
-        }
-
-        return null;
+        return account;
       },
       autoConnect: async () => {
         requestDirectAccount(connectorRef.current).catch((e: any) => {
@@ -162,12 +157,12 @@ export function useBtcWalletSelector() {
         });
       },
       logout: () => {
-        const accountId = accounts && accounts.length ? accounts[0] : null;
+        const accountId = accounts?.[0];
         if (!accountId) return;
         disconnect?.();
         context.emit('btcLogOut');
       },
-      account: accounts && accounts.length ? accounts[0] : null,
+      account: accounts?.[0],
       getPublicKey: () => {
         return publicKey.current;
       },
