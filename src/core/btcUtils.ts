@@ -132,7 +132,7 @@ export async function sendBitcoin(
 }
 
 export async function estimateDepositAmount(
-  amount: number,
+  amount: string,
   option?: {
     isDev: boolean;
   },
@@ -145,8 +145,8 @@ export async function estimateDepositAmount(
     'get_config',
     {},
   );
-  const fee = Math.max(Number(fee_min), amount * fee_rate);
-  return new Big(amount).minus(fee).toString();
+  const fee = Math.max(Number(fee_min), Number(amount) * fee_rate);
+  return new Big(amount).minus(fee).toFixed(0);
 }
 
 interface ExecuteBTCDepositAndActionParams {
@@ -189,7 +189,7 @@ export async function executeBTCDepositAndAction({
       throw new Error('action.receiver_id is required');
     }
 
-    const amountWithFee = await estimateDepositAmount(new Big(_action.amount).toNumber(), {
+    const amountWithFee = await estimateDepositAmount(_action.amount, {
       isDev,
     });
     _action.amount = amountWithFee;
