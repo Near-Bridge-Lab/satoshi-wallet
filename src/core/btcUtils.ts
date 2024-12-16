@@ -22,6 +22,11 @@ async function getBtcRpcUrl() {
   return btcRpcUrls[network as keyof typeof btcRpcUrls];
 }
 
+async function getConfig(isDev: boolean) {
+  const network = await getNetwork();
+  return walletConfig[isDev ? 'dev' : network];
+}
+
 async function nearCall<T>(contractId: string, methodName: string, args: any) {
   const network = await getNetwork();
   return nearCallFunction<T>(contractId, methodName, args, { network });
@@ -94,16 +99,26 @@ export async function getBtcBalance() {
 
   if (!account) {
     console.error('BTC Account is not available.');
-    return { rawBalance: 0, balance: 0 };
+    return { rawBalance: 0, balance: 0, maxSpendableBalance: 0 };
   }
 
   const btcRpcUrl = await getBtcRpcUrl();
   const res = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
-  const rawBalance = res
-    // .filter((item: any) => item?.status?.confirmed)
-    ?.reduce((acc: number, cur: any) => acc + cur.value, 0);
+
+  const rawBalance = res?.reduce((acc: number, cur: any) => acc + cur.value, 0);
   const balance = rawBalance / 10 ** 8;
-  return { rawBalance, balance };
+
+  const feeRate = await getBtcGasPrice();
+
+  const maxGasFee = (feeRate * 250) / 10 ** 8;
+
+  const availableBalance = Math.max(0, balance - maxGasFee);
+
+  return {
+    rawBalance,
+    balance,
+    availableBalance,
+  };
 }
 
 export async function sendBitcoin(
@@ -114,6 +129,24 @@ export async function sendBitcoin(
   const { sendBitcoin } = getBtcProvider();
   const txHash = await sendBitcoin(address, amount, { feeRate });
   return txHash;
+}
+
+export async function estimateDepositAmount(
+  amount: number,
+  option?: {
+    isDev: boolean;
+  },
+) {
+  const config = await getConfig(option?.isDev || false);
+  const {
+    deposit_bridge_fee: { fee_min, fee_rate },
+  } = await nearCall<{ deposit_bridge_fee: { fee_min: string; fee_rate: number } }>(
+    config.bridgeContractId,
+    'get_config',
+    {},
+  );
+  const fee = Math.max(Number(fee_min), amount * fee_rate);
+  return new Big(amount).minus(fee).toString();
 }
 
 interface ExecuteBTCDepositAndActionParams {
@@ -136,13 +169,18 @@ export async function executeBTCDepositAndAction({
 }: ExecuteBTCDepositAndActionParams) {
   try {
     const { getPublicKey } = getBtcProvider();
-    const network = await getNetwork();
 
-    const config = walletConfig[isDev ? 'dev' : network];
+    const config = await getConfig(isDev);
 
     const btcPublicKey = await getPublicKey();
 
-    const _action: DepositMsg['post_actions'][0] = Object.assign({}, action);
+    const _action: DepositMsg['post_actions'][0] = Object.assign(
+      {},
+      {
+        ...action,
+        gas: new Big(100).mul(10 ** 12).toFixed(0),
+      },
+    );
 
     if (!btcPublicKey) {
       throw new Error('BTC Public Key is not available.');
@@ -150,8 +188,13 @@ export async function executeBTCDepositAndAction({
     if (!_action.receiver_id) {
       throw new Error('action.receiver_id is required');
     }
+
+    const amountWithFee = await estimateDepositAmount(new Big(_action.amount).toNumber(), {
+      isDev,
+    });
+    _action.amount = amountWithFee;
     if (!_action.amount || !new Big(_action.amount || 0).gt(0)) {
-      throw new Error('action.amount is required and must be greater than 0');
+      throw new Error('action.amount is required or deposit amount is not enough');
     }
 
     const csna = await nearCall<string>(
@@ -162,13 +205,26 @@ export async function executeBTCDepositAndAction({
       },
     );
 
-    _action.amount = new Big(_action.amount).toString();
-    _action.gas = new Big(100).mul(10 ** 12).toFixed(0);
-
     const depositMsg: DepositMsg = {
       recipient_id: csna,
       post_actions: [_action],
     };
+    const storageDepositMsg: {
+      storage_deposit_msg?: {
+        contract_id: string;
+        deposit: string;
+        registration_only: boolean;
+      };
+      btc_public_key?: string;
+    } = {};
+
+    // check account is registered
+    const accountInfo = await nearCall<{ nonce: string }>(config.accountContractId, 'get_account', {
+      account_id: csna,
+    });
+    if (!accountInfo.nonce) {
+      storageDepositMsg.btc_public_key = btcPublicKey;
+    }
 
     // check receiver_id is registered
     const registerRes = await nearCall<{
@@ -179,24 +235,26 @@ export async function executeBTCDepositAndAction({
     });
 
     if (!registerRes?.available) {
-      const storageDepositMsg = {
-        storage_deposit_msg: {
-          contract_id: action.receiver_id,
-          deposit: new Big(0.25).mul(10 ** 24).toFixed(0),
-          registration_only: true,
-        },
-        btc_public_key: btcPublicKey,
+      storageDepositMsg.storage_deposit_msg = {
+        contract_id: action.receiver_id,
+        deposit: new Big(0.25).mul(10 ** 24).toFixed(0),
+        registration_only: true,
       };
+    }
+    if (Object.keys(storageDepositMsg).length > 0) {
       depositMsg.extra_msg = JSON.stringify(storageDepositMsg);
     }
-    console.log('depositMsg', depositMsg);
+    console.log('deposit msg:', depositMsg);
     const userDepositAddress = await nearCall<string>(
       config.bridgeContractId,
       'get_user_deposit_address',
       { deposit_msg: depositMsg },
     );
-    console.log('userDepositAddress', userDepositAddress);
     const _feeRate = feeRate || (await getBtcGasPrice());
+    console.log('user deposit address:', userDepositAddress);
+    console.log('deposit amount:', new Big(action.amount).toNumber());
+    console.log('receive amount:', new Big(_action.amount).toNumber());
+    console.log('fee rate:', _feeRate);
     const txHash = await sendBitcoin(
       userDepositAddress,
       new Big(action.amount).toNumber(),
