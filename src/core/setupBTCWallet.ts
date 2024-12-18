@@ -286,9 +286,14 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const { transferGasTransaction, useNearPayGas } = await getGasConfig();
 
+    console.log('transferGasTransaction:', transferGasTransaction);
+    console.log('useNearPayGas:', useNearPayGas);
+
     if (!useNearPayGas && transferGasTransaction) {
       params.transactions.unshift(transferGasTransaction);
     }
+
+    console.log('raw transactions:', params.transactions);
 
     const newTransactions = params.transactions.map((transaction, index) => {
       let nearNonceNumber = accessKey.nonce + BigInt(1);

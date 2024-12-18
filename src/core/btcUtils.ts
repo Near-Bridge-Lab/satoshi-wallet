@@ -57,7 +57,7 @@ async function receiveDepositMsg(
     txHash: string;
     depositType?: number;
     postActions: string;
-    extraMsg: string;
+    extraMsg?: string;
   },
 ) {
   const res = await request(`${baseUrl}/v1/receiveDepositMsg`, {
@@ -268,7 +268,7 @@ export async function executeBTCDepositAndAction({
       btcPublicKey,
       txHash,
       postActions: JSON.stringify(depositMsg.post_actions),
-      extraMsg: depositMsg.extra_msg || '',
+      extraMsg: depositMsg.extra_msg,
     });
     const checkTransactionStatusRes = await checkTransactionStatus(config.base_url, txHash);
     console.log('checkTransactionStatus resp:', checkTransactionStatusRes);
