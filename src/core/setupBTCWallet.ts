@@ -19,6 +19,7 @@ import { delay, retryOperation } from '../utils';
 import { walletConfig } from '../config';
 import request from '../utils/request';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
+import Big from 'big.js';
 const { transfer, functionCall } = actionCreators;
 
 declare global {
@@ -283,6 +284,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       accountId,
     );
 
+    const { transferGasTransaction, useNearPayGas } = await getGasConfig();
+
+    if (!useNearPayGas && transferGasTransaction) {
+      params.transactions.unshift(transferGasTransaction);
+    }
+
     const newTransactions = params.transactions.map((transaction, index) => {
       let nearNonceNumber = accessKey.nonce + BigInt(1);
       if (nearNonceFromApi) {
@@ -343,20 +350,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       csna: accountId,
       near_transactions: newTransactions.map((t) => t.txHex),
       gas_token: currentConfig.token,
-      gas_limit: '3000',
-      use_near_pay_gas: false,
+      gas_limit: currentConfig.gasTokenLimit,
+      use_near_pay_gas: useNearPayGas,
       nonce,
     };
-
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
-    });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
-    if (availableBalance > 0.2) {
-      intention.use_near_pay_gas = true;
-    }
 
     const strIntention = JSON.stringify(intention);
 
@@ -375,6 +372,47 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       return result;
     } else {
       return null;
+    }
+  }
+
+  async function getGasConfig() {
+    const accountId = state.getAccount();
+    const nearAccount = await provider.query<any>({
+      request_type: 'view_account',
+      account_id: accountId,
+      finality: 'final',
+    });
+    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    if (availableBalance > 0.2) {
+      return { useNearPayGas: true };
+    } else {
+      const gasTokenBalance = await nearCall<string>(currentConfig.token, 'ft_balance_of', {
+        account_id: accountId,
+      });
+      if (new Big(gasTokenBalance).gt(currentConfig.gasTokenLimit)) {
+        const transferGasTransaction: Transaction = {
+          signerId: accountId,
+          receiverId: currentConfig.token,
+          actions: [
+            {
+              type: 'FunctionCall',
+              params: {
+                methodName: 'ft_transfer_call',
+                args: {
+                  receiver_id: currentConfig.accountContractId,
+                  amount: currentConfig.gasTokenLimit,
+                  msg: 'Deposit',
+                },
+                gas: new Big(50).mul(10 ** 12).toFixed(0),
+                deposit: '1',
+              },
+            },
+          ],
+        };
+        return { transferGasTransaction, useNearPayGas: false };
+      } else {
+        throw new Error('No enough gas token balance');
+      }
     }
   }
 

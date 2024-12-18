@@ -110,7 +110,7 @@ export async function getBtcBalance() {
 
   const feeRate = await getBtcGasPrice();
 
-  const maxGasFee = (feeRate * 250) / 10 ** 8;
+  const maxGasFee = (feeRate * 350) / 10 ** 8;
 
   const availableBalance = Math.max(0, balance - maxGasFee);
 
@@ -219,10 +219,14 @@ export async function executeBTCDepositAndAction({
     } = {};
 
     // check account is registered
-    const accountInfo = await nearCall<{ nonce: string }>(config.accountContractId, 'get_account', {
-      account_id: csna,
-    });
-    if (!accountInfo.nonce) {
+    const accountInfo = await nearCall<{ nonce: string } | undefined>(
+      config.accountContractId,
+      'get_account',
+      {
+        account_id: csna,
+      },
+    );
+    if (!accountInfo?.nonce) {
       storageDepositMsg.btc_public_key = btcPublicKey;
     }
 
@@ -244,7 +248,7 @@ export async function executeBTCDepositAndAction({
     if (Object.keys(storageDepositMsg).length > 0) {
       depositMsg.extra_msg = JSON.stringify(storageDepositMsg);
     }
-    console.log('deposit msg:', depositMsg);
+    console.log('get_user_deposit_address params:', { deposit_msg: depositMsg });
     const userDepositAddress = await nearCall<string>(
       config.bridgeContractId,
       'get_user_deposit_address',
