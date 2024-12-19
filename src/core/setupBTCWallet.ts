@@ -17,9 +17,16 @@ import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
 import { delay, retryOperation } from '../utils';
 import { walletConfig } from '../config';
-import request from '../utils/request';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
+import { executeBTCDepositAndAction } from './btcUtils';
+import { Dialog } from '../utils/Dialog';
+import {
+  checkBtcTransactionStatus,
+  getNearNonce,
+  getNonce,
+  receiveTransaction,
+} from '../utils/satoshi';
 const { transfer, functionCall } = actionCreators;
 
 declare global {
@@ -96,11 +103,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransactions,
   };
 
-  const currentConfig =
-    'isDev' in metadata && metadata.isDev
-      ? walletConfig.dev
-      : walletConfig[options.network.networkId];
-  const walletNetwork = 'isDev' in metadata && metadata.isDev ? 'dev' : options.network.networkId;
+  const isDev = ('isDev' in metadata && (metadata.isDev as boolean)) ?? false;
+  const currentConfig = isDev ? walletConfig.dev : walletConfig[options.network.networkId];
+  const walletNetwork = isDev ? 'dev' : options.network.networkId;
 
   initWalletButton(walletNetwork, wallet);
 
@@ -261,9 +266,256 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   async function signAndSendTransactions(params: { transactions: Transaction[] }) {
     const btcContext = window.btcContext;
     const accountId = state.getAccount();
-    const publicKey = state.getPublicKey();
 
-    const { header } = await provider.block({ finality: 'final' });
+    const accountInfo = await getAccountInfo();
+
+    // check gas token arrears
+    await checkGasTokenArrears(accountInfo.debt_info);
+
+    const trans = [...params.transactions];
+    console.log('raw trans:', trans);
+
+    const gasTokenBalance = accountInfo.gas_token[currentConfig.token] || '0';
+
+    const { transferGasTransaction, useNearPayGas, gasLimit } = await calculateGasStrategy(
+      gasTokenBalance,
+      trans,
+    );
+
+    console.log('transferGasTransaction:', transferGasTransaction);
+    console.log('useNearPayGas:', useNearPayGas);
+    console.log('gasLimit:', gasLimit);
+
+    if (transferGasTransaction) {
+      trans.unshift(transferGasTransaction);
+    }
+
+    console.log('calculateGasStrategy trans:', trans);
+
+    const newTrans = await Promise.all(
+      trans.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
+    );
+
+    const nonceFromApi = await getNonce(currentConfig.base_url, accountId as string);
+
+    const nonce =
+      Number(nonceFromApi) > Number(accountInfo.nonce)
+        ? String(nonceFromApi)
+        : String(accountInfo.nonce);
+
+    const intention = {
+      chain_id: '397',
+      csna: accountId,
+      near_transactions: newTrans.map((t) => t.txHex),
+      gas_token: currentConfig.token,
+      gas_limit: gasLimit,
+      use_near_pay_gas: useNearPayGas,
+      nonce,
+    };
+
+    const strIntention = JSON.stringify(intention);
+
+    const signature = await btcContext.signMessage(strIntention);
+
+    await receiveTransaction(currentConfig.base_url, {
+      sig: signature,
+      btcPubKey: state.getBtcPublicKey(),
+      data: toHex(strIntention),
+    });
+    await checkBtcTransactionStatus(currentConfig.base_url, signature);
+
+    const hash = newTrans.map((t) => t.hash);
+    console.log('txHash:', hash);
+    const result = await pollTransactionStatuses(options.network.networkId, hash);
+    return result;
+  }
+
+  interface DebtInfo {
+    gas_token_id: string;
+    transfer_amount: string;
+    near_gas_debt_amount: string;
+    protocol_fee_debt_amount: string;
+  }
+
+  async function checkGasTokenArrears(debtInfo?: DebtInfo) {
+    const transferAmount = debtInfo?.transfer_amount || '0';
+    console.log('get_account debtInfo:', debtInfo);
+    if (transferAmount === '0') return;
+
+    const confirmed = await Dialog.confirm({
+      title: 'Has gas token arrears',
+      message: 'You have gas token arrears, please deposit gas token to continue.',
+    });
+
+    if (confirmed) {
+      const action = {
+        receiver_id: currentConfig.token,
+        amount: transferAmount,
+        msg: JSON.stringify('Deposit'),
+      };
+      await executeBTCDepositAndAction({ action, isDev });
+
+      await Dialog.alert({
+        title: 'Deposit success',
+        message: 'Deposit success, will continue to execute transaction.',
+      });
+    } else {
+      throw new Error('Deposit failed, please deposit gas token first.');
+    }
+  }
+
+  async function getAccountInfo() {
+    const accountId = state.getAccount();
+    const accountInfo = await nearCall<{
+      nonce: string;
+      gas_token: Record<string, string>;
+      debt_info: DebtInfo;
+    }>(currentConfig.accountContractId, 'get_account', { account_id: accountId });
+    return accountInfo;
+  }
+
+  async function createGasTokenTransfer(accountId: string, amount: string) {
+    return {
+      signerId: accountId,
+      receiverId: currentConfig.token,
+      actions: [
+        {
+          type: 'FunctionCall',
+          params: {
+            methodName: 'ft_transfer_call',
+            args: {
+              receiver_id: currentConfig.accountContractId,
+              amount,
+              msg: JSON.stringify('Deposit'),
+            },
+            gas: new Big(50).mul(10 ** 12).toFixed(0),
+            deposit: '1',
+          },
+        },
+      ],
+    } as Transaction;
+  }
+
+  async function recalculateGasWithTransfer(
+    transferTx: Transaction,
+    transactions: { txHex: string }[],
+    useNearPayGas: boolean,
+    perTxFee?: string,
+  ) {
+    const { txHex: transferTxHex } = await convertTransactionToTxHex(transferTx);
+
+    let newGasLimit;
+    if (useNearPayGas && perTxFee) {
+      newGasLimit = new Big(perTxFee).mul(transactions.length + 1).toFixed(0);
+    } else {
+      newGasLimit = await getPredictedGasAmount(
+        currentConfig.accountContractId,
+        currentConfig.token,
+        [transferTxHex, ...transactions.map((t) => t.txHex)],
+      );
+    }
+
+    (transferTx.actions[0] as any).params.args.amount = newGasLimit;
+
+    return { transferGasTransaction: transferTx, useNearPayGas, gasLimit: newGasLimit };
+  }
+
+  async function getPredictedGasAmount(
+    accountContractId: string,
+    tokenId: string,
+    transactions: string[],
+  ): Promise<string> {
+    const predictedGas = await nearCall<string>(accountContractId, 'predict_txs_gas_token_amount', {
+      gas_token_id: tokenId,
+      near_transactions: transactions,
+    });
+
+    const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
+    console.log('predictedGas:', predictedGasAmount);
+    return predictedGasAmount;
+  }
+
+  async function calculateGasStrategy(
+    gasTokenBalance: string,
+    transactions: Transaction[],
+  ): Promise<{
+    transferGasTransaction?: Transaction;
+    useNearPayGas: boolean;
+    gasLimit: string;
+  }> {
+    const accountId = state.getAccount();
+
+    // check near balance
+    const nearAccount = await provider.query<any>({
+      request_type: 'view_account',
+      account_id: accountId,
+      finality: 'final',
+    });
+    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+
+    console.log('available near balance:', availableBalance);
+
+    console.log('available gas token balance:', gasTokenBalance);
+
+    const convertTx = await Promise.all(
+      transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
+    );
+
+    if (availableBalance > 0.2) {
+      // near balance is enough, get the protocol fee of each transaction
+      const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
+        currentConfig.accountContractId,
+        'list_gas_token',
+        { token_ids: [currentConfig.token] },
+      );
+
+      console.log('list_gas_token gas tokens:', gasTokens);
+
+      const perTxFee = Math.max(
+        Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
+        100,
+      );
+      console.log('perTxFee:', perTxFee);
+      const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
+      console.log('protocolFee:', protocolFee);
+
+      if (new Big(gasTokenBalance).gte(protocolFee)) {
+        console.log('use near pay gas and enough gas token balance');
+        return { useNearPayGas: true, gasLimit: protocolFee };
+      } else {
+        console.log('use near pay gas and not enough gas token balance');
+        // gas token balance is not enough, need to transfer
+        const transferTx = await createGasTokenTransfer(accountId, protocolFee);
+        return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
+      }
+    } else {
+      console.log('near balance is not enough, predict the gas token amount required');
+      const adjustedGas = await getPredictedGasAmount(
+        currentConfig.accountContractId,
+        currentConfig.token,
+        convertTx.map((t) => t.txHex),
+      );
+
+      if (new Big(gasTokenBalance).gte(adjustedGas)) {
+        console.log('use gas token and gas token balance is enough');
+        return { useNearPayGas: false, gasLimit: adjustedGas };
+      } else {
+        console.log('use gas token and gas token balance is not enough, need to transfer');
+        const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
+        return recalculateGasWithTransfer(transferTx, convertTx, false);
+      }
+    }
+  }
+
+  // add utility function for converting Transaction to txHex
+  async function convertTransactionToTxHex(transaction: Transaction, index = 0) {
+    const accountId = state.getAccount();
+    const publicKey = state.getPublicKey();
+    const publicKeyFormat = PublicKey.from(publicKey);
+
+    const { header } = await provider.block({
+      finality: 'final',
+    });
 
     const rawAccessKey = await provider.query<AccessKeyViewRaw>({
       request_type: 'view_access_key',
@@ -277,148 +529,47 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       nonce: BigInt(rawAccessKey.nonce || 0),
     };
 
-    const publicKeyFormat = PublicKey.from(publicKey);
+    const nearNonceFromApi = await getNearNonce(currentConfig.base_url, accountId);
 
-    const { result_data: nearNonceFromApi } = await getNearNonceFromApi(
-      currentConfig.base_url,
+    let nearNonceNumber = accessKey.nonce + BigInt(1);
+    if (nearNonceFromApi) {
+      nearNonceNumber =
+        BigInt(nearNonceFromApi) > nearNonceNumber ? BigInt(nearNonceFromApi) : nearNonceNumber;
+    }
+
+    const newActions = transaction.actions
+      .map((action) => {
+        switch (action.type) {
+          case 'FunctionCall':
+            return functionCall(
+              action.params.methodName,
+              action.params.args,
+              BigInt(action.params.gas),
+              BigInt(action.params.deposit),
+            );
+          case 'Transfer':
+            return transfer(BigInt(action.params.deposit));
+        }
+      })
+      .filter(Boolean) as transactions.Action[];
+
+    const _transaction = transactions.createTransaction(
       accountId,
+      publicKeyFormat,
+      transaction.receiverId,
+      BigInt(nearNonceNumber) + BigInt(index),
+      newActions,
+      baseDecode(header.hash),
     );
 
-    const { transferGasTransaction, useNearPayGas } = await getGasConfig();
-
-    console.log('transferGasTransaction:', transferGasTransaction);
-    console.log('useNearPayGas:', useNearPayGas);
-
-    if (!useNearPayGas && transferGasTransaction) {
-      params.transactions.unshift(transferGasTransaction);
-    }
-
-    console.log('raw transactions:', params.transactions);
-
-    const newTransactions = params.transactions.map((transaction, index) => {
-      let nearNonceNumber = accessKey.nonce + BigInt(1);
-      if (nearNonceFromApi) {
-        nearNonceNumber =
-          BigInt(nearNonceFromApi) > nearNonceNumber ? BigInt(nearNonceFromApi) : nearNonceNumber;
-      }
-      const newActions = transaction.actions
-        .map((action) => {
-          switch (action.type) {
-            case 'FunctionCall':
-              return functionCall(
-                action.params.methodName,
-                action.params.args,
-                BigInt(action.params.gas),
-                BigInt(action.params.deposit),
-              );
-            case 'Transfer':
-              return transfer(BigInt(action.params.deposit));
-          }
-        })
-        .filter(Boolean) as transactions.Action[];
-      const _transaction = transactions.createTransaction(
-        accountId,
-        publicKeyFormat,
-        transaction.receiverId,
-        BigInt(nearNonceNumber) + BigInt(index),
-        newActions,
-        baseDecode(header.hash),
-      );
-      const txBytes = encodeTransaction(_transaction);
-      const txHex = Array.from(txBytes, (byte) =>
-        ('0' + (byte & 0xff).toString(16)).slice(-2),
-      ).join('');
-      console.log('txHex:', txHex);
-
-      const hash = bs58.encode(new Uint8Array(sha256.array(txBytes)));
-      return { txBytes, txHex, hash };
-    });
-
-    const accountInfo = await nearCall<{ nonce: string }>(
-      currentConfig.accountContractId,
-      'get_account',
-      { account_id: accountId },
+    const txBytes = encodeTransaction(_transaction);
+    const txHex = Array.from(txBytes, (byte) => ('0' + (byte & 0xff).toString(16)).slice(-2)).join(
+      '',
     );
 
-    const { result_data: nonceFromApi } = await getNonceFromApi(
-      currentConfig.base_url,
-      accountId as string,
-    );
+    const hash = bs58.encode(new Uint8Array(sha256.array(txBytes)));
 
-    const nonce =
-      Number(nonceFromApi) > Number(accountInfo.nonce)
-        ? String(nonceFromApi)
-        : String(accountInfo.nonce);
-
-    const intention = {
-      chain_id: '397',
-      csna: accountId,
-      near_transactions: newTransactions.map((t) => t.txHex),
-      gas_token: currentConfig.token,
-      gas_limit: currentConfig.gasTokenLimit,
-      use_near_pay_gas: useNearPayGas,
-      nonce,
-    };
-
-    const strIntention = JSON.stringify(intention);
-
-    const signature = await btcContext.signMessage(strIntention);
-
-    const result = await uploadBTCTx(currentConfig.base_url, {
-      sig: signature,
-      btcPubKey: state.getBtcPublicKey(),
-      data: toHex(strIntention),
-    });
-
-    if (result.result_code === 0) {
-      const hash = newTransactions.map((t) => t.hash);
-      console.log('txHash:', hash);
-      const result = await pollTransactionStatuses(options.network.networkId, hash);
-      return result;
-    } else {
-      return null;
-    }
-  }
-
-  async function getGasConfig() {
-    const accountId = state.getAccount();
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
-    });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
-    if (availableBalance > 0.2) {
-      return { useNearPayGas: true };
-    } else {
-      const gasTokenBalance = await nearCall<string>(currentConfig.token, 'ft_balance_of', {
-        account_id: accountId,
-      });
-      if (new Big(gasTokenBalance).gt(currentConfig.gasTokenLimit)) {
-        const transferGasTransaction: Transaction = {
-          signerId: accountId,
-          receiverId: currentConfig.token,
-          actions: [
-            {
-              type: 'FunctionCall',
-              params: {
-                methodName: 'ft_transfer_call',
-                args: {
-                  receiver_id: currentConfig.accountContractId,
-                  amount: currentConfig.gasTokenLimit,
-                  msg: 'Deposit',
-                },
-                gas: new Big(50).mul(10 ** 12).toFixed(0),
-                deposit: '1',
-              },
-            },
-          ],
-        };
-        return { transferGasTransaction, useNearPayGas: false };
-      } else {
-        throw new Error('No enough gas token balance');
-      }
-    }
+    return { txBytes, txHex, hash };
   }
 
   async function initWalletButton(network: string, wallet: any) {
@@ -442,19 +593,13 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   return wallet as any;
 };
 
-function getNonceFromApi(url: string, accountId: string) {
-  return request<{ result_data: string }>(`${url}/v1/nonce?csna=${accountId}`);
-}
-
-function getNearNonceFromApi(url: string, accountId: string) {
-  return request<{ result_data: string }>(`${url}/v1/nonceNear?csna=${accountId}`);
-}
-
-function uploadBTCTx(url: string, data: any) {
-  return request<any>(`${url}/v1/receiveTransaction`, {
-    method: 'POST',
-    body: data,
-  });
+function toHex(originalString: string) {
+  const charArray = originalString.split('');
+  const asciiArray = charArray.map((char) => char.charCodeAt(0));
+  const hexArray = asciiArray.map((code) => code.toString(16));
+  let hexString = hexArray.join('');
+  hexString = hexString.replace(/(^0+)/g, '');
+  return hexString;
 }
 
 export function setupBTCWallet({
@@ -484,15 +629,6 @@ export function setupBTCWallet({
   };
 
   return btcWallet;
-}
-
-function toHex(originalString: string) {
-  const charArray = originalString.split('');
-  const asciiArray = charArray.map((char) => char.charCodeAt(0));
-  const hexArray = asciiArray.map((code) => code.toString(16));
-  let hexString = hexArray.join('');
-  hexString = hexString.replace(/(^0+)/g, '');
-  return hexString;
 }
 
 export default {

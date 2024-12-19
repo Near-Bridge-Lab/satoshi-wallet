@@ -44,8 +44,6 @@ export const nearRpcUrls = {
   ],
   testnet: [
     'https://rpc.testnet.near.org',
-    'https://near-testnet.lava.build',
-    'https://near-testnet.drpc.org',
   ],
 };
 

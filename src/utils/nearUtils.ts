@@ -36,38 +36,41 @@ export async function pollTransactionStatuses(network: string, hashes: string[])
     ),
   );
 
-  const maxAttempts = 3;
+  const maxAttempts = 30;
+  let currentAttempt = 0;
+  const pendingHashes = new Set(hashes);
+  const results = new Map();
 
-  // Helper function to poll status for a single transaction hash
-  const pollStatus = async (hash: string) => {
-    let attempt = 0;
+  while (pendingHashes.size > 0 && currentAttempt < maxAttempts) {
+    currentAttempt++;
 
-    while (attempt < maxAttempts) {
-      attempt++;
-
+    const promises = Array.from(pendingHashes).map(async (hash) => {
       try {
         const result = await provider.txStatus(hash, 'unused', 'FINAL');
-
         if (result && result.status) {
           console.log(`Transaction ${hash} result:`, result);
-          return result;
+          results.set(hash, result);
+          pendingHashes.delete(hash);
         }
       } catch (error: any) {
         console.error(`Failed to fetch transaction status for ${hash}: ${error.message}`);
       }
+    });
 
-      if (attempt === maxAttempts) {
-        throw new Error(`Transaction not found after max attempts: ${hash}`);
+    await Promise.all(promises);
+
+    if (pendingHashes.size > 0) {
+      if (currentAttempt === maxAttempts) {
+        throw new Error(
+          `Transactions not found after max attempts: ${Array.from(pendingHashes).join(', ')}`,
+        );
       }
-
-      // Delay before next attempt
+      console.log(
+        `Waiting for ${pendingHashes.size} transactions, retrying ${maxAttempts - currentAttempt} more times`,
+      );
       await delay(10000);
-      console.log(`RPC request failed for ${hash}, retrying ${maxAttempts - attempt} more times`);
     }
-  };
+  }
 
-  // Poll all transaction statuses in parallel
-  const results = await Promise.all(hashes.map((hash) => pollStatus(hash)));
-
-  return results;
+  return hashes.map((hash) => results.get(hash));
 }

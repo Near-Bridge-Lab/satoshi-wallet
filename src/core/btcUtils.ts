@@ -1,8 +1,8 @@
 import Big from 'big.js';
 import { walletConfig, btcRpcUrls } from '../config';
-import request from '../utils/request';
-import { retryOperation } from '../utils';
-import { nearCallFunction } from '../utils/nearUtils';
+import { delay, retryOperation } from '../utils';
+import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
+import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satoshi';
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -44,44 +44,6 @@ interface DepositMsg {
   extra_msg?: string;
 }
 
-async function receiveDepositMsg(
-  baseUrl: string,
-  {
-    btcPublicKey,
-    txHash,
-    depositType = 1,
-    postActions,
-    extraMsg,
-  }: {
-    btcPublicKey: string;
-    txHash: string;
-    depositType?: number;
-    postActions: string;
-    extraMsg?: string;
-  },
-) {
-  const res = await request(`${baseUrl}/v1/receiveDepositMsg`, {
-    method: 'POST',
-    body: { btcPublicKey, txHash, depositType, postActions, extraMsg },
-  });
-  console.log('receiveDepositMsg resp:', res);
-  return res;
-}
-
-async function checkTransactionStatus(baseUrl: string, txHash: string) {
-  const res = await request<{ result_code: number; result_message: string }>(
-    // 1:BTC , 2:NEAR
-    `${baseUrl}/v1/bridgeFromTx?fromTxHash=${txHash}&fromChainId=1`,
-    {
-      timeout: 60000,
-      pollingInterval: 5000,
-      maxPollingAttempts: 10,
-      shouldStopPolling: (res) => res.result_code === 0,
-    },
-  );
-  return res;
-}
-
 export async function getBtcGasPrice(): Promise<number> {
   const defaultFeeRate = 100;
   try {
@@ -103,16 +65,29 @@ export async function getBtcBalance() {
   }
 
   const btcRpcUrl = await getBtcRpcUrl();
-  const res = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
+  const utxos = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
 
-  const rawBalance = res?.reduce((acc: number, cur: any) => acc + cur.value, 0);
+  const rawBalance = utxos?.reduce((acc: number, cur: any) => acc + cur.value, 0) || 0;
   const balance = rawBalance / 10 ** 8;
 
+  // get the recommended fee rate
   const feeRate = await getBtcGasPrice();
 
-  const maxGasFee = (feeRate * 350) / 10 ** 8;
+  // calculate the estimated transaction size (bytes)
+  // input size = input count * 64 bytes (each input is about 64 bytes)
+  // output size = 34 bytes (one output)
+  // other fixed overhead = 10 bytes
+  const inputSize = (utxos?.length || 0) * 66;
+  const outputSize = 34;
+  const overheadSize = 10;
+  const estimatedTxSize = inputSize + outputSize + overheadSize;
 
-  const availableBalance = Math.max(0, balance - maxGasFee);
+  // calculate the estimated transaction fee
+  const estimatedFee = (estimatedTxSize * feeRate) / 10 ** 8;
+  console.log('estimated fee:', estimatedFee);
+
+  // available balance = total balance - estimated transaction fee
+  const availableBalance = Math.max(0, balance - estimatedFee);
 
   return {
     rawBalance,
@@ -174,27 +149,15 @@ export async function executeBTCDepositAndAction({
 
     const btcPublicKey = await getPublicKey();
 
-    const _action: DepositMsg['post_actions'][0] = Object.assign(
-      {},
-      {
-        ...action,
-        gas: new Big(100).mul(10 ** 12).toFixed(0),
-      },
-    );
-
     if (!btcPublicKey) {
       throw new Error('BTC Public Key is not available.');
     }
-    if (!_action.receiver_id) {
-      throw new Error('action.receiver_id is required');
+    if (!action.receiver_id) {
+      throw new Error('receiver_id is required');
     }
 
-    const amountWithFee = await estimateDepositAmount(_action.amount, {
-      isDev,
-    });
-    _action.amount = amountWithFee;
-    if (!_action.amount || !new Big(_action.amount || 0).gt(0)) {
-      throw new Error('action.amount is required or deposit amount is not enough');
+    if (!action.amount) {
+      throw new Error('amount is required');
     }
 
     const csna = await nearCall<string>(
@@ -207,7 +170,12 @@ export async function executeBTCDepositAndAction({
 
     const depositMsg: DepositMsg = {
       recipient_id: csna,
-      post_actions: [_action],
+      post_actions: [
+        {
+          ...action,
+          gas: new Big(100).mul(10 ** 12).toFixed(0),
+        },
+      ],
     };
     const storageDepositMsg: {
       storage_deposit_msg?: {
@@ -255,28 +223,26 @@ export async function executeBTCDepositAndAction({
       { deposit_msg: depositMsg },
     );
     const _feeRate = feeRate || (await getBtcGasPrice());
+    const minDepositAmount = 5000;
+    const sendAmount = Math.max(minDepositAmount, new Big(action.amount).toNumber());
     console.log('user deposit address:', userDepositAddress);
-    console.log('deposit amount:', new Big(action.amount).toNumber());
-    console.log('receive amount:', new Big(_action.amount).toNumber());
+    console.log('send amount:', sendAmount);
     console.log('fee rate:', _feeRate);
-    const txHash = await sendBitcoin(
-      userDepositAddress,
-      new Big(action.amount).toNumber(),
-      _feeRate,
-    );
+
+    const txHash = await sendBitcoin(userDepositAddress, sendAmount, _feeRate);
     await receiveDepositMsg(config.base_url, {
       btcPublicKey,
       txHash,
       postActions: JSON.stringify(depositMsg.post_actions),
       extraMsg: depositMsg.extra_msg,
     });
-    const checkTransactionStatusRes = await checkTransactionStatus(config.base_url, txHash);
-    console.log('checkTransactionStatus resp:', checkTransactionStatusRes);
-    return checkTransactionStatusRes.result_code === 0
-      ? { result: 'success' }
-      : { result: 'failed', error: checkTransactionStatusRes.result_message };
+    const checkTransactionStatusRes = await checkBridgeTransactionStatus(config.base_url, txHash);
+    console.log('checkBridgeTransactionStatus resp:', checkTransactionStatusRes);
+    const network = await getNetwork();
+    const result = await pollTransactionStatuses(network, [checkTransactionStatusRes.ToTxHash]);
+    return result;
   } catch (error: any) {
-    console.error('Error executing Bridge+BurrowSupply:', error);
-    return { result: 'failed', error: error.message };
+    console.error('executeBTCDepositAndAction error:', error);
+    throw error;
   }
 }

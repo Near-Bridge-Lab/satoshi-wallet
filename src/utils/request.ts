@@ -12,10 +12,7 @@ const cache = new Map<string, { timestamp: number; data: any }>();
 
 const defaultCacheTimeout = 3000;
 
-export default async function request<T = any>(
-  url: string,
-  options?: RequestOptions<T>,
-): Promise<T> {
+export default async function request<T>(url: string, options?: RequestOptions<T>): Promise<T> {
   const defaultHeaders = {
     'Content-Type': 'application/json',
   };
@@ -64,6 +61,13 @@ export default async function request<T = any>(
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
 
+    if (options?.shouldStopPolling) {
+      if (options.shouldStopPolling(data)) {
+        return data as T;
+      }
+      throw new Error('Polling should continue');
+    }
+
     if (cacheKey) {
       cache.set(cacheKey, { timestamp: Date.now(), data });
       setTimeout(() => {
@@ -71,13 +75,8 @@ export default async function request<T = any>(
       }, cacheTimeout);
     }
 
-    if (options?.shouldStopPolling && options.shouldStopPolling(data)) {
-      return data as T;
-    }
-
     return data as T;
   } catch (err) {
-    console.error(err);
     if (retryCount > 0) {
       console.log(`Retrying... attempts left: ${retryCount}`);
       return request(url, { ...options, retryCount: retryCount - 1 });
@@ -92,6 +91,6 @@ export default async function request<T = any>(
         });
       }
     }
-    return Promise.reject(err);
+    throw err;
   }
 }
