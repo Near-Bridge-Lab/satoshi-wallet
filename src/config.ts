@@ -6,7 +6,6 @@ export const walletConfig: Record<
     accountContractId: string;
     bridgeContractId: string;
     walletUrl: string;
-    gasTokenLimit:string;
   }
 > = {
   dev: {
@@ -15,7 +14,6 @@ export const walletConfig: Record<
     accountContractId: 'acc-dev.testnet',
     bridgeContractId: 'brg-dev.testnet',
     walletUrl: 'https://wallet-dev.satoshibridge.top',
-    gasTokenLimit:'3000'
   },
   testnet: {
     base_url: 'https://api.testnet.satoshibridge.top',
@@ -23,7 +21,6 @@ export const walletConfig: Record<
     accountContractId: 'dev2-nsp.testnet',
     bridgeContractId: 'brg2-nsp.testnet',
     walletUrl: 'https://wallet-test.satoshibridge.top',
-    gasTokenLimit: '3000',
   },
   mainnet: {
     base_url: 'https://api.mainnet.satoshibridge.top',
@@ -31,7 +28,6 @@ export const walletConfig: Record<
     accountContractId: '',
     bridgeContractId: '',
     walletUrl: 'https://wallet.satoshibridge.top',
-    gasTokenLimit: '3000',
   },
 };
 
@@ -42,9 +38,7 @@ export const nearRpcUrls = {
     'https://free.rpc.fastnear.com',
     'https://near.drpc.org',
   ],
-  testnet: [
-    'https://rpc.testnet.near.org',
-  ],
+  testnet: ['https://rpc.testnet.near.org'],
 };
 
 export const btcRpcUrls = {

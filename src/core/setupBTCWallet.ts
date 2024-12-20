@@ -19,7 +19,8 @@ import { delay, retryOperation } from '../utils';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
-import { executeBTCDepositAndAction } from './btcUtils';
+import type { DebtInfo } from './btcUtils';
+import { checkGasTokenArrears, executeBTCDepositAndAction, getAccountInfo } from './btcUtils';
 import { Dialog } from '../utils/Dialog';
 import {
   checkBtcTransactionStatus,
@@ -267,10 +268,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const btcContext = window.btcContext;
     const accountId = state.getAccount();
 
-    const accountInfo = await getAccountInfo();
+    const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
 
     // check gas token arrears
-    await checkGasTokenArrears(accountInfo.debt_info);
+    await checkGasTokenArrears(accountInfo.debt_info, isDev, true);
 
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
@@ -328,50 +329,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     console.log('txHash:', hash);
     const result = await pollTransactionStatuses(options.network.networkId, hash);
     return result;
-  }
-
-  interface DebtInfo {
-    gas_token_id: string;
-    transfer_amount: string;
-    near_gas_debt_amount: string;
-    protocol_fee_debt_amount: string;
-  }
-
-  async function checkGasTokenArrears(debtInfo?: DebtInfo) {
-    const transferAmount = debtInfo?.transfer_amount || '0';
-    console.log('get_account debtInfo:', debtInfo);
-    if (transferAmount === '0') return;
-
-    const confirmed = await Dialog.confirm({
-      title: 'Has gas token arrears',
-      message: 'You have gas token arrears, please deposit gas token to continue.',
-    });
-
-    if (confirmed) {
-      const action = {
-        receiver_id: currentConfig.token,
-        amount: transferAmount,
-        msg: JSON.stringify('Deposit'),
-      };
-      await executeBTCDepositAndAction({ action, isDev });
-
-      await Dialog.alert({
-        title: 'Deposit success',
-        message: 'Deposit success, will continue to execute transaction.',
-      });
-    } else {
-      throw new Error('Deposit failed, please deposit gas token first.');
-    }
-  }
-
-  async function getAccountInfo() {
-    const accountId = state.getAccount();
-    const accountInfo = await nearCall<{
-      nonce: string;
-      gas_token: Record<string, string>;
-      debt_info: DebtInfo;
-    }>(currentConfig.accountContractId, 'get_account', { account_id: accountId });
-    return accountInfo;
   }
 
   async function createGasTokenTransfer(accountId: string, amount: string) {
@@ -462,7 +419,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     );
 
     if (availableBalance > 0.2) {
-      // near balance is enough, get the protocol fee of each transaction
+      console.log('near balance is enough, get the protocol fee of each transaction');
       const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
         currentConfig.accountContractId,
         'list_gas_token',

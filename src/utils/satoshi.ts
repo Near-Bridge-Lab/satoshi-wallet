@@ -52,7 +52,7 @@ export async function receiveDepositMsg(
     btcPublicKey: string;
     txHash: string;
     depositType?: number;
-    postActions: string;
+    postActions?: string;
     extraMsg?: string;
   },
 ) {
@@ -72,16 +72,16 @@ export async function receiveDepositMsg(
 
 export async function checkBridgeTransactionStatus(url: string, txHash: string) {
   const { result_code, result_message, result_data } = await request<
-    RequestResult<{ status: number; ToTxHash: string }>
+    RequestResult<{ Status: number; ToTxHash: string }>
   >(`${url}/v1/bridgeFromTx?fromTxHash=${txHash}&fromChainId=1`, {
     timeout: 300000,
     pollingInterval: 5000,
-    maxPollingAttempts: 30,
+    maxPollingAttempts: 60,
     shouldStopPolling: (res) =>
-      res.result_code === 0 && [4, 102].includes(res.result_data?.status || 0),
+      res.result_code === 0 && [4, 102].includes(res.result_data?.Status || 0),
   });
   console.log('checkTransactionStatus resp:', { result_code, result_message, result_data });
-  if (result_data?.status !== 4) {
+  if (result_data?.Status !== 4) {
     throw new Error(result_message);
   }
   return result_data;
@@ -89,16 +89,16 @@ export async function checkBridgeTransactionStatus(url: string, txHash: string) 
 
 export async function checkBtcTransactionStatus(url: string, sig: string) {
   const { result_code, result_message, result_data } = await request<
-    RequestResult<{ status: number; NearHashList: string[] }>
+    RequestResult<{ Status: number; NearHashList: string[] }>
   >(`${url}/v1/btcTx?sig=${sig}`, {
     timeout: 300000,
     pollingInterval: 5000,
-    maxPollingAttempts: 30,
+    maxPollingAttempts: 60,
     shouldStopPolling: (res) =>
-      res.result_code === 0 && [3, 101, 102].includes(res.result_data?.status || 0),
+      res.result_code === 0 && [3, 101, 102].includes(res.result_data?.Status || 0),
   });
   console.log('checkBtcTransactionStatus resp:', { result_code, result_message, result_data });
-  if (result_data?.status !== 3) {
+  if (result_data?.Status !== 3) {
     throw new Error(result_message);
   }
   return result_data;
