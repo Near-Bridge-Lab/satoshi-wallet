@@ -49,23 +49,27 @@ export async function getAccountInfo(csna: string, accountContractId: string) {
   return accountInfo;
 }
 
-export async function checkGasTokenArrears(
-  debtInfo: DebtInfo,
+type CheckGasTokenArrearsReturnType<T extends boolean> = T extends true
+  ? void
+  : { receiver_id: string; amount: string; msg: string } | undefined;
+
+export async function checkGasTokenArrears<T extends boolean>(
+  debtInfo: DebtInfo | undefined,
   isDev: boolean,
-  autoDeposit?: boolean,
-) {
+  autoDeposit?: T,
+): Promise<CheckGasTokenArrearsReturnType<T>> {
+  if (!debtInfo) return;
   const config = await getConfig(isDev);
-  const transferAmount = debtInfo.transfer_amount || '0';
+  const transferAmount = debtInfo.transfer_amount;
   console.log('get_account debtInfo:', debtInfo);
-  if (transferAmount === '0') return;
 
   const action = {
-    receiver_id: config.token,
+    receiver_id: config.accountContractId,
     amount: transferAmount,
     msg: JSON.stringify('Deposit'),
   };
 
-  if (!autoDeposit) return action;
+  if (!autoDeposit) return action as CheckGasTokenArrearsReturnType<T>;
 
   const confirmed = await Dialog.confirm({
     title: 'Has gas token arrears',
@@ -250,7 +254,7 @@ export async function executeBTCDepositAndAction({
       throw new Error('amount must be greater than 0');
     }
 
-    const { depositAmount } = await getDepositAmount(rawDepositAmount, {
+    const { depositAmount, receiveAmount } = await getDepositAmount(rawDepositAmount, {
       isDev,
     });
 
@@ -260,7 +264,7 @@ export async function executeBTCDepositAndAction({
 
     const gasLimit = new Big(50).mul(10 ** 12).toFixed(0);
 
-    const repayAction = await checkGasTokenArrears(accountInfo.debt_info, isDev);
+    const repayAction = await checkGasTokenArrears(accountInfo.debt_info, isDev, false);
 
     if (repayAction) {
       newActions.push({
@@ -274,8 +278,8 @@ export async function executeBTCDepositAndAction({
         ...action,
         amount:
           repayAction?.amount && !fixedAmount
-            ? new Big(depositAmount).minus(repayAction.amount).toString()
-            : depositAmount.toString(),
+            ? new Big(receiveAmount).minus(repayAction.amount).toString()
+            : receiveAmount.toString(),
         gas: gasLimit,
       });
     }
