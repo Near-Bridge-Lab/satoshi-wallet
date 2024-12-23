@@ -6,6 +6,7 @@ export const walletConfig: Record<
     accountContractId: string;
     bridgeContractId: string;
     walletUrl: string;
+    bridgeUrl: string;
   }
 > = {
   dev: {
@@ -14,20 +15,23 @@ export const walletConfig: Record<
     accountContractId: 'acc-dev.testnet',
     bridgeContractId: 'brg-dev.testnet',
     walletUrl: 'https://wallet-dev.satoshibridge.top',
+    bridgeUrl: 'https://dev.satoshibridge.top/',
   },
   testnet: {
     base_url: 'https://api.testnet.satoshibridge.top',
     token: 'nbtc2-nsp.testnet',
-    accountContractId: 'dev2-nsp.testnet',
+    accountContractId: 'acc2-nsp.testnet',
     bridgeContractId: 'brg2-nsp.testnet',
     walletUrl: 'https://wallet-test.satoshibridge.top',
+    bridgeUrl: 'https://testnet.satoshibridge.top/',
   },
   mainnet: {
     base_url: 'https://api.mainnet.satoshibridge.top',
-    token: '',
-    accountContractId: '',
-    bridgeContractId: '',
+    token: 'nbtc.toalice.near',
+    accountContractId: 'acc.toalice.near',
+    bridgeContractId: 'brg.toalice.near',
     walletUrl: 'https://wallet.satoshibridge.top',
+    bridgeUrl: 'https://www.satoshibridge.top/',
   },
 };
 

@@ -20,7 +20,12 @@ import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
 import type { DebtInfo } from './btcUtils';
-import { checkGasTokenArrears, executeBTCDepositAndAction, getAccountInfo } from './btcUtils';
+import {
+  checkGasTokenArrears,
+  checkGasTokenBalance,
+  executeBTCDepositAndAction,
+  getAccountInfo,
+} from './btcUtils';
 import { Dialog } from '../utils/Dialog';
 import {
   checkBtcTransactionStatus,
@@ -269,6 +274,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
 
     const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
+
+    // check gas token balance
+    await checkGasTokenBalance(accountId, currentConfig.token, isDev);
 
     // check gas token arrears
     await checkGasTokenArrears(accountInfo.debt_info, isDev, true);

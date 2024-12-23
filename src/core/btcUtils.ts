@@ -5,6 +5,9 @@ import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 
+const MINIMUM_DEPOSIT_AMOUNT = 5000;
+const MINIMUM_DEPOSIT_AMOUNT_BASE = 1000;
+
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
     throw new Error('BTC Provider is not initialized.');
@@ -47,6 +50,20 @@ export async function getAccountInfo(csna: string, accountContractId: string) {
     debt_info: DebtInfo;
   }>(accountContractId, 'get_account', { account_id: csna });
   return accountInfo;
+}
+
+export async function checkGasTokenBalance(csna: string, gasToken: string, isDev: boolean) {
+  const amount = await nearCall<string>(gasToken, 'ft_balance_of', { account_id: csna });
+  console.log('gas token balance:', amount);
+  if (new Big(amount).lte(MINIMUM_DEPOSIT_AMOUNT_BASE)) {
+    await Dialog.confirm({
+      title: 'Gas token balance is insufficient',
+      message: 'Please deposit gas token to continue, will open bridge website.',
+    });
+    const config = await getConfig(isDev);
+    window.open(config.bridgeUrl, '_blank');
+    throw new Error('Gas token balance is insufficient');
+  }
 }
 
 type CheckGasTokenArrearsReturnType<T extends boolean> = T extends true
@@ -162,9 +179,6 @@ export async function sendBitcoin(
   const txHash = await sendBitcoin(address, amount, { feeRate });
   return txHash;
 }
-
-const MINIMUM_DEPOSIT_AMOUNT = 5000;
-const MINIMUM_DEPOSIT_AMOUNT_BASE = 1000;
 
 export async function estimateDepositAmount(
   amount: string,
