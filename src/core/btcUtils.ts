@@ -44,11 +44,15 @@ export interface DebtInfo {
 }
 
 export async function getAccountInfo(csna: string, accountContractId: string) {
-  const accountInfo = await nearCall<{
-    nonce: string;
-    gas_token: Record<string, string>;
-    debt_info: DebtInfo;
-  }>(accountContractId, 'get_account', { account_id: csna });
+  const accountInfo = await nearCall<
+    | {
+        nonce: string;
+        gas_token: Record<string, string>;
+        debt_info?: DebtInfo;
+      }
+    | undefined
+  >(accountContractId, 'get_account', { account_id: csna });
+  console.log('get_account accountInfo:', accountInfo);
   return accountInfo;
 }
 
@@ -141,8 +145,11 @@ export async function getBtcBalance() {
   const btcRpcUrl = await getBtcRpcUrl();
   const utxos = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
 
-  const rawBalance = utxos?.reduce((acc: number, cur: any) => acc + cur.value, 0) || 0;
-  const balance = rawBalance / 10 ** 8;
+  const btcDecimals = 8;
+
+  const rawBalance =
+    utxos?.reduce((acc: number, cur: { value: number }) => acc + cur.value, 0) || 0;
+  const balance = rawBalance / 10 ** btcDecimals;
 
   // get the recommended fee rate
   const feeRate = await getBtcGasPrice();
@@ -157,11 +164,12 @@ export async function getBtcBalance() {
   const estimatedTxSize = inputSize + outputSize + overheadSize;
 
   // calculate the estimated transaction fee
-  const estimatedFee = (estimatedTxSize * feeRate) / 10 ** 8;
-  console.log('estimated fee:', estimatedFee);
-
-  // available balance = total balance - estimated transaction fee
-  const availableBalance = Math.max(0, balance - estimatedFee);
+  const estimatedFee = estimatedTxSize * feeRate;
+  const availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
+  const availableBalance = new Big(availableRawBalance)
+    .div(10 ** btcDecimals)
+    .round(btcDecimals, Big.roundDown)
+    .toNumber();
 
   return {
     rawBalance,
@@ -278,7 +286,7 @@ export async function executeBTCDepositAndAction({
 
     const gasLimit = new Big(50).mul(10 ** 12).toFixed(0);
 
-    const repayAction = await checkGasTokenArrears(accountInfo.debt_info, isDev, false);
+    const repayAction = await checkGasTokenArrears(accountInfo?.debt_info, isDev, false);
 
     if (repayAction) {
       newActions.push({

@@ -65,7 +65,14 @@ export default async function request<T>(url: string, options?: RequestOptions<T
       if (options.shouldStopPolling(data)) {
         return data as T;
       }
-      throw new Error('Polling should continue');
+      if (options.maxPollingAttempts && options.maxPollingAttempts > 0) {
+        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
+        return request(url, {
+          ...options,
+          maxPollingAttempts: options.maxPollingAttempts - 1,
+        });
+      }
+      throw new Error('Polling failed: maximum attempts reached without meeting the condition');
     }
 
     if (cacheKey) {

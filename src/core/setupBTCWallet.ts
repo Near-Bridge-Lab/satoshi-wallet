@@ -19,20 +19,22 @@ import { delay, retryOperation } from '../utils';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
-import type { DebtInfo } from './btcUtils';
+
 import {
   checkGasTokenArrears,
   checkGasTokenBalance,
   executeBTCDepositAndAction,
   getAccountInfo,
 } from './btcUtils';
-import { Dialog } from '../utils/Dialog';
+
 import {
   checkBtcTransactionStatus,
   getNearNonce,
   getNonce,
   receiveTransaction,
 } from '../utils/satoshi';
+import { getVersion } from '../index';
+
 const { transfer, functionCall } = actionCreators;
 
 declare global {
@@ -279,12 +281,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     await checkGasTokenBalance(accountId, currentConfig.token, isDev);
 
     // check gas token arrears
-    await checkGasTokenArrears(accountInfo.debt_info, isDev, true);
+    await checkGasTokenArrears(accountInfo?.debt_info, isDev, true);
 
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
 
-    const gasTokenBalance = accountInfo.gas_token[currentConfig.token] || '0';
+    const gasTokenBalance = accountInfo?.gas_token[currentConfig.token] || '0';
 
     const { transferGasTransaction, useNearPayGas, gasLimit } = await calculateGasStrategy(
       gasTokenBalance,
@@ -308,9 +310,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const nonceFromApi = await getNonce(currentConfig.base_url, accountId as string);
 
     const nonce =
-      Number(nonceFromApi) > Number(accountInfo.nonce)
+      Number(nonceFromApi) > Number(accountInfo?.nonce)
         ? String(nonceFromApi)
-        : String(accountInfo.nonce);
+        : String(accountInfo?.nonce);
 
     const intention = {
       chain_id: '397',
@@ -574,6 +576,7 @@ export function setupBTCWallet({
   syncLogOut = true,
   isDev = false,
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
+  console.log('⚡️ BTC Wallet Version:', getVersion());
   const btcWallet = async () => {
     return {
       id: 'btc-wallet',

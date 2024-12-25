@@ -9,5 +9,5 @@ export const getVersion = () => {
 };
 
 if (typeof window !== 'undefined') {
-  (window as any).__PARTICLE_BTC_CONNECT_VERSION = getVersion();
+  (window as any).__BTC_WALLET_VERSION = getVersion();
 }
