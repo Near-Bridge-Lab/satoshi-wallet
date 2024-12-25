@@ -174,7 +174,7 @@ export async function getBtcBalance() {
   return {
     rawBalance,
     balance,
-    availableBalance,
+    availableBalance: Math.max(availableBalance, 0),
   };
 }
 
@@ -217,7 +217,12 @@ export async function getDepositAmount(
     ? Number(amount)
     : Math.max(MINIMUM_DEPOSIT_AMOUNT + MINIMUM_DEPOSIT_AMOUNT_BASE, Number(amount));
   const fee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
-  const receiveAmount = new Big(depositAmount).minus(fee).round(0, Big.roundDown).toNumber();
+  const receiveAmount = new Big(depositAmount)
+    .minus(fee)
+    .minus(MINIMUM_DEPOSIT_AMOUNT_BASE)
+    .round(0, Big.roundDown)
+    .toNumber();
+  console.log('getDepositAmount:', { depositAmount, receiveAmount, fee });
   return {
     depositAmount,
     receiveAmount: Math.max(receiveAmount, 0),
