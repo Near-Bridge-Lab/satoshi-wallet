@@ -16,7 +16,7 @@ export const useConnector = () => {
         setConnectorId(connector.metadata.id);
       }
     },
-    [connectors, setConnectorId]
+    [connectors, setConnectorId],
   );
 
   return { connectors, connect };

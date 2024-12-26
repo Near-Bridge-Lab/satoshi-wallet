@@ -11,6 +11,7 @@ import {
 import { useBTCProvider, useConnectModal } from '../hooks';
 
 import ComfirmBox from '../components/confirmBox';
+import { retryOperation } from '../utils';
 
 const WalletSelectorContext = React.createContext<any>(null);
 
@@ -99,14 +100,22 @@ function InitBtcWalletSelectorContext() {
 
 export function useBtcWalletSelector() {
   // @ts-ignore
-  const { openConnectModal, openConnectModalAsync, disconnect, requestDirectAccount } =
-    useConnectModal();
-  const { accounts, sendBitcoin, getPublicKey, provider, signMessage, connector, getNetwork } =
-    useBTCProvider();
+  const { openConnectModal, disconnect, requestDirectAccount } = useConnectModal();
+  const {
+    accounts,
+    sendBitcoin,
+    getPublicKey,
+    provider,
+    signMessage,
+    connector,
+    getNetwork,
+    switchNetwork,
+  } = useBTCProvider();
   const publicKey = useRef<any>(null);
   const signMessageFn = useRef<any>(null);
   const connectorRef = useRef<any>(null);
   const context = useContext(WalletSelectorContext);
+  const isLoggingIn = useRef(false);
 
   useEffect(() => {
     if (provider) {
@@ -147,7 +156,30 @@ export function useBtcWalletSelector() {
       login: async () => {
         const account = accounts?.[0];
         if (!account) {
-          openConnectModal?.();
+          if (isLoggingIn.current) {
+            return null;
+          }
+
+          try {
+            isLoggingIn.current = true;
+            openConnectModal?.();
+
+            const account1 = await retryOperation(
+              () => window.btcContext.account,
+              (res) => !!res,
+              {
+                maxRetries: 100,
+                delayMs: 1000,
+              },
+            );
+
+            if (!account1) {
+              throw new Error('Failed to get account');
+            }
+            return account1;
+          } finally {
+            isLoggingIn.current = false;
+          }
         }
         return account;
       },
@@ -173,6 +205,10 @@ export function useBtcWalletSelector() {
         return context;
       },
       getNetwork,
+      switchNetwork: async (network: 'livenet' | 'testnet') => {
+        console.log('switchNetwork:', network);
+        await switchNetwork(network);
+      },
       sendBitcoin,
     };
   }, [
@@ -180,6 +216,7 @@ export function useBtcWalletSelector() {
     context,
     disconnect,
     getNetwork,
+    switchNetwork,
     openConnectModal,
     requestDirectAccount,
     sendBitcoin,

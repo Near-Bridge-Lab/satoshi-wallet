@@ -15,7 +15,8 @@ export abstract class InjectedConnector extends BaseConnector {
         return typeof (window as any)[props[0]] !== 'undefined';
       } else {
         return (
-          typeof (window as any)[props[0]] !== 'undefined' && typeof (window as any)[props[0]][props[1]] !== 'undefined'
+          typeof (window as any)[props[0]] !== 'undefined' &&
+          typeof (window as any)[props[0]][props[1]] !== 'undefined'
         );
       }
     }
@@ -24,6 +25,7 @@ export abstract class InjectedConnector extends BaseConnector {
 
   async requestAccounts(): Promise<string[]> {
     const accounts = await this.getProviderOrThrow().requestAccounts();
+    console.log('network:', await this.getNetwork());
     console.log('🚀 ~ InjectedConnector ~ requestAccounts ~ accounts:', accounts);
     return accounts;
   }
@@ -77,14 +79,18 @@ export abstract class InjectedConnector extends BaseConnector {
     return this.getProviderOrThrow().switchNetwork(network);
   }
 
-  async sendBitcoin(toAddress: string, satoshis: number, options?: { feeRate: number }): Promise<string> {
+  async sendBitcoin(
+    toAddress: string,
+    satoshis: number,
+    options?: { feeRate: number },
+  ): Promise<string> {
     return this.getProviderOrThrow().sendBitcoin(toAddress, satoshis, options);
   }
 
   async sendInscription(
     address: string,
     inscriptionId: string,
-    options?: { feeRate: number }
+    options?: { feeRate: number },
   ): Promise<{ txid: string }> {
     const result = await this.getProviderOrThrow().sendInscription(address, inscriptionId, options);
     if (typeof result === 'string') {

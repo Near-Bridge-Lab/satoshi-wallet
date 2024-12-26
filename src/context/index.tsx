@@ -239,9 +239,9 @@ export const ConnectProvider = ({
     const onAccountChange = (accounts: string[]) => {
       setAccounts(accounts);
     };
-    connector?.on('accountsChanged', onAccountChange as any);
+    connector?.on('accountsChanged', onAccountChange);
     return () => {
-      connector?.removeListener('accountsChanged', onAccountChange as any);
+      connector?.removeListener('accountsChanged', onAccountChange);
     };
   }, [connector]);
 

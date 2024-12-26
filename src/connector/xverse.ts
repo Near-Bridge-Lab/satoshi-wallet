@@ -175,6 +175,7 @@ export class XverseConnector extends BaseConnector {
           });
         },
       };
+      console.log('🚀 ~ XverseConnector ~ sendBitcoin ~ sendBtcOptions:', sendBtcOptions);
       sendBtcTransaction(sendBtcOptions).catch((e) => reject(e));
     });
     return result;

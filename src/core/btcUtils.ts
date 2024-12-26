@@ -56,10 +56,15 @@ export async function getAccountInfo(csna: string, accountContractId: string) {
   return accountInfo;
 }
 
-export async function checkGasTokenBalance(csna: string, gasToken: string, isDev: boolean) {
+export async function checkGasTokenBalance(
+  csna: string,
+  gasToken: string,
+  minAmount: string,
+  isDev: boolean,
+) {
   const amount = await nearCall<string>(gasToken, 'ft_balance_of', { account_id: csna });
   console.log('gas token balance:', amount);
-  if (new Big(amount).lte(MINIMUM_DEPOSIT_AMOUNT_BASE)) {
+  if (new Big(amount).lt(minAmount)) {
     await Dialog.confirm({
       title: 'Gas token balance is insufficient',
       message: 'Please deposit gas token to continue, will open bridge website.',
