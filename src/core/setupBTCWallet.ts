@@ -554,10 +554,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     if (!btcContext.account) return;
     const btcNetwork = await btcContext.getNetwork();
     console.log('btcNetwork:', btcNetwork, network);
-    if (network === 'mainnet' && btcNetwork !== 'livenet') {
-      await btcContext.switchNetwork('livenet');
-    } else if (network === 'testnet' && btcNetwork !== 'testnet') {
-      await btcContext.switchNetwork('testnet');
+    const networkMap = {
+      livenet: ['mainnet'],
+      testnet: ['testnet', 'dev'],
+    };
+    if (!networkMap[btcNetwork].includes(network)) {
+      await btcContext.switchNetwork(btcNetwork === 'livenet' ? 'testnet' : 'livenet');
     }
   }
 
