@@ -205,21 +205,18 @@ export function useBtcWalletSelector() {
         return context;
       },
       getNetwork,
-      switchNetwork: async (network: 'livenet' | 'testnet') => {
-        console.log('switchNetwork:', network);
-        await switchNetwork(network);
-      },
+      switchNetwork,
       sendBitcoin,
     };
   }, [
     accounts,
-    context,
-    disconnect,
     getNetwork,
     switchNetwork,
+    sendBitcoin,
     openConnectModal,
     requestDirectAccount,
-    sendBitcoin,
+    context,
+    disconnect,
   ]);
 
   return hook;

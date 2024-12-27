@@ -100,6 +100,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     getAccounts,
     verifyOwner,
     signMessage,
+    isSignedIn,
     signAndSendTransaction,
     signAndSendTransactions,
   };
@@ -110,34 +111,53 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   await initBtcContext();
 
-  async function setupBtcContextListeners(btcContext: any) {
-    const context = btcContext.getContext();
+  async function setupBtcContextListeners() {
+    const handleConnectionUpdate = async () => {
+      await checkBtcNetwork(walletNetwork);
+      const accountId = state.getAccount();
+      const btcContext = window.btcContext;
+      if (accountId && btcContext.account) {
+        setupWalletButton(walletNetwork, wallet as any, btcContext);
+      } else {
+        removeWalletButton();
+        setTimeout(() => {
+          handleConnectionUpdate();
+        }, 5000);
+      }
+    };
+
+    const context = window.btcContext.getContext();
 
     context.on('updatePublicKey', async (btcPublicKey: string) => {
-      const { nearTempAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
-
-      removeWalletButton();
-      initConnected(walletNetwork, wallet);
+      console.log('updatePublicKey');
+      const { nearAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
       emitter.emit('accountsChanged', {
-        accounts: [{ accountId: nearTempAddress }],
+        accounts: [{ accountId: nearAddress }],
       });
+      await handleConnectionUpdate();
     });
 
     context.on('btcLoginError', async () => {
+      console.log('btcLoginError');
       emitter.emit('accountsChanged', { accounts: [] });
+      await handleConnectionUpdate();
     });
 
     context.on('btcLogOut', async () => {
+      console.log('btcLogOut');
       emitter.emit('accountsChanged', { accounts: [] });
+      await handleConnectionUpdate();
     });
+
+    await handleConnectionUpdate();
 
     if (
       'autoConnect' in metadata &&
       metadata.autoConnect &&
       localStorage.getItem('near-wallet-selector:selectedWalletId') === '"btc-wallet"'
     ) {
-      await btcContext.autoConnect();
+      await window.btcContext.autoConnect();
     }
   }
 
@@ -158,7 +178,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       },
     );
 
-    await setupBtcContextListeners(btcContext);
+    await setupBtcContextListeners();
     return btcContext;
   }
 
@@ -167,25 +187,25 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
-    const nearTempAddress = await nearCall<string>(
+    const nearAddress = await nearCall<string>(
       currentConfig.accountContractId,
       'get_chain_signature_near_account_id',
       { btc_public_key: btcPublicKey },
     );
 
-    const nearTempPublicKey = await nearCall<string>(
+    const nearPublicKey = await nearCall<string>(
       currentConfig.accountContractId,
       'get_chain_signature_near_account_public_key',
       { btc_public_key: btcPublicKey },
     );
 
-    state.saveAccount(nearTempAddress);
-    state.savePublicKey(nearTempPublicKey);
+    state.saveAccount(nearAddress);
+    state.savePublicKey(nearPublicKey);
     state.saveBtcPublicKey(btcPublicKey);
 
     return {
-      nearTempAddress,
-      nearTempPublicKey,
+      nearAddress,
+      nearPublicKey,
     };
   }
 
@@ -206,12 +226,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       throw new Error('No connected BTC wallet, please connect your BTC wallet first.');
     }
 
-    const { nearTempAddress, nearTempPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
-    initConnected(walletNetwork, wallet);
+    const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+
     return [
       {
-        accountId: nearTempAddress,
-        publicKey: nearTempPublicKey,
+        accountId: nearAddress,
+        publicKey: nearPublicKey,
       },
     ];
   }
@@ -226,12 +246,17 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     // @ts-ignore
     if (metadata.syncLogOut) {
       btcContext.logout();
-      await delay(300);
     }
 
     state.clear();
     window.localStorage.removeItem('near-wallet-selector:selectedWalletId');
     removeWalletButton();
+  }
+
+  function isSignedIn() {
+    const accountId = state.getAccount();
+    const publicKey = state.getPublicKey();
+    return accountId && publicKey;
   }
 
   async function getAccounts() {
@@ -524,22 +549,16 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     return { txBytes, txHex, hash };
   }
 
-  async function initConnected(network: string, wallet: any) {
-    const checkAndSetupWalletButton = () => {
-      const accountId = state.getAccount();
-      const btcContext = window.btcContext;
-
-      if (accountId && btcContext.account) {
-        setupWalletButton(network, wallet, btcContext);
-      } else {
-        removeWalletButton();
-        setTimeout(() => {
-          checkAndSetupWalletButton();
-        }, 5000);
-      }
-    };
-    await delay(1000);
-    checkAndSetupWalletButton();
+  async function checkBtcNetwork(network: string) {
+    const btcContext = window.btcContext;
+    if (!btcContext.account) return;
+    const btcNetwork = await btcContext.getNetwork();
+    console.log('btcNetwork:', btcNetwork, network);
+    if (network === 'mainnet' && btcNetwork !== 'livenet') {
+      await btcContext.switchNetwork('livenet');
+    } else if (network === 'testnet' && btcNetwork !== 'testnet') {
+      await btcContext.switchNetwork('testnet');
+    }
   }
 
   return wallet as any;

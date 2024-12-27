@@ -8,7 +8,7 @@ import type {
 import icon from '../icons/xverse.png';
 import { BaseConnector, type WalletMetadata } from './base';
 export class XverseConnector extends BaseConnector {
-  #network = 'Testnet'; // Testnet
+  #network = 'Mainnet';
   #event = new EventEmitter();
   constructor() {
     super();
