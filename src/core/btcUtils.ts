@@ -115,6 +115,13 @@ export async function checkGasTokenArrears<T extends boolean>(
   }
 }
 
+export async function queryGasTokenArrears(isDev?: boolean) {
+  const config = await getConfig(isDev || false);
+  const csna = await getCsnaAccountId(isDev);
+  const accountInfo = await getAccountInfo(csna, config.accountContractId);
+  return accountInfo?.debt_info;
+}
+
 interface DepositMsg {
   recipient_id: string;
   post_actions?: Array<{
@@ -236,6 +243,20 @@ export async function getDepositAmount(
   };
 }
 
+export async function getCsnaAccountId(isDev?: boolean) {
+  const config = await getConfig(isDev || false);
+  const { getPublicKey } = getBtcProvider();
+  const btcPublicKey = await getPublicKey();
+  const csna = await nearCall<string>(
+    config.accountContractId,
+    'get_chain_signature_near_account_id',
+    {
+      btc_public_key: btcPublicKey,
+    },
+  );
+  return csna;
+}
+
 interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   action?: {
     receiver_id: string;
@@ -278,13 +299,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       throw new Error('amount or action is required');
     }
 
-    const csna = await nearCall<string>(
-      config.accountContractId,
-      'get_chain_signature_near_account_id',
-      {
-        btc_public_key: btcPublicKey,
-      },
-    );
+    const csna = await getCsnaAccountId(isDev);
 
     const rawDepositAmount = (action ? action.amount : amount) ?? '0';
 
@@ -311,15 +326,29 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       });
     }
 
-    if (action) {
-      newActions.push({
-        ...action,
-        amount:
-          repayAction?.amount && !fixedAmount
-            ? new Big(receiveAmount).minus(repayAction.amount).toString()
-            : receiveAmount.toString(),
-        gas: gasLimit,
-      });
+    // if action is not provided, and the gas token balance is less than the minimum deposit amount, then add the deposit action
+    if (
+      action ||
+      (!action &&
+        new Big(accountInfo?.gas_token[config.token] || 0).lt(MINIMUM_DEPOSIT_AMOUNT_BASE))
+    ) {
+      newActions.push(
+        action
+          ? {
+              ...action,
+              amount:
+                repayAction?.amount && !fixedAmount
+                  ? new Big(receiveAmount).minus(repayAction.amount).toString()
+                  : receiveAmount.toString(),
+              gas: gasLimit,
+            }
+          : {
+              receiver_id: config.accountContractId,
+              amount: MINIMUM_DEPOSIT_AMOUNT_BASE.toString(),
+              msg: JSON.stringify('Deposit'),
+              gas: gasLimit,
+            },
+      );
     }
 
     const depositMsg: DepositMsg = {

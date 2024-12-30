@@ -20,7 +20,12 @@ import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
 
-import { checkGasTokenArrears, checkGasTokenBalance, getAccountInfo } from './btcUtils';
+import {
+  checkGasTokenArrears,
+  checkGasTokenBalance,
+  getAccountInfo,
+  getCsnaAccountId,
+} from './btcUtils';
 
 import {
   checkBtcTransactionStatus,
@@ -187,11 +192,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
-    const nearAddress = await nearCall<string>(
-      currentConfig.accountContractId,
-      'get_chain_signature_near_account_id',
-      { btc_public_key: btcPublicKey },
-    );
+    const csna = await getCsnaAccountId(isDev);
 
     const nearPublicKey = await nearCall<string>(
       currentConfig.accountContractId,
@@ -199,12 +200,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       { btc_public_key: btcPublicKey },
     );
 
-    state.saveAccount(nearAddress);
+    state.saveAccount(csna);
     state.savePublicKey(nearPublicKey);
     state.saveBtcPublicKey(btcPublicKey);
 
     return {
-      nearAddress,
+      nearAddress: csna,
       nearPublicKey,
     };
   }
