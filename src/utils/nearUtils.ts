@@ -73,5 +73,6 @@ export async function pollTransactionStatuses(network: string, hashes: string[])
     }
   }
 
-  return hashes.map((hash) => results.get(hash));
+  const result = hashes.map((hash) => results.get(hash)).filter(Boolean) as FinalExecutionOutcome[];
+  return result;
 }
