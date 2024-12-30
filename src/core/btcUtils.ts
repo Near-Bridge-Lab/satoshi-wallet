@@ -4,6 +4,7 @@ import { delay, retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
+import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
 const MINIMUM_DEPOSIT_AMOUNT = 5000;
 const MINIMUM_DEPOSIT_AMOUNT_BASE = 1000;
@@ -235,29 +236,34 @@ export async function getDepositAmount(
   };
 }
 
-interface ExecuteBTCDepositAndActionParams {
+interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   action?: {
     receiver_id: string;
     amount: string;
-    // memo?: string;
     msg: string;
   };
   amount?: string;
-  /** fee rate, if not provided, will use the recommended fee rate from the btc node */
   feeRate?: number;
-  /** fixed amount, if true, in arrears mode, amount is fixed, otherwise it is depositAmount-repayAction.amount */
   fixedAmount?: boolean;
-  /** is dev environment */
   isDev?: boolean;
+  pollResult?: T;
 }
 
-export async function executeBTCDepositAndAction({
+/**
+ * @param T - if true, return the poll result, otherwise return the btcTxHash
+ */
+type ExecuteBTCDepositAndActionReturn<T extends boolean> = T extends true
+  ? FinalExecutionOutcome[]
+  : string;
+
+export async function executeBTCDepositAndAction<T extends boolean = true>({
   action,
   amount,
   feeRate,
   fixedAmount = true,
+  pollResult = true as T,
   isDev = false,
-}: ExecuteBTCDepositAndActionParams) {
+}: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
     const { getPublicKey } = getBtcProvider();
 
@@ -380,11 +386,16 @@ export async function executeBTCDepositAndAction({
       postActions: postActionsStr,
       extraMsg: depositMsg.extra_msg,
     });
+
+    if (!pollResult) {
+      return txHash as ExecuteBTCDepositAndActionReturn<T>;
+    }
+
     const checkTransactionStatusRes = await checkBridgeTransactionStatus(config.base_url, txHash);
     console.log('checkBridgeTransactionStatus resp:', checkTransactionStatusRes);
     const network = await getNetwork();
     const result = await pollTransactionStatuses(network, [checkTransactionStatusRes.ToTxHash]);
-    return result;
+    return result as ExecuteBTCDepositAndActionReturn<T>;
   } catch (error: any) {
     console.error('executeBTCDepositAndAction error:', error);
     throw error;

@@ -2,6 +2,7 @@ import type { ProviderService } from '@near-wallet-selector/core/src/lib/service
 import { providers } from 'near-api-js';
 import { nearRpcUrls } from '../config';
 import { delay } from '.';
+import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
 export async function nearCallFunction<T>(
   contractId: string,
@@ -39,7 +40,7 @@ export async function pollTransactionStatuses(network: string, hashes: string[])
   const maxAttempts = 30;
   let currentAttempt = 0;
   const pendingHashes = new Set(hashes);
-  const results = new Map();
+  const results = new Map<string, FinalExecutionOutcome>();
 
   while (pendingHashes.size > 0 && currentAttempt < maxAttempts) {
     currentAttempt++;
