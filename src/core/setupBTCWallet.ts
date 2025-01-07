@@ -16,6 +16,7 @@ import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
 import { delay, retryOperation } from '../utils';
+import type { ENV } from '../config';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
@@ -48,7 +49,7 @@ interface BTCWalletParams {
   deprecated?: boolean;
   autoConnect?: boolean;
   syncLogOut?: boolean;
-  isDev?: boolean;
+  env?: ENV;
 }
 
 const state: any = {
@@ -109,10 +110,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransaction,
     signAndSendTransactions,
   };
-
-  const isDev = ('isDev' in metadata && (metadata.isDev as boolean)) ?? false;
-  const currentConfig = isDev ? walletConfig.dev : walletConfig[options.network.networkId];
-  const walletNetwork = isDev ? 'dev' : options.network.networkId;
+  const env = (options.network.networkId || (metadata as any).env || 'mainnet') as ENV;
+  const currentConfig = walletConfig[env];
+  const walletNetwork = ['mainnet', 'private_mainnet'].includes(env) ? 'mainnet' : 'testnet';
 
   await initBtcContext();
 
@@ -192,7 +192,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
-    const csna = await getCsnaAccountId(isDev);
+    const csna = await getCsnaAccountId(env);
 
     const nearPublicKey = await nearCall<string>(
       currentConfig.accountContractId,
@@ -289,7 +289,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
 
     // check gas token arrears
-    await checkGasTokenArrears(accountInfo?.debt_info, isDev, true);
+    await checkGasTokenArrears(accountInfo?.debt_info, env, true);
 
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
@@ -306,7 +306,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     console.log('gasLimit:', gasLimit);
 
     // check gas token balance
-    await checkGasTokenBalance(accountId, currentConfig.token, gasLimit, isDev);
+    await checkGasTokenBalance(accountId, currentConfig.token, gasLimit, env);
 
     if (transferGasTransaction) {
       trans.unshift(transferGasTransaction);
@@ -556,7 +556,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const btcNetwork = await btcContext.getNetwork();
     console.log('btcNetwork:', btcNetwork, network);
     const networkMap = {
-      livenet: ['mainnet'],
+      livenet: ['mainnet', 'private_mainnet'],
       testnet: ['testnet', 'dev'],
     };
     if (!networkMap[btcNetwork].includes(network)) {
@@ -581,7 +581,7 @@ export function setupBTCWallet({
   deprecated = false,
   autoConnect = true,
   syncLogOut = true,
-  isDev = false,
+  env = 'mainnet',
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
   console.log('⚡️ BTC Wallet Version:', getVersion());
   const btcWallet = async () => {
@@ -597,7 +597,7 @@ export function setupBTCWallet({
         available: true,
         autoConnect,
         syncLogOut,
-        isDev,
+        env,
       },
       init: BTCWallet,
     } as any;

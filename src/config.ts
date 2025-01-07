@@ -1,5 +1,7 @@
+export type ENV = 'mainnet' | 'testnet' | 'private_mainnet' | 'dev';
+
 export const walletConfig: Record<
-  string,
+  ENV,
   {
     base_url: string;
     token: string;
@@ -24,6 +26,14 @@ export const walletConfig: Record<
     bridgeContractId: 'brg2-nsp.testnet',
     walletUrl: 'https://wallet-test.satoshibridge.top',
     bridgeUrl: 'https://testnet.satoshibridge.top/',
+  },
+  private_mainnet: {
+    base_url: 'https://api.stg.satoshibridge.top',
+    token: 'nbtc.toalice.near',
+    accountContractId: 'acc.toalice.near',
+    bridgeContractId: 'brg.toalice.near',
+    walletUrl: 'https://wallet-stg.satoshibridge.top',
+    bridgeUrl: 'https://stg.satoshibridge.top/',
   },
   mainnet: {
     base_url: 'https://api.mainnet.satoshibridge.top',

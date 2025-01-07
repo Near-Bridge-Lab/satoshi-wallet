@@ -1,4 +1,5 @@
 import Big from 'big.js';
+import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
 import { delay, retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
@@ -27,9 +28,8 @@ async function getBtcRpcUrl() {
   return btcRpcUrls[network as keyof typeof btcRpcUrls];
 }
 
-async function getConfig(isDev: boolean) {
-  const network = await getNetwork();
-  return walletConfig[isDev ? 'dev' : network];
+async function getConfig(env: ENV) {
+  return walletConfig[env];
 }
 
 async function nearCall<T>(contractId: string, methodName: string, args: any) {
@@ -61,7 +61,7 @@ export async function checkGasTokenBalance(
   csna: string,
   gasToken: string,
   minAmount: string,
-  isDev: boolean,
+  env: ENV,
 ) {
   const amount = await nearCall<string>(gasToken, 'ft_balance_of', { account_id: csna });
   console.log('gas token balance:', amount);
@@ -70,7 +70,7 @@ export async function checkGasTokenBalance(
       title: 'Gas token balance is insufficient',
       message: 'Please deposit gas token to continue, will open bridge website.',
     });
-    const config = await getConfig(isDev);
+    const config = await getConfig(env);
     window.open(config.bridgeUrl, '_blank');
     throw new Error('Gas token balance is insufficient');
   }
@@ -82,11 +82,11 @@ type CheckGasTokenArrearsReturnType<T extends boolean> = T extends true
 
 export async function checkGasTokenArrears<T extends boolean>(
   debtInfo: DebtInfo | undefined,
-  isDev: boolean,
+  env: ENV,
   autoDeposit?: T,
 ): Promise<CheckGasTokenArrearsReturnType<T>> {
   if (!debtInfo) return;
-  const config = await getConfig(isDev);
+  const config = await getConfig(env);
   const transferAmount = debtInfo.transfer_amount;
   console.log('get_account debtInfo:', debtInfo);
 
@@ -104,7 +104,7 @@ export async function checkGasTokenArrears<T extends boolean>(
   });
 
   if (confirmed) {
-    await executeBTCDepositAndAction({ action, isDev });
+    await executeBTCDepositAndAction({ action, env });
 
     await Dialog.alert({
       title: 'Deposit success',
@@ -115,9 +115,9 @@ export async function checkGasTokenArrears<T extends boolean>(
   }
 }
 
-export async function queryGasTokenArrears(isDev?: boolean) {
-  const config = await getConfig(isDev || false);
-  const csna = await getCsnaAccountId(isDev);
+export async function queryGasTokenArrears(env: ENV) {
+  const config = await getConfig(env);
+  const csna = await getCsnaAccountId(env);
   const accountInfo = await getAccountInfo(csna, config.accountContractId);
   return accountInfo?.debt_info;
 }
@@ -204,7 +204,7 @@ export async function sendBitcoin(
 export async function estimateDepositAmount(
   amount: string,
   option?: {
-    isDev?: boolean;
+    env?: ENV;
   },
 ) {
   const { receiveAmount } = await getDepositAmount(amount, { ...option, isEstimate: true });
@@ -215,10 +215,10 @@ export async function getDepositAmount(
   amount: string,
   option?: {
     isEstimate?: boolean;
-    isDev?: boolean;
+    env?: ENV;
   },
 ) {
-  const config = await getConfig(option?.isDev || false);
+  const config = await getConfig(option?.env || 'mainnet');
   const {
     deposit_bridge_fee: { fee_min, fee_rate },
   } = await nearCall<{ deposit_bridge_fee: { fee_min: string; fee_rate: number } }>(
@@ -243,8 +243,8 @@ export async function getDepositAmount(
   };
 }
 
-export async function getCsnaAccountId(isDev?: boolean) {
-  const config = await getConfig(isDev || false);
+export async function getCsnaAccountId(env: ENV) {
+  const config = await getConfig(env);
   const { getPublicKey } = getBtcProvider();
   const btcPublicKey = await getPublicKey();
   const csna = await nearCall<string>(
@@ -266,7 +266,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   amount?: string;
   feeRate?: number;
   fixedAmount?: boolean;
-  isDev?: boolean;
+  env?: ENV;
   pollResult?: T;
 }
 
@@ -283,12 +283,12 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   feeRate,
   fixedAmount = true,
   pollResult = true as T,
-  isDev = false,
+  env = 'mainnet',
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
     const { getPublicKey } = getBtcProvider();
 
-    const config = await getConfig(isDev);
+    const config = await getConfig(env);
 
     const btcPublicKey = await getPublicKey();
 
@@ -299,7 +299,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       throw new Error('amount or action is required');
     }
 
-    const csna = await getCsnaAccountId(isDev);
+    const csna = await getCsnaAccountId(env);
 
     const rawDepositAmount = (action ? action.amount : amount) ?? '0';
 
@@ -308,7 +308,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     }
 
     const { depositAmount, receiveAmount } = await getDepositAmount(rawDepositAmount, {
-      isDev,
+      env,
     });
 
     const accountInfo = await getAccountInfo(csna, config.accountContractId);
@@ -317,7 +317,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const gasLimit = new Big(50).mul(10 ** 12).toFixed(0);
 
-    const repayAction = await checkGasTokenArrears(accountInfo?.debt_info, isDev, false);
+    const repayAction = await checkGasTokenArrears(accountInfo?.debt_info, env, false);
 
     if (repayAction) {
       newActions.push({
