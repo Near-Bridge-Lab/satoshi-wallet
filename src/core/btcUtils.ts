@@ -382,7 +382,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     if (!registerRes?.available) {
       storageDepositMsg.storage_deposit_msg = {
         contract_id: action?.receiver_id || config.token,
-        deposit: new Big(0.25).mul(10 ** 24).toFixed(0),
+        deposit: new Big(0.00125).mul(10 ** 24).toFixed(0),
         registration_only: true,
       };
     }
