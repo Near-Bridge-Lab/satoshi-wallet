@@ -1,24 +1,19 @@
 import type { Wallet } from '@near-wallet-selector/core';
+import { walletConfig, type ENV } from '../config';
 
 interface OriginalWallet {
   account: string | null;
   getPublicKey: () => Promise<string>;
 }
 
-const walletUrlConfig: { [key: string]: string } = {
-  dev: 'https://wallet-dev.satoshibridge.top',
-  testnet: 'https://wallet-test.satoshibridge.top',
-  mainnet: 'https://wallet.satoshibridge.top',
-};
-
-export function setupWalletButton(network: string, wallet: Wallet, originalWallet: OriginalWallet) {
+export function setupWalletButton(env: ENV, wallet: Wallet, originalWallet: OriginalWallet) {
   console.log('setupWalletButton');
   if (document.getElementById('satoshi-wallet-button')) {
     return;
   }
 
   const iframe = createIframe({
-    iframeUrl: walletUrlConfig[network],
+    iframeUrl: walletConfig[env].walletUrl,
     iframeStyle: { width: '400px', height: '650px' },
   });
 

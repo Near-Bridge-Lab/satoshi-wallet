@@ -110,8 +110,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransaction,
     signAndSendTransactions,
   };
-  const env = (options.network.networkId || (metadata as any).env || 'mainnet') as ENV;
-  const currentConfig = walletConfig[env];
+  const env = (metadata as any).env || options.network.networkId || 'mainnet';
+  const currentConfig = walletConfig[env as ENV];
   const walletNetwork = ['mainnet', 'private_mainnet'].includes(env) ? 'mainnet' : 'testnet';
 
   await initBtcContext();
@@ -122,7 +122,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       const accountId = state.getAccount();
       const btcContext = window.btcContext;
       if (accountId && btcContext.account) {
-        setupWalletButton(walletNetwork, wallet as any, btcContext);
+        setupWalletButton(env, wallet as any, btcContext);
       } else {
         removeWalletButton();
         setTimeout(() => {
@@ -554,7 +554,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const btcContext = window.btcContext;
     if (!btcContext.account) return;
     const btcNetwork = await btcContext.getNetwork();
-    console.log('btcNetwork:', btcNetwork, network);
     const networkMap = {
       livenet: ['mainnet', 'private_mainnet'],
       testnet: ['testnet', 'dev'],
@@ -583,7 +582,7 @@ export function setupBTCWallet({
   syncLogOut = true,
   env = 'mainnet',
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
-  console.log('⚡️ BTC Wallet Version:', getVersion());
+  console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env);
   const btcWallet = async () => {
     return {
       id: 'btc-wallet',
