@@ -9,6 +9,9 @@ import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
 const MINIMUM_DEPOSIT_AMOUNT = 5000;
 const MINIMUM_DEPOSIT_AMOUNT_BASE = 1000;
+const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
+const NBTC_STORAGE_DEPOSIT_AMOUNT = 3000;
+const GAS_LIMIT = '50000000000000';
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -315,14 +318,12 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const newActions = [];
 
-    const gasLimit = new Big(50).mul(10 ** 12).toFixed(0);
-
     const repayAction = await checkGasTokenArrears(accountInfo?.debt_info, env, false);
 
     if (repayAction) {
       newActions.push({
         ...repayAction,
-        gas: gasLimit,
+        gas: GAS_LIMIT,
       });
     }
 
@@ -340,21 +341,16 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
                 repayAction?.amount && !fixedAmount
                   ? new Big(receiveAmount).minus(repayAction.amount).toString()
                   : receiveAmount.toString(),
-              gas: gasLimit,
+              gas: GAS_LIMIT,
             }
           : {
               receiver_id: config.accountContractId,
               amount: MINIMUM_DEPOSIT_AMOUNT_BASE.toString(),
               msg: JSON.stringify('Deposit'),
-              gas: gasLimit,
+              gas: GAS_LIMIT,
             },
       );
     }
-
-    const depositMsg: DepositMsg = {
-      recipient_id: csna,
-      post_actions: newActions.length > 0 ? newActions : undefined,
-    };
 
     const storageDepositMsg: {
       storage_deposit_msg?: {
@@ -364,12 +360,6 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       };
       btc_public_key?: string;
     } = {};
-
-    // check account is registerer
-
-    if (!accountInfo?.nonce) {
-      storageDepositMsg.btc_public_key = btcPublicKey;
-    }
 
     // check receiver_id is registered
     const registerRes = await nearCall<{
@@ -382,13 +372,28 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     if (!registerRes?.available) {
       storageDepositMsg.storage_deposit_msg = {
         contract_id: action?.receiver_id || config.token,
-        deposit: new Big(0.00125).mul(10 ** 24).toFixed(0),
+        deposit: NEAR_STORAGE_DEPOSIT_AMOUNT,
         registration_only: true,
       };
     }
-    if (Object.keys(storageDepositMsg).length > 0) {
-      depositMsg.extra_msg = JSON.stringify(storageDepositMsg);
+    // check account is registerer
+    if (!accountInfo?.nonce) {
+      storageDepositMsg.btc_public_key = btcPublicKey;
+      newActions.push({
+        receiver_id: config.accountContractId,
+        amount: NBTC_STORAGE_DEPOSIT_AMOUNT.toString(),
+        msg: JSON.stringify('RelayerFee'),
+        gas: GAS_LIMIT,
+      });
     }
+
+    const depositMsg: DepositMsg = {
+      recipient_id: csna,
+      post_actions: newActions.length > 0 ? newActions : undefined,
+      extra_msg:
+        Object.keys(storageDepositMsg).length > 0 ? JSON.stringify(storageDepositMsg) : undefined,
+    };
+
     console.log('get_user_deposit_address params:', { deposit_msg: depositMsg });
     const userDepositAddress = await nearCall<string>(
       config.bridgeContractId,

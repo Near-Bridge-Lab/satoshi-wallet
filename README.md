@@ -99,6 +99,32 @@ const balance = await getBtcBalance(address: string);
 // Returns balance in satoshis
 ```
 
+### `estimateDepositAmount`
+
+Estimate the amount of BTC tokens that will be received on NEAR after depositing native BTC through Satoshi bridge. This takes into account bridge fees and minimum deposit requirements.
+
+```typescript
+import { estimateDepositAmount } from 'btc-wallet';
+
+// Estimate receivable amount
+const receiveAmount = await estimateDepositAmount(
+  amount: string,           // amount in smallest units (satoshis)
+  options?: {
+    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // optional: defaults to NEAR network environment
+  }
+);
+
+// Example
+const amount = '100000000'; // 1 BTC in satoshis
+const estimatedReceive = await estimateDepositAmount(amount);
+console.log('Estimated receive amount:', estimatedReceive);
+```
+
+The estimated amount will be less than the input amount due to:
+- Bridge fees
+- Minimum deposit requirements
+- Protocol fees
+
 ## Requirements
 
 - React 17.0.0 or higher
