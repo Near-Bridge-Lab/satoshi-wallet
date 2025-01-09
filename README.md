@@ -69,6 +69,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   fixedAmount?: boolean;   // optional: whether to use fixed amount
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to NEAR network environment
   pollResult?: T;         // optional: whether to poll for transaction result
+  registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
 }
 
 // Example 1: dApp one-click BTC deposit
@@ -78,7 +79,8 @@ await executeBTCDepositAndAction({
     amount: '1000000',     // in smallest units
     msg: 'Deposit'
   },
-  feeRate: 5
+  feeRate: 5,
+  registerDeposit: '100000000000000000000000',  // default 0.000125 NEAR, you can set it according to your needs
 });
 
 // Example 2: Direct Satoshi bridge deposit

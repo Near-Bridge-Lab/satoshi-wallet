@@ -267,6 +267,8 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
     msg: string;
   };
   amount?: string;
+  /** if registerDeposit is true, It will consume the deposit, otherwise it will be 0.000125 NEAR */
+  registerDeposit?: string;
   feeRate?: number;
   fixedAmount?: boolean;
   env?: ENV;
@@ -286,6 +288,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   feeRate,
   fixedAmount = true,
   pollResult = true as T,
+  registerDeposit,
   env = 'mainnet',
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
@@ -372,7 +375,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     if (!registerRes?.available) {
       storageDepositMsg.storage_deposit_msg = {
         contract_id: action?.receiver_id || config.token,
-        deposit: NEAR_STORAGE_DEPOSIT_AMOUNT,
+        deposit: registerDeposit || NEAR_STORAGE_DEPOSIT_AMOUNT,
         registration_only: true,
       };
     }
