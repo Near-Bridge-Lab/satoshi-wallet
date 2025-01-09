@@ -75,11 +75,10 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
 // Example 1: dApp one-click BTC deposit
 await executeBTCDepositAndAction({
   action: {
-    receiver_id: 'account.near',
-    amount: '1000000',     // in smallest units
-    msg: 'Deposit'
+    receiver_id: 'token.near',
+    amount: '1000000',
+    msg: 'ft_transfer_call message' // ft_transfer_call message
   },
-  feeRate: 5,
   registerDeposit: '100000000000000000000000',  // default 0.000125 NEAR, you can set it according to your needs
 });
 

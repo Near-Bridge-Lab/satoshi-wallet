@@ -40,6 +40,13 @@ async function nearCall<T>(contractId: string, methodName: string, args: any) {
   return nearCallFunction<T>(contractId, methodName, args, { network });
 }
 
+export interface AccountInfo {
+  nonce: string;
+  gas_token: Record<string, string>;
+  debt_info?: DebtInfo;
+  relayer_fee?: { amount?: string };
+}
+
 export interface DebtInfo {
   gas_token_id: string;
   transfer_amount: string;
@@ -48,14 +55,9 @@ export interface DebtInfo {
 }
 
 export async function getAccountInfo(csna: string, accountContractId: string) {
-  const accountInfo = await nearCall<
-    | {
-        nonce: string;
-        gas_token: Record<string, string>;
-        debt_info?: DebtInfo;
-      }
-    | undefined
-  >(accountContractId, 'get_account', { account_id: csna });
+  const accountInfo = await nearCall<AccountInfo>(accountContractId, 'get_account', {
+    account_id: csna,
+  });
   console.log('get_account accountInfo:', accountInfo);
   return accountInfo;
 }
@@ -84,26 +86,37 @@ type CheckGasTokenArrearsReturnType<T extends boolean> = T extends true
   : { receiver_id: string; amount: string; msg: string } | undefined;
 
 export async function checkGasTokenArrears<T extends boolean>(
-  debtInfo: DebtInfo | undefined,
+  accountInfo: AccountInfo | undefined,
   env: ENV,
   autoDeposit?: T,
 ): Promise<CheckGasTokenArrearsReturnType<T>> {
-  if (!debtInfo) return;
+  if (!accountInfo?.debt_info?.transfer_amount || !accountInfo?.relayer_fee?.amount) return;
   const config = await getConfig(env);
-  const transferAmount = debtInfo.transfer_amount;
-  console.log('get_account debtInfo:', debtInfo);
+  const arrearsType = accountInfo.debt_info.transfer_amount
+    ? 'Deposit'
+    : accountInfo.relayer_fee?.amount
+      ? 'RelayerFee'
+      : undefined;
+  const transferAmount =
+    arrearsType === 'Deposit'
+      ? accountInfo.debt_info.transfer_amount
+      : accountInfo.relayer_fee?.amount;
+  console.log('get_account:', accountInfo);
 
   const action = {
     receiver_id: config.accountContractId,
     amount: transferAmount,
-    msg: JSON.stringify('Deposit'),
+    msg: JSON.stringify(arrearsType),
   };
 
   if (!autoDeposit) return action as CheckGasTokenArrearsReturnType<T>;
 
   const confirmed = await Dialog.confirm({
-    title: 'Has gas token arrears',
-    message: 'You have gas token arrears, please deposit gas token to continue.',
+    title: arrearsType === 'Deposit' ? 'Has gas token arrears' : 'Has relayer fee arrears',
+    message:
+      arrearsType === 'Deposit'
+        ? 'You have gas token arrears, please deposit gas token to continue.'
+        : 'You have relayer fee arrears, please deposit relayer fee to continue.',
   });
 
   if (confirmed) {
@@ -321,11 +334,11 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const newActions = [];
 
-    const repayAction = await checkGasTokenArrears(accountInfo?.debt_info, env, false);
+    const arrearsAction = await checkGasTokenArrears(accountInfo, env, false);
 
-    if (repayAction) {
+    if (arrearsAction) {
       newActions.push({
-        ...repayAction,
+        ...arrearsAction,
         gas: GAS_LIMIT,
       });
     }
@@ -341,8 +354,8 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
           ? {
               ...action,
               amount:
-                repayAction?.amount && !fixedAmount
-                  ? new Big(receiveAmount).minus(repayAction.amount).toString()
+                arrearsAction?.amount && !fixedAmount
+                  ? new Big(receiveAmount).minus(arrearsAction.amount).toString()
                   : receiveAmount.toString(),
               gas: GAS_LIMIT,
             }
@@ -405,8 +418,8 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     );
     const _feeRate = feeRate || (await getBtcGasPrice());
     const sendAmount =
-      repayAction?.amount && fixedAmount
-        ? new Big(depositAmount).plus(repayAction?.amount || 0).toString()
+      arrearsAction?.amount && fixedAmount
+        ? new Big(depositAmount).plus(arrearsAction?.amount || 0).toString()
         : depositAmount;
 
     console.log('user deposit address:', userDepositAddress);
