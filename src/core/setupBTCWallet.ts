@@ -122,6 +122,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       const accountId = state.getAccount();
       const btcContext = window.btcContext;
       if (accountId && btcContext.account) {
+        removeWalletButton();
         setupWalletButton(env, wallet as any, btcContext);
       } else {
         removeWalletButton();

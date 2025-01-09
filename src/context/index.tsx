@@ -292,7 +292,6 @@ export const ConnectProvider = ({
           },
         },
       );
-      console.log('walletEntryPlugin init');
     }
   }, [options, evmSupportChainIds, accountContract]);
 
@@ -301,7 +300,6 @@ export const ConnectProvider = ({
       walletEntryPlugin.setWalletCore({
         ethereum: smartAccount.provider,
       });
-      console.log('walletEntryPlugin setWalletCore');
     }
   }, [smartAccount, options]);
 
@@ -309,10 +307,8 @@ export const ConnectProvider = ({
     if (options.walletOptions?.visible !== false) {
       if (evmAccount) {
         walletEntryPlugin.walletEntryCreate();
-        console.log('walletEntryPlugin walletEntryCreate');
       } else {
         walletEntryPlugin.walletEntryDestroy();
-        console.log('walletEntryPlugin walletEntryDestroy');
       }
     }
   }, [evmAccount, smartAccount, options]);

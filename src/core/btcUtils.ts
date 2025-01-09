@@ -7,8 +7,7 @@ import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satosh
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
-const MINIMUM_DEPOSIT_AMOUNT = 5000;
-const MINIMUM_DEPOSIT_AMOUNT_BASE = 1000;
+const MINIMUM_DEPOSIT_AMOUNT_BASE = 0;
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
 const NBTC_STORAGE_DEPOSIT_AMOUNT = 3000;
 const GAS_LIMIT = '50000000000000';
@@ -237,14 +236,14 @@ export async function getDepositAmount(
   const config = await getConfig(option?.env || 'mainnet');
   const {
     deposit_bridge_fee: { fee_min, fee_rate },
-  } = await nearCall<{ deposit_bridge_fee: { fee_min: string; fee_rate: number } }>(
-    config.bridgeContractId,
-    'get_config',
-    {},
-  );
+    min_deposit_amount,
+  } = await nearCall<{
+    deposit_bridge_fee: { fee_min: string; fee_rate: number };
+    min_deposit_amount: string;
+  }>(config.bridgeContractId, 'get_config', {});
   const depositAmount = option?.isEstimate
     ? Number(amount)
-    : Math.max(MINIMUM_DEPOSIT_AMOUNT + MINIMUM_DEPOSIT_AMOUNT_BASE, Number(amount));
+    : Math.max(Number(min_deposit_amount) + MINIMUM_DEPOSIT_AMOUNT_BASE, Number(amount));
   const fee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
   const receiveAmount = new Big(depositAmount)
     .minus(fee)
