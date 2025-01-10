@@ -95,3 +95,12 @@ export async function retryOperation<T>(
   }
   throw new Error('Unexpected execution path');
 }
+
+export function toHex(originalString: string) {
+  const charArray = originalString.split('');
+  const asciiArray = charArray.map((char) => char.charCodeAt(0));
+  const hexArray = asciiArray.map((code) => code.toString(16));
+  let hexString = hexArray.join('');
+  hexString = hexString.replace(/(^0+)/g, '');
+  return hexString;
+}

@@ -1,3 +1,4 @@
+import { toHex } from '.';
 import request from './request';
 
 interface RequestResult<T> {
@@ -90,7 +91,7 @@ export async function checkBridgeTransactionStatus(url: string, txHash: string) 
 export async function checkBtcTransactionStatus(url: string, sig: string) {
   const { result_code, result_message, result_data } = await request<
     RequestResult<{ Status: number; NearHashList: string[] }>
-  >(`${url}/v1/btcTx?sig=${sig}`, {
+  >(`${url}/v1/btcTx?sig=${toHex(sig)}`, {
     timeout: 300000,
     pollingInterval: 5000,
     maxPollingAttempts: 60,

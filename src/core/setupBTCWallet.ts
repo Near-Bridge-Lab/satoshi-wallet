@@ -15,7 +15,7 @@ import bs58 from 'bs58';
 import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
-import { delay, retryOperation } from '../utils';
+import { delay, retryOperation, toHex } from '../utils';
 import type { ENV } from '../config';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
@@ -566,15 +566,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   return wallet as any;
 };
-
-function toHex(originalString: string) {
-  const charArray = originalString.split('');
-  const asciiArray = charArray.map((char) => char.charCodeAt(0));
-  const hexArray = asciiArray.map((code) => code.toString(16));
-  let hexString = hexArray.join('');
-  hexString = hexString.replace(/(^0+)/g, '');
-  return hexString;
-}
 
 export function setupBTCWallet({
   iconUrl = 'https://assets.deltatrade.ai/assets/chain/btc.svg',
