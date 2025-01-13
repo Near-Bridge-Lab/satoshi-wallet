@@ -104,3 +104,13 @@ export async function checkBtcTransactionStatus(url: string, sig: string) {
   }
   return result_data;
 }
+
+export async function getWhitelist(url: string) {
+  const { result_data } = await request<RequestResult<string[]>>(`${url}/v1/getWhitelist`).catch(
+    (error) => {
+      console.error('getWhitelist error:', error);
+      return { result_data: [] as string[] };
+    },
+  );
+  return result_data;
+}

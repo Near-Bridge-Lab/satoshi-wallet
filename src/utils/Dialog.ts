@@ -7,7 +7,7 @@ export class Dialog {
           <div class="dialog-message"></div>
           <div class="dialog-buttons">
             <button class="dialog-cancel-btn">Cancel</button>
-            <button class="dialog-confirm-btn">Confirm</button>
+            <button class="dialog-confirm-btn">OK</button>
           </div>
         </div>
       </div>
@@ -51,6 +51,9 @@ export class Dialog {
       display: flex;
       justify-content: flex-end;
       gap: 12px;
+    }
+    .dialog-alert .dialog-buttons {
+      justify-content: center;
     }
     .dialog-confirm-btn {
       padding: 8px 24px;
@@ -166,6 +169,7 @@ export class Dialog {
 
       const container = document.createElement('div');
       container.innerHTML = this.template;
+      container.querySelector('.dialog-overlay')?.classList.add('dialog-alert');
       document.body.appendChild(container);
 
       const titleEl = container.querySelector('.dialog-title') as HTMLElement;

@@ -3,7 +3,7 @@ import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
 import { delay, retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
-import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satoshi';
+import { checkBridgeTransactionStatus, getWhitelist, receiveDepositMsg } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
@@ -48,7 +48,6 @@ export interface AccountInfo {
 
 export interface DebtInfo {
   gas_token_id: string;
-  transfer_amount: string;
   near_gas_debt_amount: string;
   protocol_fee_debt_amount: string;
 }
@@ -89,33 +88,30 @@ export async function checkGasTokenArrears<T extends boolean>(
   env: ENV,
   autoDeposit?: T,
 ): Promise<CheckGasTokenArrearsReturnType<T>> {
-  if (!accountInfo?.debt_info?.transfer_amount || !accountInfo?.relayer_fee?.amount) return;
+  const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
+    .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
+    .toString();
+  const relayerFeeAmount = accountInfo?.relayer_fee?.amount || '0';
+  const hasDebtArrears = new Big(debtAmount).gt(0);
+  const hasRelayerFeeArrears = new Big(relayerFeeAmount).gt(0);
+  if (!hasDebtArrears && !hasRelayerFeeArrears) return;
   const config = await getConfig(env);
-  const arrearsType = accountInfo.debt_info.transfer_amount
-    ? 'Deposit'
-    : accountInfo.relayer_fee?.amount
-      ? 'RelayerFee'
-      : undefined;
-  const transferAmount =
-    arrearsType === 'Deposit'
-      ? accountInfo.debt_info.transfer_amount
-      : accountInfo.relayer_fee?.amount;
+  const transferAmount = hasDebtArrears ? debtAmount : relayerFeeAmount;
   console.log('get_account:', accountInfo);
 
   const action = {
     receiver_id: config.accountContractId,
     amount: transferAmount,
-    msg: JSON.stringify(arrearsType),
+    msg: JSON.stringify(hasDebtArrears ? 'Repay' : 'RelayerFee'),
   };
 
   if (!autoDeposit) return action as CheckGasTokenArrearsReturnType<T>;
 
   const confirmed = await Dialog.confirm({
-    title: arrearsType === 'Deposit' ? 'Has gas token arrears' : 'Has relayer fee arrears',
-    message:
-      arrearsType === 'Deposit'
-        ? 'You have gas token arrears, please deposit gas token to continue.'
-        : 'You have relayer fee arrears, please deposit relayer fee to continue.',
+    title: hasDebtArrears ? 'Has gas token arrears' : 'Has relayer fee arrears',
+    message: hasDebtArrears
+      ? 'You have gas token arrears, please deposit gas token to continue.'
+      : 'You have relayer fee arrears, please deposit relayer fee to continue.',
   });
 
   if (confirmed) {
@@ -448,5 +444,20 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   } catch (error: any) {
     console.error('executeBTCDepositAndAction error:', error);
     throw error;
+  }
+}
+
+export async function checkWhitelist(accountId: string, env: ENV = 'mainnet') {
+  if (!accountId) return;
+  const config = await getConfig(env);
+  const whitelist = await getWhitelist(config.base_url);
+
+  const isWhitelisted = whitelist.includes(accountId);
+  if (!isWhitelisted) {
+    Dialog.alert({
+      title: 'Account is not whitelisted',
+      message: `Sorry, you are not whitelisted. Please fill out the form to get whitelisted. <a href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
+    });
+    throw new Error('Account is not whitelisted');
   }
 }

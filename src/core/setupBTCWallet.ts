@@ -24,6 +24,7 @@ import Big from 'big.js';
 import {
   checkGasTokenArrears,
   checkGasTokenBalance,
+  checkWhitelist,
   getAccountInfo,
   getCsnaAccountId,
 } from './btcUtils';
@@ -35,6 +36,7 @@ import {
   receiveTransaction,
 } from '../utils/satoshi';
 import { getVersion } from '../index';
+import { Dialog } from '../utils/Dialog';
 
 const { transfer, functionCall } = actionCreators;
 
@@ -109,6 +111,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     isSignedIn,
     signAndSendTransaction,
     signAndSendTransactions,
+    calculateGasLimit,
   };
   const env = (metadata as any).env || options.network.networkId || 'mainnet';
   const currentConfig = walletConfig[env as ENV];
@@ -229,6 +232,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     }
 
     const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+
+    // TODO: check whitelist
+    await checkWhitelist(nearAddress, env);
 
     return [
       {
@@ -353,6 +359,21 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     return result;
   }
 
+  async function calculateGasLimit(params: { transactions: Transaction[] }) {
+    const accountId = state.getAccount();
+
+    const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
+
+    const trans = [...params.transactions];
+    console.log('raw trans:', trans);
+
+    const gasTokenBalance = accountInfo?.gas_token[currentConfig.token] || '0';
+
+    const { gasLimit } = await calculateGasStrategy(gasTokenBalance, trans);
+
+    return gasLimit;
+  }
+
   async function createGasTokenTransfer(accountId: string, amount: string) {
     return {
       signerId: accountId,
@@ -440,50 +461,50 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    if (availableBalance > 0.2) {
-      console.log('near balance is enough, get the protocol fee of each transaction');
-      const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
-        currentConfig.accountContractId,
-        'list_gas_token',
-        { token_ids: [currentConfig.token] },
-      );
+    // if (availableBalance > 0.2) {
+    //   console.log('near balance is enough, get the protocol fee of each transaction');
+    //   const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
+    //     currentConfig.accountContractId,
+    //     'list_gas_token',
+    //     { token_ids: [currentConfig.token] },
+    //   );
 
-      console.log('list_gas_token gas tokens:', gasTokens);
+    //   console.log('list_gas_token gas tokens:', gasTokens);
 
-      const perTxFee = Math.max(
-        Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
-        100,
-      );
-      console.log('perTxFee:', perTxFee);
-      const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
-      console.log('protocolFee:', protocolFee);
+    //   const perTxFee = Math.max(
+    //     Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
+    //     100,
+    //   );
+    //   console.log('perTxFee:', perTxFee);
+    //   const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
+    //   console.log('protocolFee:', protocolFee);
 
-      if (new Big(gasTokenBalance).gte(protocolFee)) {
-        console.log('use near pay gas and enough gas token balance');
-        return { useNearPayGas: true, gasLimit: protocolFee };
-      } else {
-        console.log('use near pay gas and not enough gas token balance');
-        // gas token balance is not enough, need to transfer
-        const transferTx = await createGasTokenTransfer(accountId, protocolFee);
-        return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
-      }
-    } else {
-      console.log('near balance is not enough, predict the gas token amount required');
-      const adjustedGas = await getPredictedGasAmount(
-        currentConfig.accountContractId,
-        currentConfig.token,
-        convertTx.map((t) => t.txHex),
-      );
+    //   // if (new Big(gasTokenBalance).gte(protocolFee)) {
+    //   //   console.log('use near pay gas and enough gas token balance');
+    //   //   return { useNearPayGas: true, gasLimit: protocolFee };
+    //   // } else {
+    //   console.log('use near pay gas and not enough gas token balance');
+    //   // gas token balance is not enough, need to transfer
+    //   const transferTx = await createGasTokenTransfer(accountId, protocolFee);
+    //   return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
+    //   // }
+    // } else {
+    // console.log('near balance is not enough, predict the gas token amount required');
+    const adjustedGas = await getPredictedGasAmount(
+      currentConfig.accountContractId,
+      currentConfig.token,
+      convertTx.map((t) => t.txHex),
+    );
 
-      if (new Big(gasTokenBalance).gte(adjustedGas)) {
-        console.log('use gas token and gas token balance is enough');
-        return { useNearPayGas: false, gasLimit: adjustedGas };
-      } else {
-        console.log('use gas token and gas token balance is not enough, need to transfer');
-        const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
-        return recalculateGasWithTransfer(transferTx, convertTx, false);
-      }
-    }
+    // if (new Big(gasTokenBalance).gte(adjustedGas)) {
+    //   console.log('use gas token and gas token balance is enough');
+    //   return { useNearPayGas: false, gasLimit: adjustedGas };
+    // } else {
+    // console.log('use gas token and gas token balance is not enough, need to transfer');
+    const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
+    return recalculateGasWithTransfer(transferTx, convertTx, false);
+    // }
+    // }
   }
 
   // add utility function for converting Transaction to txHex
@@ -575,6 +596,17 @@ export function setupBTCWallet({
   env = 'mainnet',
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
   console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env);
+
+  if (env === 'private_mainnet' && typeof window !== 'undefined') {
+    setTimeout(() => {
+      Dialog.alert({
+        title: 'Notice',
+        message:
+          'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Bridge',
+      });
+    }, 1000);
+  }
+
   const btcWallet = async () => {
     return {
       id: 'btc-wallet',
