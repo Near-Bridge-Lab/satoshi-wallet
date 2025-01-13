@@ -325,10 +325,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const nonceFromApi = await getNonce(currentConfig.base_url, accountId as string);
 
+    const nonceFromContract = accountInfo?.nonce || 0;
+
     const nonce =
-      Number(nonceFromApi) > Number(accountInfo?.nonce)
+      Number(nonceFromApi) > Number(nonceFromContract)
         ? String(nonceFromApi)
-        : String(accountInfo?.nonce);
+        : String(nonceFromContract);
 
     const intention = {
       chain_id: '397',
