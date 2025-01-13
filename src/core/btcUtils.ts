@@ -470,7 +470,8 @@ export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'ma
   if (!isWhitelisted) {
     Dialog.alert({
       title: 'Account is not whitelisted',
-      message: `Sorry, you are not whitelisted. Please fill out the form to get whitelisted. <a style="color: #ff7a00; text-decoration: underline;" href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
+      message: `We're live on beta mainnet! Join the whitelist to on-ramp your BTC in just 24 hours.
+Sign up now: <a style="color: #ff7a00; text-decoration: underline;" href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
       dangerouslyUseHTML: true,
       closable: false,
     });
