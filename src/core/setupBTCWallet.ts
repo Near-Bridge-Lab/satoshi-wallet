@@ -431,8 +431,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     });
 
     const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
+    const miniGasAmount = 200;
+    const gasAmount = Math.max(Number(predictedGasAmount), miniGasAmount);
     console.log('predictedGas:', predictedGasAmount);
-    return predictedGasAmount;
+    return gasAmount.toString();
   }
 
   async function calculateGasStrategy(
