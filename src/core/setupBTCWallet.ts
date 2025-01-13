@@ -515,16 +515,21 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       finality: 'final',
     });
 
-    const rawAccessKey = await provider.query<AccessKeyViewRaw>({
-      request_type: 'view_access_key',
-      account_id: accountId,
-      public_key: publicKey,
-      finality: 'final',
-    });
+    const rawAccessKey = await provider
+      .query<AccessKeyViewRaw>({
+        request_type: 'view_access_key',
+        account_id: accountId,
+        public_key: publicKey,
+        finality: 'final',
+      })
+      .catch((e) => {
+        console.log('view_access_key error:', e);
+        return undefined;
+      });
 
     const accessKey = {
       ...rawAccessKey,
-      nonce: BigInt(rawAccessKey.nonce || 0),
+      nonce: BigInt(rawAccessKey?.nonce || 0),
     };
 
     const nearNonceFromApi = await getNearNonce(currentConfig.base_url, accountId);
