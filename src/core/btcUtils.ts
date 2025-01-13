@@ -447,7 +447,8 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   }
 }
 
-export async function checkWhitelist(accountId: string, env: ENV = 'mainnet') {
+export async function checkSatoshiWhitelist(accountId: string, env: ENV = 'mainnet') {
+  if (env !== 'private_mainnet') return;
   if (!accountId) return;
   const config = await getConfig(env);
   const whitelist = await getWhitelist(config.base_url);
@@ -456,7 +457,9 @@ export async function checkWhitelist(accountId: string, env: ENV = 'mainnet') {
   if (!isWhitelisted) {
     Dialog.alert({
       title: 'Account is not whitelisted',
-      message: `Sorry, you are not whitelisted. Please fill out the form to get whitelisted. <a href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
+      message: `Sorry, you are not whitelisted. Please fill out the form to get whitelisted. <a style="color: #ff7a00; text-decoration: underline;" href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
+      dangerouslyUseHTML: true,
+      closable: false,
     });
     throw new Error('Account is not whitelisted');
   }

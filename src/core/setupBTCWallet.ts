@@ -24,7 +24,7 @@ import Big from 'big.js';
 import {
   checkGasTokenArrears,
   checkGasTokenBalance,
-  checkWhitelist,
+  checkSatoshiWhitelist,
   getAccountInfo,
   getCsnaAccountId,
 } from './btcUtils';
@@ -233,8 +233,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
-    // TODO: check whitelist
-    await checkWhitelist(nearAddress, env);
+    await checkSatoshiWhitelist(nearAddress, env);
 
     return [
       {
