@@ -33,7 +33,7 @@ export const walletConfig: Record<
     accountContractId: 'acc.toalice.near',
     bridgeContractId: 'brg.toalice.near',
     walletUrl: 'https://wallet-stg.satoshibridge.top',
-    bridgeUrl: 'https://stg.satoshibridge.top/',
+    bridgeUrl: 'https://ramp.satos.network/',
   },
   mainnet: {
     base_url: 'https://api.mainnet.satoshibridge.top',

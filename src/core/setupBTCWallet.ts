@@ -597,11 +597,15 @@ export function setupBTCWallet({
 
   if (env === 'private_mainnet' && typeof window !== 'undefined') {
     setTimeout(() => {
-      Dialog.alert({
-        title: 'Notice',
-        message:
-          'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Bridge',
-      });
+      const hasShownNotice = localStorage.getItem('satoshi_private_mainnet_notice');
+      if (!hasShownNotice) {
+        Dialog.alert({
+          title: 'Notice',
+          message:
+            'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Bridge',
+        });
+        localStorage.setItem('satoshi_private_mainnet_notice', 'true');
+      }
     }, 1000);
   }
 
