@@ -447,13 +447,13 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   }
 }
 
-export async function checkSatoshiWhitelist(accountId: string, env: ENV = 'mainnet') {
+export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'mainnet') {
   if (env !== 'private_mainnet') return;
-  if (!accountId) return;
+  if (!btcAccountId) return;
   const config = await getConfig(env);
   const whitelist = await getWhitelist(config.base_url);
-
-  const isWhitelisted = whitelist.includes(accountId);
+  if (!whitelist?.length) return;
+  const isWhitelisted = whitelist.includes(btcAccountId);
   if (!isWhitelisted) {
     Dialog.alert({
       title: 'Account is not whitelisted',

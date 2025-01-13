@@ -125,6 +125,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       const accountId = state.getAccount();
       const btcContext = window.btcContext;
       if (accountId && btcContext.account) {
+        await checkSatoshiWhitelist(btcContext.account, env);
         removeWalletButton();
         setupWalletButton(env, wallet as any, btcContext);
       } else {
@@ -232,8 +233,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     }
 
     const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
-
-    await checkSatoshiWhitelist(nearAddress, env);
 
     return [
       {
