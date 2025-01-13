@@ -444,16 +444,16 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
 
     // check near balance
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
-    });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    // const nearAccount = await provider.query<any>({
+    //   request_type: 'view_account',
+    //   account_id: accountId,
+    //   finality: 'final',
+    // });
+    // const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
 
-    console.log('available near balance:', availableBalance);
+    // console.log('available near balance:', availableBalance);
 
-    console.log('available gas token balance:', gasTokenBalance);
+    // console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),

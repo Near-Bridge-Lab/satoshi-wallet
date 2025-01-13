@@ -3,7 +3,12 @@ import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
 import { delay, retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
-import { checkBridgeTransactionStatus, getWhitelist, receiveDepositMsg } from '../utils/satoshi';
+import {
+  checkBridgeTransactionStatus,
+  getWhitelist,
+  preReceiveDepositMsg,
+  receiveDepositMsg,
+} from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
 
@@ -421,9 +426,17 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     console.log('send amount:', sendAmount);
     console.log('fee rate:', _feeRate);
 
+    const postActionsStr = newActions.length > 0 ? JSON.stringify(newActions) : undefined;
+
+    await preReceiveDepositMsg(config.base_url, {
+      btcPublicKey,
+      depositType: postActionsStr || depositMsg.extra_msg ? 1 : 0,
+      postActions: postActionsStr,
+      extraMsg: depositMsg.extra_msg,
+    });
+
     const txHash = await sendBitcoin(userDepositAddress, Number(sendAmount), _feeRate);
 
-    const postActionsStr = newActions.length > 0 ? JSON.stringify(newActions) : undefined;
     await receiveDepositMsg(config.base_url, {
       btcPublicKey,
       txHash,

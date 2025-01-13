@@ -41,21 +41,35 @@ export async function receiveTransaction(url: string, data: any) {
   return result_data;
 }
 
+interface ReceiveDepositMsgParams {
+  btcPublicKey: string;
+  txHash: string;
+  depositType?: number;
+  postActions?: string;
+  extraMsg?: string;
+}
+
+export async function preReceiveDepositMsg(
+  url: string,
+  { btcPublicKey, depositType = 1, postActions, extraMsg }: Omit<ReceiveDepositMsgParams, 'txHash'>,
+) {
+  const { result_code, result_message, result_data } = await request<RequestResult<any>>(
+    `${url}/v1/preReceiveDepositMsg`,
+    {
+      method: 'POST',
+      body: { btcPublicKey, depositType, postActions, extraMsg },
+    },
+  );
+  console.log('preReceiveDepositMsg resp:', { result_code, result_message, result_data });
+  if (result_code !== 0) {
+    throw new Error(result_message);
+  }
+  return result_data;
+}
+
 export async function receiveDepositMsg(
   url: string,
-  {
-    btcPublicKey,
-    txHash,
-    depositType = 1,
-    postActions,
-    extraMsg,
-  }: {
-    btcPublicKey: string;
-    txHash: string;
-    depositType?: number;
-    postActions?: string;
-    extraMsg?: string;
-  },
+  { btcPublicKey, txHash, depositType = 1, postActions, extraMsg }: ReceiveDepositMsgParams,
 ) {
   const { result_code, result_message, result_data } = await request<RequestResult<any>>(
     `${url}/v1/receiveDepositMsg`,
