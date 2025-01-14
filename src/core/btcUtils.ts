@@ -60,6 +60,8 @@ export interface DebtInfo {
 export async function getAccountInfo(csna: string, accountContractId: string) {
   const accountInfo = await nearCall<AccountInfo>(accountContractId, 'get_account', {
     account_id: csna,
+  }).catch((error) => {
+    return undefined;
   });
   console.log('get_account accountInfo:', accountInfo);
   return accountInfo;
@@ -223,8 +225,13 @@ export async function estimateDepositAmount(
     env?: ENV;
   },
 ) {
+  const config = await getConfig(option?.env || 'mainnet');
+  const csna = await getCsnaAccountId(option?.env || 'mainnet');
+  const accountInfo = await getAccountInfo(csna, config.accountContractId);
   const { receiveAmount } = await getDepositAmount(amount, { ...option, isEstimate: true });
-  return receiveAmount;
+  return accountInfo?.nonce
+    ? receiveAmount
+    : new Big(receiveAmount).minus(NBTC_STORAGE_DEPOSIT_AMOUNT).round(0, Big.roundDown).toNumber();
 }
 
 export async function getDepositAmount(
