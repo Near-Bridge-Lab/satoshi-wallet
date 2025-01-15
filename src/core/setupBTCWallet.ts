@@ -386,7 +386,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
             args: {
               receiver_id: currentConfig.accountContractId,
               amount,
-              msg: JSON.stringify('Deposit'),
+              msg: JSON.stringify('Repay'),
             },
             gas: new Big(50).mul(10 ** 12).toFixed(0),
             deposit: '1',

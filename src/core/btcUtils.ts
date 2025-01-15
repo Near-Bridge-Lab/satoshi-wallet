@@ -351,28 +351,15 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     }
 
     // if action is not provided, and the gas token balance is less than the minimum deposit amount, then add the deposit action
-    if (
-      action ||
-      (!action &&
-        new Big(accountInfo?.gas_token[config.token] || 0).lt(MINIMUM_DEPOSIT_AMOUNT_BASE))
-    ) {
-      newActions.push(
-        action
-          ? {
-              ...action,
-              amount:
-                arrearsAction?.amount && !fixedAmount
-                  ? new Big(receiveAmount).minus(arrearsAction.amount).toString()
-                  : receiveAmount.toString(),
-              gas: GAS_LIMIT,
-            }
-          : {
-              receiver_id: config.accountContractId,
-              amount: MINIMUM_DEPOSIT_AMOUNT_BASE.toString(),
-              msg: JSON.stringify('Deposit'),
-              gas: GAS_LIMIT,
-            },
-      );
+    if (action) {
+      newActions.push({
+        ...action,
+        amount:
+          arrearsAction?.amount && !fixedAmount
+            ? new Big(receiveAmount).minus(arrearsAction.amount).toString()
+            : receiveAmount.toString(),
+        gas: GAS_LIMIT,
+      });
     }
 
     const storageDepositMsg: {
