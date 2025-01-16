@@ -86,11 +86,6 @@ export async function checkGasTokenBalance(
   }
 }
 
-type CheckGasTokenDebtParams<T extends boolean> = {
-  accountInfo: AccountInfo | undefined;
-  env: ENV;
-  autoDeposit?: T;
-};
 type CheckGasTokenDebtReturnType<T extends boolean> = T extends true
   ? void
   : { receiver_id: string; amount: string; msg: string } | undefined;
@@ -478,74 +473,64 @@ Sign up now: <a style="color: #ff7a00; text-decoration: underline;" href="https:
   }
 }
 
-export async function getWithdrawTransaction(amount: string, env: ENV = 'mainnet') {
-  try {
-    console.log('getWithdrawTransaction amount:', amount);
-    const config = await getConfig(env);
-    const btcProvider = getBtcProvider();
-    const csna = await getCsnaAccountId(env);
-
-    const btcAddress = await btcProvider.account;
-
-    // Check gas token arrears
-    const accountInfo = await getAccountInfo(csna, config.accountContractId);
-    await checkGasTokenDebt(accountInfo, env, true);
-
-    // Build withdrawal message
-    const msg = {
-      WithdrawByPsbt: {
-        target_btc_address: btcAddress,
-        psbt_hex: await createWithdrawPsbt(btcAddress, amount),
-      },
-    };
-
-    console.log('getWithdrawTransaction msg:', msg);
-
-    // Return withdrawal transaction
-    const transaction: Transaction = {
-      receiverId: config.bridgeContractId,
-      signerId: csna,
-      actions: [
-        {
-          type: 'FunctionCall',
-          params: {
-            methodName: 'ft_transfer_call',
-            args: {
-              receiver_id: config.bridgeContractId,
-              amount,
-              msg: JSON.stringify(msg),
-            },
-            gas: GAS_LIMIT,
-            deposit: '1',
-          },
-        },
-      ],
-    };
-    console.log('getWithdrawTransaction transaction:', transaction);
-    return transaction;
-  } catch (error) {
-    console.error('getWithdrawTransaction failed:', error);
-    throw error;
-  }
+interface WithdrawParams {
+  amount: string | number;
+  feeRate?: number;
+  env?: ENV;
 }
 
-async function createWithdrawPsbt(btcAddress: string, amount: string): Promise<string> {
-  const network = await getNetwork();
-  const config = await getConfig(network === 'mainnet' ? 'mainnet' : 'testnet');
+export async function getWithdrawTransaction({
+  amount,
+  feeRate,
+  env = 'mainnet',
+}: WithdrawParams): Promise<Transaction> {
+  const provider = getBtcProvider();
+  const btcAddress = await provider.account;
+  const config = await getConfig(env);
 
-  // Get UTXO and metadata
-  const allUTXO = await nearCall<any>(config.bridgeContractId, 'get_utxos_paged', {});
-  const metaData = await nearCall<any>(config.bridgeContractId, 'get_metadata', {});
+  // 1. Get configuration
+  const brgConfig = await nearCall<{
+    min_withdraw_amount: string;
+    withdraw_bridge_fee: {
+      fee_rate: number;
+      fee_min: string;
+    };
+    max_btc_gas_fee: string;
+    change_address: string;
+  }>(config.bridgeContractId, 'get_config', {});
 
-  console.log('getWithdrawPsbt allUTXO:', allUTXO);
+  // 2. Check minimum withdrawal amount
+  const _amount = Number(new Big(amount).mul(10 ** 8).toFixed(0));
+  if (brgConfig.min_withdraw_amount) {
+    if (_amount < Number(brgConfig.min_withdraw_amount)) {
+      throw new Error('Mini withdraw amount is ' + brgConfig.min_withdraw_amount);
+    }
+  }
 
-  console.log('getWithdrawPsbt metaData:', metaData);
+  // 3. Calculate withdrawal fee
+  const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * _amount;
+  const withdrawFee =
+    feePercent > Number(brgConfig.withdraw_bridge_fee.fee_min)
+      ? feePercent
+      : Number(brgConfig.withdraw_bridge_fee.fee_min);
 
-  const withdrawFee = Number(metaData.bridge_fee.FixFee.withdraw_fee);
-  const withdrawChangeAddress = metaData.change_address;
-  const maxBtcFee = Number(metaData.max_btc_gas_fee);
+  // 4. Get UTXOs
+  const allUTXO = await nearCall<
+    Record<
+      string,
+      {
+        vout: number;
+        balance: string;
+        script: string;
+      }
+    >
+  >(config.bridgeContractId, 'get_utxos_paged', {});
 
-  // Convert UTXO format
+  if (!allUTXO || Object.keys(allUTXO).length === 0) {
+    throw new Error('The network is busy, please try again later.');
+  }
+
+  // 5. Format UTXOs
   const utxos = Object.keys(allUTXO).map((key) => {
     const txid = key.split('@');
     return {
@@ -556,43 +541,32 @@ async function createWithdrawPsbt(btcAddress: string, amount: string): Promise<s
     };
   });
 
-  if (!utxos || utxos.length === 0) {
-    throw new Error('The network is busy, please try again later.');
-  }
+  const _feeRate = feeRate || (await getBtcGasPrice());
+  // 6. Use coinselect to calculate inputs and outputs
+  const { inputs, outputs, fee } = coinselect(
+    utxos,
+    [{ address: btcAddress, value: _amount }],
+    Math.ceil(_feeRate),
+  );
 
-  const userSatoshis = Number(amount);
-  const feeRate = await getBtcGasPrice();
-
-  // Calculate inputs and outputs using coinselect
-  let {
-    inputs,
-    outputs,
-    fee,
-  }: {
-    inputs: { txid: string; vout: number; value: number }[];
-    outputs: { address: string; value: number }[];
-    fee: number;
-  } = coinselect(utxos, [{ address: btcAddress, value: userSatoshis }], Math.ceil(feeRate));
-
-  // If first calculation fails, retry with 0 fee rate
-  let compute2 = false;
   if (!outputs || !inputs) {
-    const result = coinselect(utxos, [{ address: btcAddress, value: userSatoshis }], Math.ceil(0));
-    inputs = result.inputs;
-    outputs = result.outputs;
-    fee = result.fee;
-    compute2 = true;
-  }
-
-  if (!outputs || outputs.length === 0) {
     throw new Error('The network is busy, please try again later.');
   }
 
-  // Handle fees and outputs
-  let userOutput: { address: string; value: number } | undefined;
-  let noUserOutput: { address: string; value: number } | undefined;
-  for (const output of outputs) {
-    if (output.value.toString() === userSatoshis.toString()) {
+  // 7. Process outputs
+  const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
+  const newFee = fee;
+  const withdrawChangeAddress = brgConfig.change_address;
+
+  if (newFee > maxBtcFee) {
+    throw new Error('Gas exceeds maximum value');
+  }
+
+  // 8. Process output amounts
+  let userOutput, noUserOutput;
+  for (let i = 0; i < outputs.length; i++) {
+    const output = outputs[i];
+    if (output.value.toString() === _amount.toString()) {
       userOutput = output;
     } else {
       noUserOutput = output;
@@ -602,85 +576,110 @@ async function createWithdrawPsbt(btcAddress: string, amount: string): Promise<s
     }
   }
 
-  if (compute2) {
-    fee = maxBtcFee;
-    if (userOutput && userOutput.value < maxBtcFee) {
-      throw new Error('Not enough gas');
-    }
-  }
+  userOutput.value = new Big(userOutput.value).minus(newFee).minus(withdrawFee).toNumber();
 
-  if (fee > maxBtcFee) {
-    throw new Error('Gas exceeds maximum value');
-  }
-
-  // Adjust output amounts
-  if (userOutput) {
-    userOutput.value = new Big(userOutput.value).minus(fee).minus(withdrawFee).toNumber();
-  }
   if (noUserOutput) {
-    if (!noUserOutput.address) {
-      noUserOutput.address = withdrawChangeAddress;
-    }
-    if (!compute2) {
-      noUserOutput.value = new Big(noUserOutput.value).plus(fee).plus(withdrawFee).toNumber();
-    } else {
-      noUserOutput.value = new Big(noUserOutput.value).plus(withdrawFee).toNumber();
-    }
+    noUserOutput.value = new Big(noUserOutput.value).plus(newFee).plus(withdrawFee).toNumber();
   } else {
-    if (!compute2) {
-      outputs.push({
-        address: withdrawChangeAddress,
-        value: new Big(fee).plus(withdrawFee).toNumber(),
-      });
-    } else {
-      outputs.push({
-        address: withdrawChangeAddress,
-        value: new Big(withdrawFee).toNumber(),
-      });
-    }
+    noUserOutput = {
+      address: withdrawChangeAddress,
+      value: new Big(newFee).plus(withdrawFee).toNumber(),
+    };
+    outputs.push(noUserOutput);
   }
 
-  // Verify output amounts
-  if (outputs.some((item) => item.value < 0)) {
+  // 9. Validate outputs
+  const insufficientOutput = outputs.some((item: any) => item.value < 0);
+  if (insufficientOutput) {
     throw new Error('Not enough gas');
   }
 
-  // Verify input/output balance
-  const inputSum = inputs.reduce((sum, cur) => sum + Number(cur.value), 0);
-  const outputSum = outputs.reduce((sum, cur) => sum + Number(cur.value), 0);
-  if (fee + outputSum !== inputSum) {
-    throw new Error('Compute error');
+  // 10. Verify input/output balance
+  const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+  const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+
+  if (newFee + outputSum !== inputSum) {
+    throw new Error('compute error');
   }
 
-  // Build PSBT
-  const psbt = new bitcoin.Psbt({
-    network: bitcoin.networks[network === 'mainnet' ? 'bitcoin' : 'testnet'],
-  });
+  // 11. Build PSBT transaction
+  const network = await getNetwork();
+  const btcNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  const psbt = new bitcoin.Psbt({ network: btcNetwork });
 
-  // Add inputs
+  // 12. Add inputs
   const btcRpcUrl = await getBtcRpcUrl();
-  for (const input of inputs) {
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
     const txData = await fetch(`${btcRpcUrl}/tx/${input.txid}`).then((res) => res.json());
 
-    psbt.addInput({
+    const inputOptions = {
       hash: input.txid,
       index: input.vout,
       sequence: 0xfffffffd,
-      // @ts-ignore
       witnessUtxo: {
         script: Buffer.from(txData.vout[input.vout].scriptpubkey, 'hex'),
         value: input.value,
       },
-    });
+    };
+
+    psbt.addInput(inputOptions);
   }
 
-  // Add outputs
-  outputs.forEach((output) => {
+  // 13. Add outputs
+  outputs.forEach((output: { address: string; value: any }) => {
     psbt.addOutput({
       address: output.address,
       value: output.value,
     });
   });
 
-  return psbt.toHex();
+  // 14. Build contract call message
+  const _inputs = inputs.map((item: any) => {
+    return `${item.txid}:${item.vout}`;
+  });
+
+  const txOutputs = psbt.txOutputs.map((item: any) => {
+    return {
+      script_pubkey: uint8ArrayToHex(item.script),
+      value: item.value,
+    };
+  });
+
+  const msg = {
+    Withdraw: {
+      target_btc_address: btcAddress,
+      input: _inputs,
+      output: txOutputs,
+    },
+  };
+  const csna = await getCsnaAccountId(env);
+  // Finally return the transaction object
+  const transaction: Transaction = {
+    receiverId: config.token,
+    signerId: csna,
+    actions: [
+      {
+        type: 'FunctionCall',
+        params: {
+          methodName: 'ft_transfer_call',
+          args: {
+            receiver_id: config.bridgeContractId,
+            amount: _amount.toString(),
+            msg: JSON.stringify(msg),
+          },
+          gas: '300000000000000', // 300 TGas
+          deposit: '1', // 1 yoctoNEAR
+        },
+      },
+    ],
+  };
+  return transaction;
+}
+
+// Helper function
+function uint8ArrayToHex(uint8Array: Uint8Array): string {
+  return Array.from(uint8Array)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
