@@ -126,3 +126,18 @@ export async function getWhitelist(url: string) {
   });
   return data;
 }
+
+export async function receiveWithdrawMsg(url: string, txHash: string) {
+  const { result_code, result_message, result_data } = await request<RequestResult<any>>(
+    `${url}/v1/receiveWithdrawMsg`,
+    {
+      method: 'POST',
+      body: { txHash },
+    },
+  );
+  console.log('receiveWithdrawMsg resp:', { result_code, result_message, result_data });
+  if (result_code !== 0) {
+    throw new Error(result_message);
+  }
+  return result_data;
+}

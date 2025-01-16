@@ -22,7 +22,7 @@ import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
 
 import {
-  checkGasTokenArrears,
+  checkGasTokenDebt,
   checkGasTokenBalance,
   checkSatoshiWhitelist,
   getAccountInfo,
@@ -294,7 +294,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
 
     // check gas token arrears
-    await checkGasTokenArrears(accountInfo, env, true);
+    await checkGasTokenDebt(accountInfo, env, true);
 
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
@@ -611,7 +611,7 @@ export function setupBTCWallet({
         Dialog.alert({
           title: 'Notice',
           message:
-            'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Bridge',
+            'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Ramp',
         });
         localStorage.setItem('satoshi_private_mainnet_notice', 'true');
       }

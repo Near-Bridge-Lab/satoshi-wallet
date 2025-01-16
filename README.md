@@ -66,7 +66,6 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   
   // Common optional parameters
   feeRate?: number;        // optional: custom fee rate for the BTC transaction
-  fixedAmount?: boolean;   // optional: whether to use fixed amount
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to NEAR network environment
   pollResult?: T;         // optional: whether to poll for transaction result
   registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
