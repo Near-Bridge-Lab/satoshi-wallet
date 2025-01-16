@@ -488,7 +488,7 @@ export async function getWithdrawTransaction({
   const btcAddress = await provider.account;
   const config = await getConfig(env);
 
-  // 1. Get configuration
+  // Get configuration
   const brgConfig = await nearCall<{
     min_withdraw_amount: string;
     withdraw_bridge_fee: {
@@ -499,22 +499,21 @@ export async function getWithdrawTransaction({
     change_address: string;
   }>(config.bridgeContractId, 'get_config', {});
 
-  // 2. Check minimum withdrawal amount
-  const _amount = Number(new Big(amount).mul(10 ** 8).toFixed(0));
+  // Check minimum withdrawal amount
   if (brgConfig.min_withdraw_amount) {
-    if (_amount < Number(brgConfig.min_withdraw_amount)) {
+    if (Number(amount) < Number(brgConfig.min_withdraw_amount)) {
       throw new Error('Mini withdraw amount is ' + brgConfig.min_withdraw_amount);
     }
   }
 
-  // 3. Calculate withdrawal fee
-  const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * _amount;
+  // Calculate withdrawal fee
+  const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * Number(amount);
   const withdrawFee =
     feePercent > Number(brgConfig.withdraw_bridge_fee.fee_min)
       ? feePercent
       : Number(brgConfig.withdraw_bridge_fee.fee_min);
 
-  // 4. Get UTXOs
+  // Get UTXOs
   const allUTXO = await nearCall<
     Record<
       string,
@@ -530,7 +529,7 @@ export async function getWithdrawTransaction({
     throw new Error('The network is busy, please try again later.');
   }
 
-  // 5. Format UTXOs
+  // Format UTXOs
   const utxos = Object.keys(allUTXO).map((key) => {
     const txid = key.split('@');
     return {
@@ -542,10 +541,10 @@ export async function getWithdrawTransaction({
   });
 
   const _feeRate = feeRate || (await getBtcGasPrice());
-  // 6. Use coinselect to calculate inputs and outputs
+  // Use coinselect to calculate inputs and outputs
   const { inputs, outputs, fee } = coinselect(
     utxos,
-    [{ address: btcAddress, value: _amount }],
+    [{ address: btcAddress, value: Number(amount) }],
     Math.ceil(_feeRate),
   );
 
@@ -553,7 +552,7 @@ export async function getWithdrawTransaction({
     throw new Error('The network is busy, please try again later.');
   }
 
-  // 7. Process outputs
+  // Process outputs
   const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
   const newFee = fee;
   const withdrawChangeAddress = brgConfig.change_address;
@@ -562,11 +561,11 @@ export async function getWithdrawTransaction({
     throw new Error('Gas exceeds maximum value');
   }
 
-  // 8. Process output amounts
+  // Process output amounts
   let userOutput, noUserOutput;
   for (let i = 0; i < outputs.length; i++) {
     const output = outputs[i];
-    if (output.value.toString() === _amount.toString()) {
+    if (output.value.toString() === amount.toString()) {
       userOutput = output;
     } else {
       noUserOutput = output;
@@ -588,13 +587,13 @@ export async function getWithdrawTransaction({
     outputs.push(noUserOutput);
   }
 
-  // 9. Validate outputs
+  // Validate outputs
   const insufficientOutput = outputs.some((item: any) => item.value < 0);
   if (insufficientOutput) {
     throw new Error('Not enough gas');
   }
 
-  // 10. Verify input/output balance
+  // Verify input/output balance
   const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
   const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
 
@@ -602,12 +601,12 @@ export async function getWithdrawTransaction({
     throw new Error('compute error');
   }
 
-  // 11. Build PSBT transaction
+  // Build PSBT transaction
   const network = await getNetwork();
   const btcNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
   const psbt = new bitcoin.Psbt({ network: btcNetwork });
 
-  // 12. Add inputs
+  // Add inputs
   const btcRpcUrl = await getBtcRpcUrl();
   for (let i = 0; i < inputs.length; i++) {
     const input = inputs[i];
@@ -626,7 +625,7 @@ export async function getWithdrawTransaction({
     psbt.addInput(inputOptions);
   }
 
-  // 13. Add outputs
+  // Add outputs
   outputs.forEach((output: { address: string; value: any }) => {
     psbt.addOutput({
       address: output.address,
@@ -634,7 +633,7 @@ export async function getWithdrawTransaction({
     });
   });
 
-  // 14. Build contract call message
+  // Build contract call message
   const _inputs = inputs.map((item: any) => {
     return `${item.txid}:${item.vout}`;
   });
@@ -665,7 +664,7 @@ export async function getWithdrawTransaction({
           methodName: 'ft_transfer_call',
           args: {
             receiver_id: config.bridgeContractId,
-            amount: _amount.toString(),
+            amount: amount.toString(),
             msg: JSON.stringify(msg),
           },
           gas: '300000000000000', // 300 TGas
