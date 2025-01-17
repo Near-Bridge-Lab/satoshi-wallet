@@ -267,24 +267,20 @@ export async function getDepositAmount(
   }>(config.bridgeContractId, 'get_config', {});
   const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
   const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
-  let totalDepositAmount = new Big(depositAmount)
+  const newAccountMinDepositAmount = !accountInfo?.nonce ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
+  const totalDepositAmount = new Big(depositAmount)
     .plus(protocolFee)
     .plus(repayAmount)
+    .plus(newAccountMinDepositAmount)
     .round(0, Big.roundDown)
     .toNumber();
-  // new account
-  if (accountInfo?.nonce) {
-    totalDepositAmount = new Big(totalDepositAmount)
-      .plus(NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT)
-      .round(0, Big.roundDown)
-      .toNumber();
-  }
 
   return {
     depositAmount,
     totalDepositAmount,
     protocolFee,
     repayAmount,
+    newAccountMinDepositAmount,
   };
 }
 

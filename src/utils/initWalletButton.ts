@@ -46,7 +46,11 @@ function createFloatingButtonWithIframe({
 }): HTMLImageElement {
   const button = document.createElement('img');
   button.id = 'satoshi-wallet-button';
-  button.src = openImageUrl;
+
+  const isIframeVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+
+  button.src = isIframeVisible ? closeImageUrl : openImageUrl;
+  iframe.style.display = isIframeVisible ? 'block' : 'none';
 
   const windowWidth = window.innerWidth;
   const windowHeight = window.innerHeight;
@@ -156,13 +160,16 @@ function createFloatingButtonWithIframe({
       button.style.transform = 'scale(1)';
     }, 150);
 
-    iframe.style.display = isCurrentlyVisible ? 'none' : 'block';
-    button.src = isCurrentlyVisible ? openImageUrl : closeImageUrl;
+    const newVisibleState = !isCurrentlyVisible;
+    iframe.style.display = newVisibleState ? 'block' : 'none';
+    button.src = newVisibleState ? closeImageUrl : openImageUrl;
 
-    localStorage.setItem('btc-wallet-iframe-visible', String(!isCurrentlyVisible));
+    localStorage.setItem('btc-wallet-iframe-visible', String(newVisibleState));
 
     setTimeout(() => {
-      iframe.focus();
+      if (newVisibleState) {
+        iframe.focus();
+      }
     }, 0);
   };
 
@@ -183,6 +190,8 @@ function createIframe({
   iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
+  const isVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+
   Object.assign(iframe.style, {
     position: 'fixed',
     bottom: '90px',
@@ -190,7 +199,7 @@ function createIframe({
     zIndex: '100000',
     boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
     borderRadius: '10px',
-    display: 'block',
+    display: isVisible ? 'block' : 'none',
     border: 'none',
     ...iframeStyle,
   });

@@ -15,7 +15,7 @@ import bs58 from 'bs58';
 import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
-import { delay, retryOperation, toHex } from '../utils';
+import { retryOperation, toHex } from '../utils';
 import type { ENV } from '../config';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
@@ -36,7 +36,6 @@ import {
   receiveTransaction,
 } from '../utils/satoshi';
 import { getVersion } from '../index';
-import { Dialog } from '../utils/Dialog';
 
 const { transfer, functionCall } = actionCreators;
 
@@ -54,24 +53,42 @@ interface BTCWalletParams {
   env?: ENV;
 }
 
+const STORAGE_KEYS = {
+  ACCOUNT: 'btc-wallet-account',
+  PUBLIC_KEY: 'btc-wallet-publickey',
+  BTC_PUBLIC_KEY: 'btc-wallet-btc-publickey',
+} as const;
+
 const state: any = {
   saveAccount(account: string) {
-    window.localStorage.setItem('btc-wallet-account', account);
+    if (!account) {
+      this.removeAccount();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.ACCOUNT, account);
   },
   removeAccount() {
-    window.localStorage.removeItem('btc-wallet-account');
+    window.localStorage.removeItem(STORAGE_KEYS.ACCOUNT);
   },
   savePublicKey(publicKey: string) {
-    window.localStorage.setItem('btc-wallet-publickey', publicKey);
+    if (!publicKey) {
+      this.removePublicKey();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.PUBLIC_KEY, publicKey);
   },
   removePublicKey() {
-    window.localStorage.removeItem('btc-wallet-publickey');
+    window.localStorage.removeItem(STORAGE_KEYS.PUBLIC_KEY);
   },
   saveBtcPublicKey(publicKey: string) {
-    window.localStorage.setItem('btc-wallet-btc-publickey', publicKey);
+    if (!publicKey) {
+      this.removeBtcPublicKey();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.BTC_PUBLIC_KEY, publicKey);
   },
   removeBtcPublicKey() {
-    window.localStorage.removeItem('btc-wallet-btc-publickey');
+    window.localStorage.removeItem(STORAGE_KEYS.BTC_PUBLIC_KEY);
   },
   clear() {
     this.removeAccount();
@@ -79,17 +96,43 @@ const state: any = {
     this.removeBtcPublicKey();
   },
   save(account: string, publicKey: string) {
+    if (!account || !publicKey) {
+      this.clear();
+      return;
+    }
     this.saveAccount(account);
     this.savePublicKey(publicKey);
   },
   getAccount() {
-    return window.localStorage.getItem('btc-wallet-account');
+    return window.localStorage.getItem(STORAGE_KEYS.ACCOUNT);
   },
   getPublicKey() {
-    return window.localStorage.getItem('btc-wallet-publickey');
+    return window.localStorage.getItem(STORAGE_KEYS.PUBLIC_KEY);
   },
   getBtcPublicKey() {
-    return window.localStorage.getItem('btc-wallet-btc-publickey');
+    return window.localStorage.getItem(STORAGE_KEYS.BTC_PUBLIC_KEY);
+  },
+  isValid() {
+    const account = this.getAccount();
+    const publicKey = this.getPublicKey();
+    const btcPublicKey = this.getBtcPublicKey();
+
+    const allEmpty = !account && !publicKey && !btcPublicKey;
+    const allExist = account && publicKey && btcPublicKey;
+
+    return allEmpty || allExist;
+  },
+  syncSave(account: string, publicKey: string, btcPublicKey: string) {
+    if (!account || !publicKey || !btcPublicKey) {
+      this.clear();
+      return;
+    }
+
+    this.clear();
+
+    this.savePublicKey(publicKey);
+    this.saveBtcPublicKey(btcPublicKey);
+    this.saveAccount(account);
   },
 };
 
@@ -119,15 +162,36 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   await initBtcContext();
 
+  function validateWalletState() {
+    const accountId = state.getAccount();
+    const publicKey = state.getPublicKey();
+    const btcPublicKey = state.getBtcPublicKey();
+
+    if ((!accountId && publicKey) || (accountId && !publicKey) || (!publicKey && btcPublicKey)) {
+      state.clear();
+      return false;
+    }
+    return true;
+  }
+
   async function setupBtcContextListeners() {
     const handleConnectionUpdate = async () => {
       await checkBtcNetwork(walletNetwork);
-      const accountId = state.getAccount();
+
+      if (!state.isValid()) {
+        state.clear();
+      }
+
+      validateWalletState();
       const btcContext = window.btcContext;
-      if (accountId && btcContext.account) {
-        await checkSatoshiWhitelist(btcContext.account, env);
-        removeWalletButton();
-        setupWalletButton(env, wallet as any, btcContext);
+      if (btcContext.account) {
+        const btcPublicKey = await btcContext.getPublicKey();
+        if (btcPublicKey) {
+          const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+          await checkSatoshiWhitelist(btcContext.account, env);
+          removeWalletButton();
+          setupWalletButton(env, wallet as any, btcContext);
+        }
       } else {
         removeWalletButton();
         setTimeout(() => {
@@ -140,22 +204,35 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     context.on('updatePublicKey', async (btcPublicKey: string) => {
       console.log('updatePublicKey');
-      const { nearAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
+      state.clear();
+      try {
+        const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
-      emitter.emit('accountsChanged', {
-        accounts: [{ accountId: nearAddress }],
-      });
-      await handleConnectionUpdate();
+        if (!nearAddress || !nearPublicKey) {
+          throw new Error('Failed to get near account info');
+        }
+
+        emitter.emit('accountsChanged', {
+          accounts: [{ accountId: nearAddress }],
+        });
+        await handleConnectionUpdate();
+      } catch (error) {
+        console.error('Error updating public key:', error);
+        state.clear();
+        emitter.emit('accountsChanged', { accounts: [] });
+      }
     });
 
     context.on('btcLoginError', async () => {
       console.log('btcLoginError');
+      state.clear();
       emitter.emit('accountsChanged', { accounts: [] });
       await handleConnectionUpdate();
     });
 
     context.on('btcLogOut', async () => {
       console.log('btcLogOut');
+      state.clear();
       emitter.emit('accountsChanged', { accounts: [] });
       await handleConnectionUpdate();
     });
@@ -205,9 +282,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       { btc_public_key: btcPublicKey },
     );
 
-    state.saveAccount(csna);
-    state.savePublicKey(nearPublicKey);
-    state.saveBtcPublicKey(btcPublicKey);
+    state.syncSave(csna, nearPublicKey, btcPublicKey);
 
     return {
       nearAddress: csna,
@@ -217,12 +292,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   async function signIn({ contractId, methodNames }: any) {
     const btcContext = window.btcContext;
-    const accountId = state.getAccount();
-    const publicKey = state.getPublicKey();
 
-    console.log('isLogin:', accountId && publicKey);
+    state.clear();
 
-    if (!accountId || !publicKey) {
+    if (!state.getAccount() || !state.getPublicKey()) {
       await btcContext.login();
     }
 
@@ -288,6 +361,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function signAndSendTransactions(params: { transactions: Transaction[] }) {
+    if (!validateWalletState()) {
+      throw new Error('Wallet state is invalid, please reconnect your wallet.');
+    }
+
     const btcContext = window.btcContext;
     const accountId = state.getAccount();
 
