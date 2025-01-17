@@ -15,9 +15,14 @@ import bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
 import coinselect from 'coinselect';
 
+/** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
+/** NBTC Storage Deposit Amount */
 const NBTC_STORAGE_DEPOSIT_AMOUNT = '3000';
+/** NEAR Gas Limit */
 const GAS_LIMIT = '50000000000000';
+/** New account min deposit amount */
+const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -262,11 +267,18 @@ export async function getDepositAmount(
   }>(config.bridgeContractId, 'get_config', {});
   const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
   const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
-  const totalDepositAmount = new Big(depositAmount)
+  let totalDepositAmount = new Big(depositAmount)
     .plus(protocolFee)
     .plus(repayAmount)
     .round(0, Big.roundDown)
     .toNumber();
+  // new account
+  if (accountInfo?.nonce) {
+    totalDepositAmount = new Big(totalDepositAmount)
+      .plus(NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT)
+      .round(0, Big.roundDown)
+      .toNumber();
+  }
 
   return {
     depositAmount,
@@ -456,6 +468,15 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
 export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'mainnet') {
   if (env !== 'private_mainnet') return;
+  const hasShownNotice = localStorage.getItem('btc-wallet-private-mainnet-notice');
+  if (!hasShownNotice) {
+    Dialog.alert({
+      title: 'Notice',
+      message:
+        'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Ramp',
+    });
+    localStorage.setItem('btc-wallet-private-mainnet-notice', 'true');
+  }
   if (!btcAccountId) return;
   const config = await getConfig(env);
   const whitelist = await getWhitelist(config.base_url);

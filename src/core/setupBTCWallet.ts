@@ -604,20 +604,6 @@ export function setupBTCWallet({
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
   console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env);
 
-  if (env === 'private_mainnet' && typeof window !== 'undefined') {
-    setTimeout(() => {
-      const hasShownNotice = localStorage.getItem('satoshi_private_mainnet_notice');
-      if (!hasShownNotice) {
-        Dialog.alert({
-          title: 'Notice',
-          message:
-            'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Ramp',
-        });
-        localStorage.setItem('satoshi_private_mainnet_notice', 'true');
-      }
-    }, 1000);
-  }
-
   const btcWallet = async () => {
     return {
       id: 'btc-wallet',

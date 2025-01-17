@@ -48,27 +48,108 @@ function createFloatingButtonWithIframe({
   button.id = 'satoshi-wallet-button';
   button.src = openImageUrl;
 
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+
+  const savedPosition = JSON.parse(
+    localStorage.getItem('btc-wallet-button-position') || '{"right": "20px", "bottom": "20px"}',
+  );
+
+  const right = Math.min(Math.max(20, parseInt(savedPosition.right)), windowWidth - 80);
+  const bottom = Math.min(Math.max(20, parseInt(savedPosition.bottom)), windowHeight - 80);
+
   Object.assign(button.style, {
     position: 'fixed',
-    bottom: '20px',
-    right: '20px',
+    bottom: `${bottom}px`,
+    right: `${right}px`,
     zIndex: '100000',
     width: '60px',
     height: '60px',
     borderRadius: '50%',
-    cursor: 'pointer',
+    cursor: 'grab',
     transition: 'transform 0.15s ease',
+    userSelect: 'none',
   });
 
   document.body.appendChild(button);
 
-  const iframeVisible =
-    localStorage.getItem('iframeVisible') === 'true' ||
-    localStorage.getItem('iframeVisible') === null;
-  button.src = iframeVisible ? closeImageUrl : openImageUrl;
-  iframe.style.display = iframeVisible ? 'block' : 'none';
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialRight = 0;
+  let initialBottom = 0;
+  let dragStartTime = 0;
 
-  button.onclick = function () {
+  button.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    initialRight = parseInt(button.style.right);
+    initialBottom = parseInt(button.style.bottom);
+    dragStartTime = Date.now();
+
+    button.style.cursor = 'grabbing';
+    button.style.transition = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+
+    const deltaX = startX - e.clientX;
+    const deltaY = startY - e.clientY;
+
+    let newRight = initialRight + deltaX;
+    let newBottom = initialBottom + deltaY;
+
+    newRight = Math.min(Math.max(20, newRight), windowWidth - 80);
+    newBottom = Math.min(Math.max(20, newBottom), windowHeight - 80);
+
+    const snapThreshold = 20;
+    const buttonLeft = windowWidth - newRight - 60;
+
+    if (buttonLeft < snapThreshold) {
+      newRight = windowWidth - 80;
+    } else if (buttonLeft > windowWidth - snapThreshold - 60) {
+      newRight = 20;
+    }
+
+    if (newBottom < snapThreshold) {
+      newBottom = 20;
+    } else if (newBottom > windowHeight - snapThreshold - 60) {
+      newBottom = windowHeight - 80;
+    }
+
+    button.style.right = `${newRight}px`;
+    button.style.bottom = `${newBottom}px`;
+
+    updateIframePosition(iframe, newRight, newBottom, windowWidth, windowHeight);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+
+    const dragEndTime = Date.now();
+    const isDragEvent = dragEndTime - dragStartTime > 200;
+
+    isDragging = false;
+    button.style.cursor = 'grab';
+    button.style.transition = 'transform 0.15s ease';
+
+    localStorage.setItem(
+      'btc-wallet-button-position',
+      JSON.stringify({
+        right: button.style.right,
+        bottom: button.style.bottom,
+      }),
+    );
+
+    if (!isDragEvent) {
+      handleButtonClick();
+    }
+  });
+
+  const handleButtonClick = () => {
     const isCurrentlyVisible = iframe.style.display === 'block';
     button.style.transform = 'scale(0.8)';
     setTimeout(() => {
@@ -78,12 +159,14 @@ function createFloatingButtonWithIframe({
     iframe.style.display = isCurrentlyVisible ? 'none' : 'block';
     button.src = isCurrentlyVisible ? openImageUrl : closeImageUrl;
 
-    localStorage.setItem('iframeVisible', String(!isCurrentlyVisible));
+    localStorage.setItem('btc-wallet-iframe-visible', String(!isCurrentlyVisible));
 
     setTimeout(() => {
       iframe.focus();
     }, 0);
   };
+
+  button.onclick = null;
 
   return button;
 }
@@ -172,4 +255,29 @@ export function removeWalletButton() {
   button?.remove();
   const iframe = document.getElementById('satoshi-wallet-iframe');
   iframe?.remove();
+}
+
+function updateIframePosition(
+  iframe: HTMLIFrameElement,
+  buttonRight: number,
+  buttonBottom: number,
+  windowWidth: number,
+  windowHeight: number,
+) {
+  const iframeWidth = parseInt(iframe.style.width);
+  const iframeHeight = parseInt(iframe.style.height);
+
+  let iframeRight = buttonRight;
+  let iframeBottom = buttonBottom + 70;
+
+  if (iframeRight + iframeWidth > windowWidth - 20) {
+    iframeRight = Math.max(20, windowWidth - iframeWidth - 20);
+  }
+
+  if (iframeBottom + iframeHeight > windowHeight - 20) {
+    iframeBottom = Math.max(20, buttonBottom - iframeHeight - 10);
+  }
+
+  iframe.style.right = `${iframeRight}px`;
+  iframe.style.bottom = `${iframeBottom}px`;
 }
