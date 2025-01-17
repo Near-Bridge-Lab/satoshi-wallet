@@ -145,40 +145,11 @@ export class XverseConnector extends BaseConnector {
     if (!provider) {
       throw new Error(`${this.metadata.name} is not install!`);
     }
-    const { sendBtcTransaction } = await import('sats-connect');
-
-    const addresses = await this.getAccounts();
-    if (addresses.length === 0) {
-      throw new Error(`${this.metadata.name} not connected!`);
-    }
-    const result = await new Promise<string>((resolve, reject) => {
-      const sendBtcOptions: SendBtcTransactionOptions = {
-        payload: {
-          network: {
-            type: this.#network as any,
-          },
-          recipients: [
-            {
-              address: toAddress,
-              amountSats: BigInt(satoshis),
-            },
-          ],
-          senderAddress: addresses[0],
-        },
-        onFinish: (response) => {
-          resolve(response);
-        },
-        onCancel: () => {
-          reject({
-            code: 4001,
-            message: 'User rejected the request.',
-          });
-        },
-      };
-      console.log('🚀 ~ XverseConnector ~ sendBitcoin ~ sendBtcOptions:', sendBtcOptions);
-      sendBtcTransaction(sendBtcOptions).catch((e) => reject(e));
+    const { result } = await provider.request('sendTransfer', {
+      recipients: [{ address: toAddress, amount: satoshis }],
     });
-    return result;
+    console.log('🚀 ~ XverseConnector ~ sendBitcoin ~ res:', result);
+    return result.txid;
   }
   disconnect(): void {
     localStorage.removeItem('btc-connect-xverse-addresses-Mainnet');

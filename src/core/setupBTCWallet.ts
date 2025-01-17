@@ -15,15 +15,16 @@ import bs58 from 'bs58';
 import { sha256 } from 'js-sha256';
 import { setupWalletButton, removeWalletButton } from '../utils/initWalletButton';
 import type { useBtcWalletSelector } from './btcWalletSelectorContext';
-import { delay, retryOperation, toHex } from '../utils';
+import { retryOperation, toHex } from '../utils';
 import type { ENV } from '../config';
 import { walletConfig } from '../config';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import Big from 'big.js';
 
 import {
-  checkGasTokenArrears,
+  checkGasTokenDebt,
   checkGasTokenBalance,
+  checkSatoshiWhitelist,
   getAccountInfo,
   getCsnaAccountId,
 } from './btcUtils';
@@ -52,24 +53,42 @@ interface BTCWalletParams {
   env?: ENV;
 }
 
+const STORAGE_KEYS = {
+  ACCOUNT: 'btc-wallet-account',
+  PUBLIC_KEY: 'btc-wallet-publickey',
+  BTC_PUBLIC_KEY: 'btc-wallet-btc-publickey',
+} as const;
+
 const state: any = {
   saveAccount(account: string) {
-    window.localStorage.setItem('btc-wallet-account', account);
+    if (!account) {
+      this.removeAccount();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.ACCOUNT, account);
   },
   removeAccount() {
-    window.localStorage.removeItem('btc-wallet-account');
+    window.localStorage.removeItem(STORAGE_KEYS.ACCOUNT);
   },
   savePublicKey(publicKey: string) {
-    window.localStorage.setItem('btc-wallet-publickey', publicKey);
+    if (!publicKey) {
+      this.removePublicKey();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.PUBLIC_KEY, publicKey);
   },
   removePublicKey() {
-    window.localStorage.removeItem('btc-wallet-publickey');
+    window.localStorage.removeItem(STORAGE_KEYS.PUBLIC_KEY);
   },
   saveBtcPublicKey(publicKey: string) {
-    window.localStorage.setItem('btc-wallet-btc-publickey', publicKey);
+    if (!publicKey) {
+      this.removeBtcPublicKey();
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.BTC_PUBLIC_KEY, publicKey);
   },
   removeBtcPublicKey() {
-    window.localStorage.removeItem('btc-wallet-btc-publickey');
+    window.localStorage.removeItem(STORAGE_KEYS.BTC_PUBLIC_KEY);
   },
   clear() {
     this.removeAccount();
@@ -77,17 +96,43 @@ const state: any = {
     this.removeBtcPublicKey();
   },
   save(account: string, publicKey: string) {
+    if (!account || !publicKey) {
+      this.clear();
+      return;
+    }
     this.saveAccount(account);
     this.savePublicKey(publicKey);
   },
   getAccount() {
-    return window.localStorage.getItem('btc-wallet-account');
+    return window.localStorage.getItem(STORAGE_KEYS.ACCOUNT);
   },
   getPublicKey() {
-    return window.localStorage.getItem('btc-wallet-publickey');
+    return window.localStorage.getItem(STORAGE_KEYS.PUBLIC_KEY);
   },
   getBtcPublicKey() {
-    return window.localStorage.getItem('btc-wallet-btc-publickey');
+    return window.localStorage.getItem(STORAGE_KEYS.BTC_PUBLIC_KEY);
+  },
+  isValid() {
+    const account = this.getAccount();
+    const publicKey = this.getPublicKey();
+    const btcPublicKey = this.getBtcPublicKey();
+
+    const allEmpty = !account && !publicKey && !btcPublicKey;
+    const allExist = account && publicKey && btcPublicKey;
+
+    return allEmpty || allExist;
+  },
+  syncSave(account: string, publicKey: string, btcPublicKey: string) {
+    if (!account || !publicKey || !btcPublicKey) {
+      this.clear();
+      return;
+    }
+
+    this.clear();
+
+    this.savePublicKey(publicKey);
+    this.saveBtcPublicKey(btcPublicKey);
+    this.saveAccount(account);
   },
 };
 
@@ -109,6 +154,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     isSignedIn,
     signAndSendTransaction,
     signAndSendTransactions,
+    calculateGasLimit,
   };
   const env = (metadata as any).env || options.network.networkId || 'mainnet';
   const currentConfig = walletConfig[env as ENV];
@@ -116,14 +162,36 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   await initBtcContext();
 
+  function validateWalletState() {
+    const accountId = state.getAccount();
+    const publicKey = state.getPublicKey();
+    const btcPublicKey = state.getBtcPublicKey();
+
+    if ((!accountId && publicKey) || (accountId && !publicKey) || (!publicKey && btcPublicKey)) {
+      state.clear();
+      return false;
+    }
+    return true;
+  }
+
   async function setupBtcContextListeners() {
     const handleConnectionUpdate = async () => {
       await checkBtcNetwork(walletNetwork);
-      const accountId = state.getAccount();
+
+      if (!state.isValid()) {
+        state.clear();
+      }
+
+      validateWalletState();
       const btcContext = window.btcContext;
-      if (accountId && btcContext.account) {
-        removeWalletButton();
-        setupWalletButton(env, wallet as any, btcContext);
+      if (btcContext.account) {
+        const btcPublicKey = await btcContext.getPublicKey();
+        if (btcPublicKey) {
+          const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+          await checkSatoshiWhitelist(btcContext.account, env);
+          removeWalletButton();
+          setupWalletButton(env, wallet as any, btcContext);
+        }
       } else {
         removeWalletButton();
         setTimeout(() => {
@@ -136,22 +204,35 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     context.on('updatePublicKey', async (btcPublicKey: string) => {
       console.log('updatePublicKey');
-      const { nearAddress } = await getNearAccountByBtcPublicKey(btcPublicKey);
+      state.clear();
+      try {
+        const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
-      emitter.emit('accountsChanged', {
-        accounts: [{ accountId: nearAddress }],
-      });
-      await handleConnectionUpdate();
+        if (!nearAddress || !nearPublicKey) {
+          throw new Error('Failed to get near account info');
+        }
+
+        emitter.emit('accountsChanged', {
+          accounts: [{ accountId: nearAddress }],
+        });
+        await handleConnectionUpdate();
+      } catch (error) {
+        console.error('Error updating public key:', error);
+        state.clear();
+        emitter.emit('accountsChanged', { accounts: [] });
+      }
     });
 
     context.on('btcLoginError', async () => {
       console.log('btcLoginError');
+      state.clear();
       emitter.emit('accountsChanged', { accounts: [] });
       await handleConnectionUpdate();
     });
 
     context.on('btcLogOut', async () => {
       console.log('btcLogOut');
+      state.clear();
       emitter.emit('accountsChanged', { accounts: [] });
       await handleConnectionUpdate();
     });
@@ -201,9 +282,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       { btc_public_key: btcPublicKey },
     );
 
-    state.saveAccount(csna);
-    state.savePublicKey(nearPublicKey);
-    state.saveBtcPublicKey(btcPublicKey);
+    state.syncSave(csna, nearPublicKey, btcPublicKey);
 
     return {
       nearAddress: csna,
@@ -213,12 +292,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   async function signIn({ contractId, methodNames }: any) {
     const btcContext = window.btcContext;
-    const accountId = state.getAccount();
-    const publicKey = state.getPublicKey();
 
-    console.log('isLogin:', accountId && publicKey);
+    state.clear();
 
-    if (!accountId || !publicKey) {
+    if (!state.getAccount() || !state.getPublicKey()) {
       await btcContext.login();
     }
 
@@ -284,13 +361,17 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function signAndSendTransactions(params: { transactions: Transaction[] }) {
+    if (!validateWalletState()) {
+      throw new Error('Wallet state is invalid, please reconnect your wallet.');
+    }
+
     const btcContext = window.btcContext;
     const accountId = state.getAccount();
 
     const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
 
     // check gas token arrears
-    await checkGasTokenArrears(accountInfo, env, true);
+    await checkGasTokenDebt(accountInfo, env, true);
 
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
@@ -321,10 +402,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const nonceFromApi = await getNonce(currentConfig.base_url, accountId as string);
 
+    const nonceFromContract = accountInfo?.nonce || 0;
+
     const nonce =
-      Number(nonceFromApi) > Number(accountInfo?.nonce)
+      Number(nonceFromApi) > Number(nonceFromContract)
         ? String(nonceFromApi)
-        : String(accountInfo?.nonce);
+        : String(nonceFromContract);
 
     const intention = {
       chain_id: '397',
@@ -353,6 +436,21 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     return result;
   }
 
+  async function calculateGasLimit(params: { transactions: Transaction[] }) {
+    const accountId = state.getAccount();
+
+    const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
+
+    const trans = [...params.transactions];
+    console.log('raw trans:', trans);
+
+    const gasTokenBalance = accountInfo?.gas_token[currentConfig.token] || '0';
+
+    const { gasLimit } = await calculateGasStrategy(gasTokenBalance, trans);
+
+    return gasLimit;
+  }
+
   async function createGasTokenTransfer(accountId: string, amount: string) {
     return {
       signerId: accountId,
@@ -365,7 +463,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
             args: {
               receiver_id: currentConfig.accountContractId,
               amount,
-              msg: JSON.stringify('Deposit'),
+              msg: JSON.stringify('Repay'),
             },
             gas: new Big(50).mul(10 ** 12).toFixed(0),
             deposit: '1',
@@ -410,8 +508,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     });
 
     const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
+    const miniGasAmount = 200 * transactions.length;
+    const gasAmount = Math.max(Number(predictedGasAmount), miniGasAmount);
     console.log('predictedGas:', predictedGasAmount);
-    return predictedGasAmount;
+    return gasAmount.toString();
   }
 
   async function calculateGasStrategy(
@@ -425,65 +525,65 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
 
     // check near balance
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
-    });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    // const nearAccount = await provider.query<any>({
+    //   request_type: 'view_account',
+    //   account_id: accountId,
+    //   finality: 'final',
+    // });
+    // const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
 
-    console.log('available near balance:', availableBalance);
+    // console.log('available near balance:', availableBalance);
 
-    console.log('available gas token balance:', gasTokenBalance);
+    // console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    if (availableBalance > 0.2) {
-      console.log('near balance is enough, get the protocol fee of each transaction');
-      const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
-        currentConfig.accountContractId,
-        'list_gas_token',
-        { token_ids: [currentConfig.token] },
-      );
+    // if (availableBalance > 0.2) {
+    //   console.log('near balance is enough, get the protocol fee of each transaction');
+    //   const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
+    //     currentConfig.accountContractId,
+    //     'list_gas_token',
+    //     { token_ids: [currentConfig.token] },
+    //   );
 
-      console.log('list_gas_token gas tokens:', gasTokens);
+    //   console.log('list_gas_token gas tokens:', gasTokens);
 
-      const perTxFee = Math.max(
-        Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
-        100,
-      );
-      console.log('perTxFee:', perTxFee);
-      const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
-      console.log('protocolFee:', protocolFee);
+    //   const perTxFee = Math.max(
+    //     Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
+    //     100,
+    //   );
+    //   console.log('perTxFee:', perTxFee);
+    //   const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
+    //   console.log('protocolFee:', protocolFee);
 
-      if (new Big(gasTokenBalance).gte(protocolFee)) {
-        console.log('use near pay gas and enough gas token balance');
-        return { useNearPayGas: true, gasLimit: protocolFee };
-      } else {
-        console.log('use near pay gas and not enough gas token balance');
-        // gas token balance is not enough, need to transfer
-        const transferTx = await createGasTokenTransfer(accountId, protocolFee);
-        return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
-      }
-    } else {
-      console.log('near balance is not enough, predict the gas token amount required');
-      const adjustedGas = await getPredictedGasAmount(
-        currentConfig.accountContractId,
-        currentConfig.token,
-        convertTx.map((t) => t.txHex),
-      );
+    //   // if (new Big(gasTokenBalance).gte(protocolFee)) {
+    //   //   console.log('use near pay gas and enough gas token balance');
+    //   //   return { useNearPayGas: true, gasLimit: protocolFee };
+    //   // } else {
+    //   console.log('use near pay gas and not enough gas token balance');
+    //   // gas token balance is not enough, need to transfer
+    //   const transferTx = await createGasTokenTransfer(accountId, protocolFee);
+    //   return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
+    //   // }
+    // } else {
+    // console.log('near balance is not enough, predict the gas token amount required');
+    const adjustedGas = await getPredictedGasAmount(
+      currentConfig.accountContractId,
+      currentConfig.token,
+      convertTx.map((t) => t.txHex),
+    );
 
-      if (new Big(gasTokenBalance).gte(adjustedGas)) {
-        console.log('use gas token and gas token balance is enough');
-        return { useNearPayGas: false, gasLimit: adjustedGas };
-      } else {
-        console.log('use gas token and gas token balance is not enough, need to transfer');
-        const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
-        return recalculateGasWithTransfer(transferTx, convertTx, false);
-      }
-    }
+    // if (new Big(gasTokenBalance).gte(adjustedGas)) {
+    //   console.log('use gas token and gas token balance is enough');
+    //   return { useNearPayGas: false, gasLimit: adjustedGas };
+    // } else {
+    // console.log('use gas token and gas token balance is not enough, need to transfer');
+    const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
+    return recalculateGasWithTransfer(transferTx, convertTx, false);
+    // }
+    // }
   }
 
   // add utility function for converting Transaction to txHex
@@ -496,16 +596,21 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       finality: 'final',
     });
 
-    const rawAccessKey = await provider.query<AccessKeyViewRaw>({
-      request_type: 'view_access_key',
-      account_id: accountId,
-      public_key: publicKey,
-      finality: 'final',
-    });
+    const rawAccessKey = await provider
+      .query<AccessKeyViewRaw>({
+        request_type: 'view_access_key',
+        account_id: accountId,
+        public_key: publicKey,
+        finality: 'final',
+      })
+      .catch((e) => {
+        console.log('view_access_key error:', e);
+        return undefined;
+      });
 
     const accessKey = {
       ...rawAccessKey,
-      nonce: BigInt(rawAccessKey.nonce || 0),
+      nonce: BigInt(rawAccessKey?.nonce || 0),
     };
 
     const nearNonceFromApi = await getNearNonce(currentConfig.base_url, accountId);
@@ -575,6 +680,7 @@ export function setupBTCWallet({
   env = 'mainnet',
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
   console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env);
+
   const btcWallet = async () => {
     return {
       id: 'btc-wallet',

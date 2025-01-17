@@ -28,7 +28,7 @@ export function BtcWalletSelectorContextProvider({
     new XverseConnector(),
     new OKXConnector(),
     new BitgetConnector(),
-    new MagicEdenConnector(),
+    // new MagicEdenConnector(),
   ];
 
   const walletSelectorContextValue = useMemo(() => {

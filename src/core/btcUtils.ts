@@ -3,14 +3,26 @@ import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
 import { delay, retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
-import { checkBridgeTransactionStatus, receiveDepositMsg } from '../utils/satoshi';
+import {
+  checkBridgeTransactionStatus,
+  getWhitelist,
+  preReceiveDepositMsg,
+  receiveDepositMsg,
+} from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
-import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
+import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
+import bitcoin from 'bitcoinjs-lib';
+// @ts-ignore
+import coinselect from 'coinselect';
 
-const MINIMUM_DEPOSIT_AMOUNT_BASE = 0;
+/** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
-const NBTC_STORAGE_DEPOSIT_AMOUNT = 3000;
+/** NBTC Storage Deposit Amount */
+const NBTC_STORAGE_DEPOSIT_AMOUNT = '3000';
+/** NEAR Gas Limit */
 const GAS_LIMIT = '50000000000000';
+/** New account min deposit amount */
+const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -42,20 +54,19 @@ async function nearCall<T>(contractId: string, methodName: string, args: any) {
 export interface AccountInfo {
   nonce: string;
   gas_token: Record<string, string>;
-  debt_info?: DebtInfo;
+  debt_info?: {
+    gas_token_id: string;
+    near_gas_debt_amount: string;
+    protocol_fee_debt_amount: string;
+  };
   relayer_fee?: { amount?: string };
-}
-
-export interface DebtInfo {
-  gas_token_id: string;
-  transfer_amount: string;
-  near_gas_debt_amount: string;
-  protocol_fee_debt_amount: string;
 }
 
 export async function getAccountInfo(csna: string, accountContractId: string) {
   const accountInfo = await nearCall<AccountInfo>(accountContractId, 'get_account', {
     account_id: csna,
+  }).catch((error) => {
+    return undefined;
   });
   console.log('get_account accountInfo:', accountInfo);
   return accountInfo;
@@ -80,42 +91,41 @@ export async function checkGasTokenBalance(
   }
 }
 
-type CheckGasTokenArrearsReturnType<T extends boolean> = T extends true
+type CheckGasTokenDebtReturnType<T extends boolean> = T extends true
   ? void
   : { receiver_id: string; amount: string; msg: string } | undefined;
 
-export async function checkGasTokenArrears<T extends boolean>(
+export async function checkGasTokenDebt<T extends boolean>(
   accountInfo: AccountInfo | undefined,
   env: ENV,
   autoDeposit?: T,
-): Promise<CheckGasTokenArrearsReturnType<T>> {
-  if (!accountInfo?.debt_info?.transfer_amount || !accountInfo?.relayer_fee?.amount) return;
+): Promise<CheckGasTokenDebtReturnType<T>> {
+  const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
+    .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
+    .toString();
+  const relayerFeeAmount = !accountInfo?.nonce
+    ? NBTC_STORAGE_DEPOSIT_AMOUNT
+    : accountInfo?.relayer_fee?.amount || 0;
+  const hasDebtArrears = new Big(debtAmount).gt(0);
+  const hasRelayerFeeArrears = new Big(relayerFeeAmount).gt(0);
+  if (!hasDebtArrears && !hasRelayerFeeArrears) return;
   const config = await getConfig(env);
-  const arrearsType = accountInfo.debt_info.transfer_amount
-    ? 'Deposit'
-    : accountInfo.relayer_fee?.amount
-      ? 'RelayerFee'
-      : undefined;
-  const transferAmount =
-    arrearsType === 'Deposit'
-      ? accountInfo.debt_info.transfer_amount
-      : accountInfo.relayer_fee?.amount;
+  const transferAmount = hasDebtArrears ? debtAmount : relayerFeeAmount;
   console.log('get_account:', accountInfo);
 
   const action = {
     receiver_id: config.accountContractId,
-    amount: transferAmount,
-    msg: JSON.stringify(arrearsType),
+    amount: transferAmount.toString(),
+    msg: JSON.stringify(hasDebtArrears ? 'Repay' : 'RelayerFee'),
   };
 
-  if (!autoDeposit) return action as CheckGasTokenArrearsReturnType<T>;
+  if (!autoDeposit) return action as CheckGasTokenDebtReturnType<T>;
 
   const confirmed = await Dialog.confirm({
-    title: arrearsType === 'Deposit' ? 'Has gas token arrears' : 'Has relayer fee arrears',
-    message:
-      arrearsType === 'Deposit'
-        ? 'You have gas token arrears, please deposit gas token to continue.'
-        : 'You have relayer fee arrears, please deposit relayer fee to continue.',
+    title: hasDebtArrears ? 'Has gas token arrears' : 'Has relayer fee arrears',
+    message: hasDebtArrears
+      ? 'You have gas token arrears, please deposit gas token to continue.'
+      : 'You have relayer fee arrears, please deposit relayer fee to continue.',
   });
 
   if (confirmed) {
@@ -128,13 +138,6 @@ export async function checkGasTokenArrears<T extends boolean>(
   } else {
     throw new Error('Deposit failed, please deposit gas token first.');
   }
-}
-
-export async function queryGasTokenArrears(env: ENV) {
-  const config = await getConfig(env);
-  const csna = await getCsnaAccountId(env);
-  const accountInfo = await getAccountInfo(csna, config.accountContractId);
-  return accountInfo?.debt_info;
 }
 
 interface DepositMsg {
@@ -206,6 +209,23 @@ export async function getBtcBalance() {
   };
 }
 
+export async function getNBTCBalance(address: string, env?: ENV) {
+  const config = await getConfig(env || 'mainnet');
+  const rawBalance = await nearCall<string>(config.token, 'ft_balance_of', {
+    account_id: address,
+  });
+  const balance = new Big(rawBalance)
+    .div(10 ** 8)
+    .round(8, Big.roundDown)
+    .toNumber();
+  const rawAvailableBalance = new Big(rawBalance).minus(1000).toNumber();
+  const availableBalance = new Big(rawAvailableBalance)
+    .div(10 ** 8)
+    .round(8, Big.roundDown)
+    .toNumber();
+  return { balance, availableBalance, rawBalance, rawAvailableBalance };
+}
+
 export async function sendBitcoin(
   address: string,
   amount: number,
@@ -216,24 +236,28 @@ export async function sendBitcoin(
   return txHash;
 }
 
+/** estimate deposit receive amount, deduct protocol fee and repay amount */
 export async function estimateDepositAmount(
   amount: string,
   option?: {
     env?: ENV;
   },
 ) {
-  const { receiveAmount } = await getDepositAmount(amount, { ...option, isEstimate: true });
-  return receiveAmount;
+  return amount;
 }
 
 export async function getDepositAmount(
   amount: string,
   option?: {
-    isEstimate?: boolean;
     env?: ENV;
   },
 ) {
-  const config = await getConfig(option?.env || 'mainnet');
+  const env = option?.env || 'mainnet';
+  const config = await getConfig(env);
+  const csna = await getCsnaAccountId(env);
+  const accountInfo = await getAccountInfo(csna, config.accountContractId);
+  const debtAction = await checkGasTokenDebt(accountInfo, env, false);
+  const repayAmount = debtAction?.amount || 0;
   const {
     deposit_bridge_fee: { fee_min, fee_rate },
     min_deposit_amount,
@@ -241,20 +265,22 @@ export async function getDepositAmount(
     deposit_bridge_fee: { fee_min: string; fee_rate: number };
     min_deposit_amount: string;
   }>(config.bridgeContractId, 'get_config', {});
-  const depositAmount = option?.isEstimate
-    ? Number(amount)
-    : Math.max(Number(min_deposit_amount) + MINIMUM_DEPOSIT_AMOUNT_BASE, Number(amount));
-  const fee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
-  const receiveAmount = new Big(depositAmount)
-    .minus(fee)
-    .minus(MINIMUM_DEPOSIT_AMOUNT_BASE)
+  const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
+  const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
+  const newAccountMinDepositAmount = !accountInfo?.nonce ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
+  const totalDepositAmount = new Big(depositAmount)
+    .plus(protocolFee)
+    .plus(repayAmount)
+    .plus(newAccountMinDepositAmount)
     .round(0, Big.roundDown)
     .toNumber();
-  console.log('getDepositAmount:', { depositAmount, receiveAmount, fee });
+
   return {
     depositAmount,
-    receiveAmount: Math.max(receiveAmount, 0),
-    fee,
+    totalDepositAmount,
+    protocolFee,
+    repayAmount,
+    newAccountMinDepositAmount,
   };
 }
 
@@ -282,7 +308,6 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   /** if registerDeposit is true, It will consume the deposit, otherwise it will be 0.000125 NEAR */
   registerDeposit?: string;
   feeRate?: number;
-  fixedAmount?: boolean;
   env?: ENV;
   pollResult?: T;
 }
@@ -298,7 +323,6 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   action,
   amount,
   feeRate,
-  fixedAmount = true,
   pollResult = true as T,
   registerDeposit,
   env = 'mainnet',
@@ -319,13 +343,13 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const csna = await getCsnaAccountId(env);
 
-    const rawDepositAmount = (action ? action.amount : amount) ?? '0';
+    const depositAmount = (action ? action.amount : amount) ?? '0';
 
-    if (new Big(rawDepositAmount).lt(0)) {
+    if (new Big(depositAmount).lt(0)) {
       throw new Error('amount must be greater than 0');
     }
 
-    const { depositAmount, receiveAmount } = await getDepositAmount(rawDepositAmount, {
+    const { totalDepositAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
       env,
     });
 
@@ -333,38 +357,21 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const newActions = [];
 
-    const arrearsAction = await checkGasTokenArrears(accountInfo, env, false);
+    const debtAction = await checkGasTokenDebt(accountInfo, env, false);
 
-    if (arrearsAction) {
+    if (debtAction) {
       newActions.push({
-        ...arrearsAction,
+        ...debtAction,
         gas: GAS_LIMIT,
       });
     }
 
     // if action is not provided, and the gas token balance is less than the minimum deposit amount, then add the deposit action
-    if (
-      action ||
-      (!action &&
-        new Big(accountInfo?.gas_token[config.token] || 0).lt(MINIMUM_DEPOSIT_AMOUNT_BASE))
-    ) {
-      newActions.push(
-        action
-          ? {
-              ...action,
-              amount:
-                arrearsAction?.amount && !fixedAmount
-                  ? new Big(receiveAmount).minus(arrearsAction.amount).toString()
-                  : receiveAmount.toString(),
-              gas: GAS_LIMIT,
-            }
-          : {
-              receiver_id: config.accountContractId,
-              amount: MINIMUM_DEPOSIT_AMOUNT_BASE.toString(),
-              msg: JSON.stringify('Deposit'),
-              gas: GAS_LIMIT,
-            },
-      );
+    if (action) {
+      newActions.push({
+        ...action,
+        gas: GAS_LIMIT,
+      });
     }
 
     const storageDepositMsg: {
@@ -394,12 +401,6 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     // check account is registerer
     if (!accountInfo?.nonce) {
       storageDepositMsg.btc_public_key = btcPublicKey;
-      newActions.push({
-        receiver_id: config.accountContractId,
-        amount: NBTC_STORAGE_DEPOSIT_AMOUNT.toString(),
-        msg: JSON.stringify('RelayerFee'),
-        gas: GAS_LIMIT,
-      });
     }
 
     const depositMsg: DepositMsg = {
@@ -416,18 +417,28 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       { deposit_msg: depositMsg },
     );
     const _feeRate = feeRate || (await getBtcGasPrice());
-    const sendAmount =
-      arrearsAction?.amount && fixedAmount
-        ? new Big(depositAmount).plus(arrearsAction?.amount || 0).toString()
-        : depositAmount;
 
-    console.log('user deposit address:', userDepositAddress);
-    console.log('send amount:', sendAmount);
-    console.log('fee rate:', _feeRate);
-
-    const txHash = await sendBitcoin(userDepositAddress, Number(sendAmount), _feeRate);
+    // deposit amount detail
+    console.table({
+      'User Deposit Address': userDepositAddress,
+      'Deposit Amount': depositAmount,
+      'Protocol Fee': protocolFee,
+      'Repay Amount': repayAmount,
+      'Total Deposit Amount': totalDepositAmount,
+      'Fee Rate': _feeRate,
+    });
 
     const postActionsStr = newActions.length > 0 ? JSON.stringify(newActions) : undefined;
+
+    await preReceiveDepositMsg(config.base_url, {
+      btcPublicKey,
+      depositType: postActionsStr || depositMsg.extra_msg ? 1 : 0,
+      postActions: postActionsStr,
+      extraMsg: depositMsg.extra_msg,
+    });
+
+    const txHash = await sendBitcoin(userDepositAddress, totalDepositAmount, _feeRate);
+
     await receiveDepositMsg(config.base_url, {
       btcPublicKey,
       txHash,
@@ -449,4 +460,242 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     console.error('executeBTCDepositAndAction error:', error);
     throw error;
   }
+}
+
+export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'mainnet') {
+  if (env !== 'private_mainnet') return;
+  const hasShownNotice = localStorage.getItem('btc-wallet-private-mainnet-notice');
+  if (!hasShownNotice) {
+    Dialog.alert({
+      title: 'Notice',
+      message:
+        'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Ramp',
+    });
+    localStorage.setItem('btc-wallet-private-mainnet-notice', 'true');
+  }
+  if (!btcAccountId) return;
+  const config = await getConfig(env);
+  const whitelist = await getWhitelist(config.base_url);
+  if (!whitelist?.length) return;
+  const isWhitelisted = whitelist.includes(btcAccountId);
+  if (!isWhitelisted) {
+    Dialog.alert({
+      title: 'Account is not whitelisted',
+      message: `We're live on beta mainnet! Join the whitelist to on-ramp your BTC in just 24 hours.
+Sign up now: <a style="color: #ff7a00; text-decoration: underline;" href="https://forms.gle/rrTP1ZbGU5mRZpHdA" target="_blank">https://forms.gle/rrTP1ZbGU5mRZpHdA</a>`,
+      dangerouslyUseHTML: true,
+      closable: false,
+    });
+    throw new Error('Account is not whitelisted');
+  }
+}
+
+interface WithdrawParams {
+  amount: string | number;
+  feeRate?: number;
+  env?: ENV;
+}
+
+export async function getWithdrawTransaction({
+  amount,
+  feeRate,
+  env = 'mainnet',
+}: WithdrawParams): Promise<Transaction> {
+  const provider = getBtcProvider();
+  const btcAddress = await provider.account;
+  const config = await getConfig(env);
+
+  // Get configuration
+  const brgConfig = await nearCall<{
+    min_withdraw_amount: string;
+    withdraw_bridge_fee: {
+      fee_rate: number;
+      fee_min: string;
+    };
+    max_btc_gas_fee: string;
+    change_address: string;
+  }>(config.bridgeContractId, 'get_config', {});
+
+  // Check minimum withdrawal amount
+  if (brgConfig.min_withdraw_amount) {
+    if (Number(amount) < Number(brgConfig.min_withdraw_amount)) {
+      throw new Error('Mini withdraw amount is ' + brgConfig.min_withdraw_amount);
+    }
+  }
+
+  // Calculate withdrawal fee
+  const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * Number(amount);
+  const withdrawFee =
+    feePercent > Number(brgConfig.withdraw_bridge_fee.fee_min)
+      ? feePercent
+      : Number(brgConfig.withdraw_bridge_fee.fee_min);
+
+  // Get UTXOs
+  const allUTXO = await nearCall<
+    Record<
+      string,
+      {
+        vout: number;
+        balance: string;
+        script: string;
+      }
+    >
+  >(config.bridgeContractId, 'get_utxos_paged', {});
+
+  if (!allUTXO || Object.keys(allUTXO).length === 0) {
+    throw new Error('The network is busy, please try again later.');
+  }
+
+  // Format UTXOs
+  const utxos = Object.keys(allUTXO).map((key) => {
+    const txid = key.split('@');
+    return {
+      txid: txid[0],
+      vout: allUTXO[key].vout,
+      value: Number(allUTXO[key].balance),
+      script: allUTXO[key].script,
+    };
+  });
+
+  const _feeRate = feeRate || (await getBtcGasPrice());
+  // Use coinselect to calculate inputs and outputs
+  const { inputs, outputs, fee } = coinselect(
+    utxos,
+    [{ address: btcAddress, value: Number(amount) }],
+    Math.ceil(_feeRate),
+  );
+
+  if (!outputs || !inputs) {
+    throw new Error('The network is busy, please try again later.');
+  }
+
+  // Process outputs
+  const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
+  const newFee = fee;
+  const withdrawChangeAddress = brgConfig.change_address;
+
+  if (newFee > maxBtcFee) {
+    throw new Error('Gas exceeds maximum value');
+  }
+
+  // Process output amounts
+  let userOutput, noUserOutput;
+  for (let i = 0; i < outputs.length; i++) {
+    const output = outputs[i];
+    if (output.value.toString() === amount.toString()) {
+      userOutput = output;
+    } else {
+      noUserOutput = output;
+    }
+    if (!output.address) {
+      output.address = withdrawChangeAddress;
+    }
+  }
+
+  userOutput.value = new Big(userOutput.value).minus(newFee).minus(withdrawFee).toNumber();
+
+  if (noUserOutput) {
+    noUserOutput.value = new Big(noUserOutput.value).plus(newFee).plus(withdrawFee).toNumber();
+  } else {
+    noUserOutput = {
+      address: withdrawChangeAddress,
+      value: new Big(newFee).plus(withdrawFee).toNumber(),
+    };
+    outputs.push(noUserOutput);
+  }
+
+  // Validate outputs
+  const insufficientOutput = outputs.some((item: any) => item.value < 0);
+  if (insufficientOutput) {
+    throw new Error('Not enough gas');
+  }
+
+  // Verify input/output balance
+  const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+  const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+
+  if (newFee + outputSum !== inputSum) {
+    throw new Error('compute error');
+  }
+
+  // Build PSBT transaction
+  const network = await getNetwork();
+  const btcNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  const psbt = new bitcoin.Psbt({ network: btcNetwork });
+
+  // Add inputs
+  const btcRpcUrl = await getBtcRpcUrl();
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    const txData = await fetch(`${btcRpcUrl}/tx/${input.txid}`).then((res) => res.json());
+
+    const inputOptions = {
+      hash: input.txid,
+      index: input.vout,
+      sequence: 0xfffffffd,
+      witnessUtxo: {
+        script: Buffer.from(txData.vout[input.vout].scriptpubkey, 'hex'),
+        value: input.value,
+      },
+    };
+
+    psbt.addInput(inputOptions);
+  }
+
+  // Add outputs
+  outputs.forEach((output: { address: string; value: any }) => {
+    psbt.addOutput({
+      address: output.address,
+      value: output.value,
+    });
+  });
+
+  // Build contract call message
+  const _inputs = inputs.map((item: any) => {
+    return `${item.txid}:${item.vout}`;
+  });
+
+  const txOutputs = psbt.txOutputs.map((item: any) => {
+    return {
+      script_pubkey: uint8ArrayToHex(item.script),
+      value: item.value,
+    };
+  });
+
+  const msg = {
+    Withdraw: {
+      target_btc_address: btcAddress,
+      input: _inputs,
+      output: txOutputs,
+    },
+  };
+  const csna = await getCsnaAccountId(env);
+  // Finally return the transaction object
+  const transaction: Transaction = {
+    receiverId: config.token,
+    signerId: csna,
+    actions: [
+      {
+        type: 'FunctionCall',
+        params: {
+          methodName: 'ft_transfer_call',
+          args: {
+            receiver_id: config.bridgeContractId,
+            amount: amount.toString(),
+            msg: JSON.stringify(msg),
+          },
+          gas: '300000000000000', // 300 TGas
+          deposit: '1', // 1 yoctoNEAR
+        },
+      },
+    ],
+  };
+  return transaction;
+}
+
+// Helper function
+function uint8ArrayToHex(uint8Array: Uint8Array): string {
+  return Array.from(uint8Array)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }

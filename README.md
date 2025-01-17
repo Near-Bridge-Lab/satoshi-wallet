@@ -66,7 +66,6 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   
   // Common optional parameters
   feeRate?: number;        // optional: custom fee rate for the BTC transaction
-  fixedAmount?: boolean;   // optional: whether to use fixed amount
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to NEAR network environment
   pollResult?: T;         // optional: whether to poll for transaction result
   registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
@@ -100,31 +99,50 @@ const balance = await getBtcBalance(address: string);
 // Returns balance in satoshis
 ```
 
-### `estimateDepositAmount`
+### `getDepositAmount`
 
-Estimate the amount of BTC tokens that will be received on NEAR after depositing native BTC through Satoshi bridge. This takes into account bridge fees and minimum deposit requirements.
+Calculate the amount of BTC tokens that can be received on NEAR after depositing native BTC through Satoshi Bridge. This takes into account bridge fees and minimum deposit requirements.
 
 ```typescript
-import { estimateDepositAmount } from 'btc-wallet';
+import { getDepositAmount } from 'btc-wallet';
 
-// Estimate receivable amount
-const receiveAmount = await estimateDepositAmount(
-  amount: string,           // amount in smallest units (satoshis)
+// Calculate receivable amount
+const result = await getDepositAmount(
+  amount: string,           // Amount in satoshi units
   options?: {
-    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // optional: defaults to NEAR network environment
+    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // Optional: Defaults to NEAR network environment
   }
 );
 
-// Example
-const amount = '100000000'; // 1 BTC in satoshis
-const estimatedReceive = await estimateDepositAmount(amount);
-console.log('Estimated receive amount:', estimatedReceive);
+// Returns
+interface DepositAmountResult {
+  depositAmount: number;            // Original deposit amount
+  totalDepositAmount: number;       // Total amount needed including all fees
+  protocolFee: number;             // Protocol fee
+  repayAmount: number;             // Amount to repay if there's debt
+  newAccountMinDepositAmount: number; // Minimum deposit amount for new accounts
+}
+
+To complete the deposit, you will need to send `totalDepositAmount` of BTC, which includes:
+- Original deposit amount
+- Protocol fees
+- Repayment amount (if you have existing debt)
+- New account minimum deposit (for first-time users)
 ```
 
-The estimated amount will be less than the input amount due to:
-- Bridge fees
-- Minimum deposit requirements
-- Protocol fees
+### `getWithdrawTransaction`
+
+Get transaction for withdrawing BTC from NEAR to a specified bitcoin address.
+
+```typescript
+import { getWithdrawTransaction } from 'btc-wallet';
+
+const transaction = await getWithdrawTransaction({
+  btcAddress: string,      // Target bitcoin address
+  amount: string,          // Amount to withdraw in satoshi units
+  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // Optional: Defaults to NEAR network environment
+});
+```
 
 ## Requirements
 

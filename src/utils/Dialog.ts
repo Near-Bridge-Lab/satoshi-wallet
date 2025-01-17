@@ -1,3 +1,10 @@
+interface DialogOptions {
+  title: string;
+  message: string;
+  dangerouslyUseHTML?: boolean;
+  closable?: boolean;
+}
+
 export class Dialog {
   private static template = `
     <div class="dialog-overlay">
@@ -7,7 +14,7 @@ export class Dialog {
           <div class="dialog-message"></div>
           <div class="dialog-buttons">
             <button class="dialog-cancel-btn">Cancel</button>
-            <button class="dialog-confirm-btn">Confirm</button>
+            <button class="dialog-confirm-btn">OK</button>
           </div>
         </div>
       </div>
@@ -51,6 +58,9 @@ export class Dialog {
       display: flex;
       justify-content: flex-end;
       gap: 12px;
+    }
+    .dialog-alert .dialog-buttons {
+      justify-content: center;
     }
     .dialog-confirm-btn {
       padding: 8px 24px;
@@ -160,12 +170,25 @@ export class Dialog {
     });
   }
 
-  static alert(options: { title?: string; message: string }): Promise<void> {
-    return new Promise((resolve) => {
+  static alert(options: DialogOptions) {
+    const messageEl = options.dangerouslyUseHTML
+      ? { dangerouslySetInnerHTML: { __html: options.message } }
+      : { children: options.message };
+
+    return new Promise<void>((resolve) => {
       this.injectStyles();
 
       const container = document.createElement('div');
       container.innerHTML = this.template;
+      container.querySelector('.dialog-overlay')?.classList.add('dialog-alert');
+
+      if (options.closable === false) {
+        const overlay = container.querySelector('.dialog-overlay') as HTMLElement;
+        overlay.style.pointerEvents = 'none';
+        const dialogContainer = container.querySelector('.dialog-container') as HTMLElement;
+        dialogContainer.style.pointerEvents = 'auto';
+      }
+
       document.body.appendChild(container);
 
       const titleEl = container.querySelector('.dialog-title') as HTMLElement;
@@ -178,10 +201,17 @@ export class Dialog {
       } else {
         titleEl.style.display = 'none';
       }
-      messageEl.textContent = options.message;
+      messageEl.innerHTML = options.message;
       cancelBtn.style.display = 'none';
 
+      if (options.closable === false) {
+        confirmBtn.style.display = 'none';
+      }
+
       const cleanup = () => {
+        if (options.closable === false) {
+          return;
+        }
         document.body.removeChild(container);
       };
 
