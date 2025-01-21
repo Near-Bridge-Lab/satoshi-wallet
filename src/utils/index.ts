@@ -104,3 +104,12 @@ export function toHex(originalString: string) {
   hexString = hexString.replace(/(^0+)/g, '');
   return hexString;
 }
+
+export function isMobile(): boolean {
+  if (typeof window !== 'undefined') {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator?.userAgent,
+    );
+  }
+  return false;
+}
