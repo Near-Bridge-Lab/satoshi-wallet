@@ -33,15 +33,15 @@ export const walletConfig: Record<
     accountContractId: 'acc.toalice.near',
     bridgeContractId: 'brg.toalice.near',
     walletUrl: 'https://wallet-stg.satoshibridge.top',
-    bridgeUrl: 'https://ramp.satos.network/',
+    bridgeUrl: 'https://old.ramp.satos.network',
   },
   mainnet: {
-    base_url: 'https://api.mainnet.satoshibridge.top',
-    token: 'nbtc.toalice.near',
-    accountContractId: 'acc.toalice.near',
-    bridgeContractId: 'brg.toalice.near',
+    base_url: 'https://api.satos.network',
+    token: 'nbtc.bridge.near',
+    accountContractId: 'acc.ref-labs.near',
+    bridgeContractId: 'btc-connector.bridge.near',
     walletUrl: 'https://wallet.satoshibridge.top',
-    bridgeUrl: 'https://www.satoshibridge.top/',
+    bridgeUrl: 'https://ramp.satos.network',
   },
 };
 
