@@ -170,7 +170,7 @@ export async function getBtcBalance() {
 
   if (!account) {
     console.error('BTC Account is not available.');
-    return { rawBalance: 0, balance: 0, maxSpendableBalance: 0 };
+    return { rawBalance: 0, balance: 0, availableBalance: 0 };
   }
 
   const btcRpcUrl = await getBtcRpcUrl();
@@ -178,24 +178,21 @@ export async function getBtcBalance() {
 
   const btcDecimals = 8;
 
-  const rawBalance =
+  const rawBalance: number =
     utxos?.reduce((acc: number, cur: { value: number }) => acc + cur.value, 0) || 0;
   const balance = rawBalance / 10 ** btcDecimals;
 
   // get the recommended fee rate
   const feeRate = await getBtcGasPrice();
 
-  // calculate the estimated transaction size (bytes)
-  // input size = input count * 64 bytes (each input is about 64 bytes)
-  // output size = 34 bytes (one output)
-  // other fixed overhead = 10 bytes
-  const inputSize = (utxos?.length || 0) * 66;
-  const outputSize = 34;
-  const overheadSize = 10;
+  // P2WPKH input vsize ≈ 69 vbytes
+  const inputSize = (utxos?.length || 0) * 69;
+  const outputSize = 33 * 2;
+  const overheadSize = 11;
   const estimatedTxSize = inputSize + outputSize + overheadSize;
 
-  // calculate the estimated transaction fee
-  const estimatedFee = estimatedTxSize * feeRate;
+  const estimatedFee = Math.ceil(estimatedTxSize * feeRate);
+  console.log('estimatedFee:', estimatedFee);
   const availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
   const availableBalance = new Big(availableRawBalance)
     .div(10 ** btcDecimals)

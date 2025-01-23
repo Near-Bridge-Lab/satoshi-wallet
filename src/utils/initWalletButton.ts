@@ -77,6 +77,8 @@ function createFloatingButtonWithIframe({
 
   document.body.appendChild(button);
 
+  updateIframePosition(iframe, right, bottom, windowWidth, windowHeight);
+
   let isDragging = false;
   let startX = 0;
   let startY = 0;

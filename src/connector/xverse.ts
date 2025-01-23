@@ -7,6 +7,9 @@ import type {
 } from 'sats-connect';
 import icon from '../icons/xverse.png';
 import { BaseConnector, type WalletMetadata } from './base';
+import { MobileWalletConnect } from './universalLink';
+import { isMobile } from '../utils';
+
 export class XverseConnector extends BaseConnector {
   #network = 'Mainnet';
   #event = new EventEmitter();
@@ -21,7 +24,11 @@ export class XverseConnector extends BaseConnector {
     downloadUrl: 'https://www.xverse.app',
   };
   isReady(): boolean {
-    return typeof window !== 'undefined' && typeof window.BitcoinProvider !== 'undefined';
+    if (typeof window !== 'undefined') {
+      if (typeof window.BitcoinProvider !== 'undefined') return true;
+      if (isMobile()) return true;
+    }
+    return false;
   }
   private loadAccounts = async (network: 'Mainnet' | 'Testnet') => {
     const { getAddress, AddressPurpose } = await import('sats-connect');
@@ -52,9 +59,11 @@ export class XverseConnector extends BaseConnector {
     throw new Error('Unsupported');
   }
   async requestAccounts(): Promise<string[]> {
-    if (!this.isReady()) {
-      throw new Error(`${this.metadata.name} is not install!`);
+    if (isMobile() && !this.getProvider()) {
+      MobileWalletConnect.redirectToWallet(this.metadata.id);
+      return [];
     }
+
     const addresses = await this.loadAccounts(this.#network as any);
     return addresses.map((item) => item.address);
   }

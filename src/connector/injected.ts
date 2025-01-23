@@ -1,4 +1,6 @@
+import { isMobile } from '../utils';
 import { BaseConnector } from './base';
+import { MobileWalletConnect } from './universalLink';
 
 export abstract class InjectedConnector extends BaseConnector {
   constructor(private propertity: string) {
@@ -12,22 +14,53 @@ export abstract class InjectedConnector extends BaseConnector {
     if (typeof window !== 'undefined') {
       const props = this.propertity.split('.');
       if (props.length === 1) {
-        return typeof (window as any)[props[0]] !== 'undefined';
+        if (typeof (window as any)[props[0]] !== 'undefined') {
+          return true;
+        }
       } else {
-        return (
+        if (
           typeof (window as any)[props[0]] !== 'undefined' &&
           typeof (window as any)[props[0]][props[1]] !== 'undefined'
-        );
+        ) {
+          return true;
+        }
+      }
+      if (isMobile()) {
+        return true;
       }
     }
     return false;
   }
 
   async requestAccounts(): Promise<string[]> {
+    if (isMobile() && !this.getProvider()) {
+      MobileWalletConnect.redirectToWallet(this.metadata.id);
+      return [];
+    }
+
     const accounts = await this.getProviderOrThrow().requestAccounts();
     console.log('network:', await this.getNetwork());
     console.log('🚀 ~ InjectedConnector ~ requestAccounts ~ accounts:', accounts);
     return accounts;
+  }
+
+  private getUniversalLink(url: string): string {
+    url = 'https://www.deltatrade.ai/';
+    console.log(this.metadata.id);
+    switch (this.metadata.id) {
+      case 'unisat':
+        return `unisat://dapp?url=${encodeURIComponent(url)}`;
+      case 'okx':
+        return `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(url)}`;
+      case 'bitget':
+        return `https://bkcode.vip?action=dapp&url=${encodeURIComponent(url)}`;
+      case 'binance':
+        return `binance://dapp?url=${encodeURIComponent(url)}`;
+      case 'xverse':
+        return `https://connect.xverse.app/browser?url=${encodeURIComponent(url)}`;
+      default:
+        return url;
+    }
   }
 
   async getAccounts(): Promise<string[]> {
