@@ -187,7 +187,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       if (btcContext.account) {
         const btcPublicKey = await btcContext.getPublicKey();
         if (btcPublicKey) {
-          const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
+          await getNearAccountByBtcPublicKey(btcPublicKey);
           await checkSatoshiWhitelist(btcContext.account, env);
           removeWalletButton();
           setupWalletButton(env, wallet as any, btcContext);
@@ -224,10 +224,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     });
 
     context.on('btcLoginError', async () => {
-      console.log('btcLoginError');
-      state.clear();
-      emitter.emit('accountsChanged', { accounts: [] });
-      await handleConnectionUpdate();
+      // console.log('btcLoginError');
+      // state.clear();
+      // emitter.emit('accountsChanged', { accounts: [] });
+      // await handleConnectionUpdate();
     });
 
     context.on('btcLogOut', async () => {

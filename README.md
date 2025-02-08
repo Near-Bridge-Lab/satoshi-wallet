@@ -69,6 +69,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to NEAR network environment
   pollResult?: T;         // optional: whether to poll for transaction result
   registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
+  newAccountMinDepositAmount?: boolean; // default is true, if true, new account minimum deposit BTC amount 1000sat, otherwise 0
 }
 
 // Example 1: dApp one-click BTC deposit
@@ -110,7 +111,8 @@ import { getDepositAmount } from 'btc-wallet';
 const result = await getDepositAmount(
   amount: string,           // Amount in satoshi units
   options?: {
-    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // Optional: Defaults to NEAR network environment
+    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // Optional: Defaults to NEAR network environment
+    newAccountMinDepositAmount?: boolean  // default is true, if true, new account minimum deposit amount 1000sat, otherwise 0
   }
 );
 
