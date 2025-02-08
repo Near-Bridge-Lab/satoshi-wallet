@@ -187,6 +187,7 @@ export function useBtcWalletSelector() {
       },
       autoConnect: async () => {
         requestDirectAccount(connectorRef.current).catch((e: any) => {
+          console.error('btcLoginError', e);
           context.emit('btcLoginError');
         });
       },

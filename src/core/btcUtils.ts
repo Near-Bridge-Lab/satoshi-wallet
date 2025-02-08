@@ -25,10 +25,10 @@ const GAS_LIMIT = '50000000000000';
 const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
 
 function getBtcProvider() {
-  if (typeof window === 'undefined' || !window.btcContext) {
+  if (typeof window === 'undefined' || (!window.btcContext && !window.top?.btcContext)) {
     throw new Error('BTC Provider is not initialized.');
   }
-  return window.btcContext;
+  return window.btcContext || window.top?.btcContext;
 }
 
 async function getNetwork() {
@@ -247,9 +247,12 @@ export async function getDepositAmount(
   amount: string,
   option?: {
     env?: ENV;
+    /** default is true, if true, new account minimum deposit amount 1000sat, otherwise 0 */
+    newAccountMinDepositAmount?: boolean;
   },
 ) {
   const env = option?.env || 'mainnet';
+  const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
   const config = await getConfig(env);
   const csna = await getCsnaAccountId(env);
   const accountInfo = await getAccountInfo(csna, config.accountContractId);
@@ -264,7 +267,8 @@ export async function getDepositAmount(
   }>(config.bridgeContractId, 'get_config', {});
   const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
   const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
-  const newAccountMinDepositAmount = !accountInfo?.nonce ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
+  const newAccountMinDepositAmount =
+    !accountInfo?.nonce && _newAccountMinDepositAmount ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
   const totalDepositAmount = new Big(depositAmount)
     .plus(protocolFee)
     .plus(repayAmount)
@@ -307,6 +311,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   feeRate?: number;
   env?: ENV;
   pollResult?: T;
+  newAccountMinDepositAmount?: boolean;
 }
 
 /**
@@ -323,6 +328,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   pollResult = true as T,
   registerDeposit,
   env = 'mainnet',
+  newAccountMinDepositAmount,
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
     const { getPublicKey } = getBtcProvider();
@@ -348,6 +354,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const { totalDepositAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
       env,
+      newAccountMinDepositAmount,
     });
 
     const accountInfo = await getAccountInfo(csna, config.accountContractId);
