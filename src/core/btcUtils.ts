@@ -25,10 +25,10 @@ const GAS_LIMIT = '50000000000000';
 const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
 
 function getBtcProvider() {
-  if (typeof window === 'undefined' || (!window.btcContext && !window.top?.btcContext)) {
+  if (typeof window === 'undefined' || !window.btcContext) {
     throw new Error('BTC Provider is not initialized.');
   }
-  return window.btcContext || window.top?.btcContext;
+  return window.btcContext;
 }
 
 async function getNetwork() {
@@ -42,7 +42,7 @@ async function getBtcRpcUrl() {
   return btcRpcUrls[network as keyof typeof btcRpcUrls];
 }
 
-async function getConfig(env: ENV) {
+export async function getConfig(env: ENV) {
   return walletConfig[env];
 }
 
@@ -111,7 +111,6 @@ export async function checkGasTokenDebt<T extends boolean>(
   if (!hasDebtArrears && !hasRelayerFeeArrears) return;
   const config = await getConfig(env);
   const transferAmount = hasDebtArrears ? debtAmount : relayerFeeAmount;
-  console.log('get_account:', accountInfo);
 
   const action = {
     receiver_id: config.accountContractId,

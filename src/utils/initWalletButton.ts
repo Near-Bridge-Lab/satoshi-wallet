@@ -1,5 +1,6 @@
 import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
+import { executeBTCDepositAndAction } from '../core/btcUtils';
 
 interface OriginalWallet {
   account: string | null;
@@ -229,34 +230,39 @@ async function setupButtonClickHandler(
 
   iframe.src = iframeSrc.toString();
 
+  const actions = {
+    signAndSendTransaction: wallet.signAndSendTransaction,
+    executeBTCDepositAndAction: executeBTCDepositAndAction,
+  };
+
   window.addEventListener('message', async (event) => {
     if (event.origin !== iframeSrc.origin) return;
     const { action, requestId, data } = event.data;
 
-    if (action === 'signAndSendTransaction') {
-      console.log('signAndSendTransaction message', event.data);
-      try {
-        const result = await wallet.signAndSendTransaction(data);
-        console.log('signAndSendTransaction result', result);
-        event.source?.postMessage(
-          {
-            requestId,
-            data,
-            success: true,
-          },
-          { targetOrigin: event.origin },
-        );
-      } catch (error: any) {
-        console.error('signAndSendTransaction error', error);
-        event.source?.postMessage(
-          {
-            requestId,
-            error: error.message,
-            success: false,
-          },
-          { targetOrigin: event.origin },
-        );
-      }
+    try {
+      const actionFn = actions[action as keyof typeof actions];
+      if (!actionFn) return;
+      console.log('handleWalletAction', action, event.data);
+      const result = await actionFn(data);
+      console.log('handleWalletAction result', action, result);
+      event.source?.postMessage(
+        {
+          requestId,
+          data,
+          success: true,
+        },
+        { targetOrigin: event.origin },
+      );
+    } catch (error: any) {
+      console.error('handleWalletAction error', action, error);
+      event.source?.postMessage(
+        {
+          requestId,
+          error: error.message,
+          success: false,
+        },
+        { targetOrigin: event.origin },
+      );
     }
   });
 }
