@@ -166,7 +166,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
     const publicKey = state.getPublicKey();
     const btcPublicKey = state.getBtcPublicKey();
-
     if ((!accountId && publicKey) || (accountId && !publicKey) || (!publicKey && btcPublicKey)) {
       state.clear();
       return false;
@@ -180,6 +179,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
       if (!state.isValid()) {
         state.clear();
+        console.log('setupBtcContextListeners clear');
       }
 
       validateWalletState();
@@ -205,6 +205,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     context.on('updatePublicKey', async (btcPublicKey: string) => {
       console.log('updatePublicKey');
       state.clear();
+      console.log('updatePublicKey clear');
       try {
         const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
@@ -218,8 +219,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         await handleConnectionUpdate();
       } catch (error) {
         console.error('Error updating public key:', error);
-        state.clear();
-        emitter.emit('accountsChanged', { accounts: [] });
       }
     });
 
@@ -275,7 +274,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
     const csna = await getCsnaAccountId(env);
-
     const nearPublicKey = await nearCall<string>(
       currentConfig.accountContractId,
       'get_chain_signature_near_account_public_key',
@@ -525,65 +523,65 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
 
     // check near balance
-    // const nearAccount = await provider.query<any>({
-    //   request_type: 'view_account',
-    //   account_id: accountId,
-    //   finality: 'final',
-    // });
-    // const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    const nearAccount = await provider.query<any>({
+      request_type: 'view_account',
+      account_id: accountId,
+      finality: 'final',
+    });
+    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
 
-    // console.log('available near balance:', availableBalance);
+    console.log('available near balance:', availableBalance);
 
-    // console.log('available gas token balance:', gasTokenBalance);
+    console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    // if (availableBalance > 0.2) {
-    //   console.log('near balance is enough, get the protocol fee of each transaction');
-    //   const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
-    //     currentConfig.accountContractId,
-    //     'list_gas_token',
-    //     { token_ids: [currentConfig.token] },
-    //   );
+    if (availableBalance > 0.5) {
+      console.log('near balance is enough, get the protocol fee of each transaction');
+      const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
+        currentConfig.accountContractId,
+        'list_gas_token',
+        { token_ids: [currentConfig.token] },
+      );
 
-    //   console.log('list_gas_token gas tokens:', gasTokens);
+      console.log('list_gas_token gas tokens:', gasTokens);
 
-    //   const perTxFee = Math.max(
-    //     Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
-    //     100,
-    //   );
-    //   console.log('perTxFee:', perTxFee);
-    //   const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
-    //   console.log('protocolFee:', protocolFee);
+      const perTxFee = Math.max(
+        Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
+        100,
+      );
+      console.log('perTxFee:', perTxFee);
+      const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
+      console.log('protocolFee:', protocolFee);
 
-    //   // if (new Big(gasTokenBalance).gte(protocolFee)) {
-    //   //   console.log('use near pay gas and enough gas token balance');
-    //   //   return { useNearPayGas: true, gasLimit: protocolFee };
-    //   // } else {
-    //   console.log('use near pay gas and not enough gas token balance');
-    //   // gas token balance is not enough, need to transfer
-    //   const transferTx = await createGasTokenTransfer(accountId, protocolFee);
-    //   return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
-    //   // }
-    // } else {
-    // console.log('near balance is not enough, predict the gas token amount required');
-    const adjustedGas = await getPredictedGasAmount(
-      currentConfig.accountContractId,
-      currentConfig.token,
-      convertTx.map((t) => t.txHex),
-    );
+      if (new Big(gasTokenBalance).gte(protocolFee)) {
+        console.log('use near pay gas and enough gas token balance');
+        return { useNearPayGas: true, gasLimit: protocolFee };
+      } else {
+        console.log('use near pay gas and not enough gas token balance');
+        // gas token balance is not enough, need to transfer
+        const transferTx = await createGasTokenTransfer(accountId, protocolFee);
+        return recalculateGasWithTransfer(transferTx, convertTx, true, perTxFee.toString());
+      }
+    } else {
+      console.log('near balance is not enough, predict the gas token amount required');
+      const adjustedGas = await getPredictedGasAmount(
+        currentConfig.accountContractId,
+        currentConfig.token,
+        convertTx.map((t) => t.txHex),
+      );
 
-    // if (new Big(gasTokenBalance).gte(adjustedGas)) {
-    //   console.log('use gas token and gas token balance is enough');
-    //   return { useNearPayGas: false, gasLimit: adjustedGas };
-    // } else {
-    // console.log('use gas token and gas token balance is not enough, need to transfer');
-    const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
-    return recalculateGasWithTransfer(transferTx, convertTx, false);
-    // }
-    // }
+      if (new Big(gasTokenBalance).gte(adjustedGas)) {
+        console.log('use gas token and gas token balance is enough');
+        return { useNearPayGas: false, gasLimit: adjustedGas };
+      } else {
+        console.log('use gas token and gas token balance is not enough, need to transfer');
+        const transferTx = await createGasTokenTransfer(accountId, adjustedGas);
+        return recalculateGasWithTransfer(transferTx, convertTx, false);
+      }
+    }
   }
 
   // add utility function for converting Transaction to txHex
