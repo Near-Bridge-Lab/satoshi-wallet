@@ -166,7 +166,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountId = state.getAccount();
     const publicKey = state.getPublicKey();
     const btcPublicKey = state.getBtcPublicKey();
-
     if ((!accountId && publicKey) || (accountId && !publicKey) || (!publicKey && btcPublicKey)) {
       state.clear();
       return false;
@@ -180,6 +179,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
       if (!state.isValid()) {
         state.clear();
+        console.log('setupBtcContextListeners clear');
       }
 
       validateWalletState();
@@ -205,6 +205,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     context.on('updatePublicKey', async (btcPublicKey: string) => {
       console.log('updatePublicKey');
       state.clear();
+      console.log('updatePublicKey clear');
       try {
         const { nearAddress, nearPublicKey } = await getNearAccountByBtcPublicKey(btcPublicKey);
 
@@ -218,8 +219,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         await handleConnectionUpdate();
       } catch (error) {
         console.error('Error updating public key:', error);
-        state.clear();
-        emitter.emit('accountsChanged', { accounts: [] });
       }
     });
 
@@ -275,7 +274,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
   async function getNearAccountByBtcPublicKey(btcPublicKey: string) {
     const csna = await getCsnaAccountId(env);
-
     const nearPublicKey = await nearCall<string>(
       currentConfig.accountContractId,
       'get_chain_signature_near_account_public_key',

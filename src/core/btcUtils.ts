@@ -288,6 +288,9 @@ export async function getCsnaAccountId(env: ENV) {
   const config = await getConfig(env);
   const { getPublicKey } = getBtcProvider();
   const btcPublicKey = await getPublicKey();
+  if (!btcPublicKey) {
+    throw new Error('BTC Public Key is not available.');
+  }
   const csna = await nearCall<string>(
     config.accountContractId,
     'get_chain_signature_near_account_id',
@@ -466,7 +469,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 }
 
 export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'mainnet') {
-  if (env !== 'private_mainnet') return;
+  if (env !== 'mainnet') return;
   const hasShownNotice = localStorage.getItem('btc-wallet-private-mainnet-notice');
   if (!hasShownNotice) {
     Dialog.alert({
