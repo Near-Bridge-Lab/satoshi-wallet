@@ -428,7 +428,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     });
     await checkBtcTransactionStatus(currentConfig.base_url, signature);
 
-    const hash = newTrans.map((t) => t.hash);
+    // Skip the outcome of the first transaction, which is the gas token transfer transaction
+    const hash = newTrans.slice(1).map((t) => t.hash);
     console.log('txHash:', hash);
     const result = await pollTransactionStatuses(options.network.networkId, hash);
     return result;
