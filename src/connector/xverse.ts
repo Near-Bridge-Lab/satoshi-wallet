@@ -96,18 +96,10 @@ export class XverseConnector extends BaseConnector {
       message: signStr,
       protocol: 'ECDSA',
     });
-    const modifiedSig = Buffer.from(result.signature, 'base64');
     console.log('xverse walletType', address.walletType);
-    console.log('xverse raw sig', result.signature, modifiedSig.toString('base64'));
-    if (address.walletType === 'ledger') {
-      if (address.addressType === 'p2wpkh') {
-        modifiedSig[0] = 31 + (modifiedSig[0] - 39);
-      } else if (address.addressType === 'p2sh') {
-        modifiedSig[0] = 31 + (modifiedSig[0] - 35);
-      }
-    } else {
-      modifiedSig[0] = 31 + ((modifiedSig[0] - 31) % 4);
-    }
+    console.log('xverse raw sig', result.signature);
+    const modifiedSig = Buffer.from(result.signature, 'base64');
+    modifiedSig[0] = 31 + ((modifiedSig[0] - 31) % 4);
     const sig = modifiedSig.toString('base64');
     console.log('xverse modified sig', sig);
     return sig;

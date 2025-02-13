@@ -306,10 +306,7 @@ function checkDepositDisabledAddress() {
   if (!data) return;
   const addresses = JSON.parse(data);
   const address = addresses?.[0];
-  if (
-    address.walletType === 'ledger' &&
-    (address.addressType !== 'p2wpkh' || address.addressType !== 'p2sh')
-  ) {
+  if (address.walletType === 'ledger' && !['p2wpkh', 'p2sh'].includes(address.addressType)) {
     throw new Error('Ledger is only supported for p2wpkh and p2sh address');
   }
 }
