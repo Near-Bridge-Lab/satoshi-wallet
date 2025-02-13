@@ -1,15 +1,13 @@
 import EventEmitter from 'events';
-import type {
-  Address,
-  GetAddressOptions,
-  SendBtcTransactionOptions,
-  SignMessageOptions,
-} from 'sats-connect';
+import type { Address } from 'sats-connect';
 import icon from '../icons/xverse.png';
 import { BaseConnector, type WalletMetadata } from './base';
 import { MobileWalletConnect } from './universalLink';
 import { isMobile } from '../utils';
 
+interface XverseAddress extends Address {
+  walletType: 'software' | 'ledger';
+}
 export class XverseConnector extends BaseConnector {
   #network = 'Mainnet';
   #event = new EventEmitter();
@@ -31,27 +29,21 @@ export class XverseConnector extends BaseConnector {
     return false;
   }
   private loadAccounts = async (network: 'Mainnet' | 'Testnet') => {
-    const { getAddress, AddressPurpose } = await import('sats-connect');
-    const addresses = await new Promise<Address[]>((resolve, reject) => {
-      const getAddressOptions: GetAddressOptions = {
-        payload: {
-          purposes: [AddressPurpose.Payment, AddressPurpose.Ordinals],
-          message: 'Address for receiving Ordinals and payments',
-          network: {
-            type: network as any,
-          },
-        },
-        onFinish: (response) => {
-          resolve(response.addresses);
-        },
-        onCancel: () =>
-          reject({
-            code: 4001,
-            message: 'User rejected the request.',
-          }),
-      };
-      getAddress(getAddressOptions).catch((error) => reject(error));
+    const { AddressPurpose } = await import('sats-connect');
+    const provider = this.getProvider();
+    await provider.request('wallet_requestPermissions', undefined);
+    const { result: walletType } = await provider.request('wallet_getWalletType', undefined);
+
+    const { result } = await provider.request('getAddresses', {
+      purposes: [AddressPurpose.Payment, AddressPurpose.Ordinals],
+      message: 'Address for receiving Ordinals and payments',
     });
+    const addresses: XverseAddress[] = result.addresses.map((item: XverseAddress) => ({
+      ...item,
+      walletType,
+    }));
+    console.log('🚀 ~ XverseConnector ~ loadAccounts ~ res:', addresses);
+
     localStorage.setItem('btc-connect-xverse-addresses-' + network, JSON.stringify(addresses));
     return addresses;
   };
@@ -59,75 +51,66 @@ export class XverseConnector extends BaseConnector {
     throw new Error('Unsupported');
   }
   async requestAccounts(): Promise<string[]> {
-    if (isMobile() && !this.getProvider()) {
-      MobileWalletConnect.redirectToWallet(this.metadata.id);
-      return [];
+    if (isMobile()) {
+      try {
+        this.getProvider();
+      } catch (error) {
+        MobileWalletConnect.redirectToWallet(this.metadata.id);
+        return [];
+      }
     }
-
     const addresses = await this.loadAccounts(this.#network as any);
     return addresses.map((item) => item.address);
   }
-  async getAccounts(): Promise<string[]> {
-    if (!this.isReady()) {
-      throw new Error(`${this.metadata.name} is not install!`);
-    }
+  async getAddresses() {
     const data = localStorage.getItem('btc-connect-xverse-addresses-' + this.#network);
     if (data) {
-      const addresses: Address[] = JSON.parse(data);
-      return addresses.map((item) => item.address);
-    } else {
-      return [];
+      return JSON.parse(data) as XverseAddress[];
     }
+    return [];
   }
-  async getPublicKey(): Promise<string> {
-    if (!this.isReady()) {
-      throw new Error(`${this.metadata.name} is not install!`);
-    }
-    const data = localStorage.getItem('btc-connect-xverse-addresses-' + this.#network);
-    if (data) {
-      const addresses: Address[] = JSON.parse(data);
-      return addresses[0].publicKey;
-    } else {
-      return '';
-    }
-  }
-  async signMessage(signStr: string): Promise<string> {
-    if (!this.isReady()) {
-      throw new Error(`${this.metadata.name} is not install!`);
-    }
-    const addresses = await this.getAccounts();
-    if (addresses.length === 0) {
+  async getCurrentAddress() {
+    const addresses = await this.getAddresses();
+    const address = addresses?.[0];
+    if (!address) {
       throw new Error(`${this.metadata.name} not connected!`);
     }
-    const { signMessage } = await import('sats-connect');
-
-    const sig = await new Promise<string>((resolve, reject) => {
-      const signMessageOptions: SignMessageOptions = {
-        payload: {
-          network: {
-            type: this.#network as any,
-          },
-          address: addresses[0],
-          message: signStr,
-        },
-        onFinish: (response) => {
-          resolve(response);
-        },
-        onCancel: () => {
-          reject({
-            code: 4001,
-            message: 'User rejected the request.',
-          });
-        },
-      };
-      signMessage(signMessageOptions).catch((e) => {
-        reject(e);
-      });
+    return address;
+  }
+  async getAccounts() {
+    if (!this.isReady()) {
+      throw new Error(`${this.metadata.name} is not install!`);
+    }
+    const addresses = await this.getAddresses();
+    return addresses.map((item) => item.address);
+  }
+  async getPublicKey(): Promise<string> {
+    const address = await this.getCurrentAddress();
+    return address.publicKey;
+  }
+  async signMessage(signStr: string): Promise<string> {
+    const address = await this.getCurrentAddress();
+    const provider = this.getProvider();
+    const { result } = await provider.request('signMessage', {
+      address: address.address,
+      message: signStr,
+      protocol: 'ECDSA',
     });
-
-    const modifiedSig = Buffer.from(sig, 'base64');
-    modifiedSig[0] = 31 + ((modifiedSig[0] - 31) % 4);
-    return modifiedSig.toString('base64');
+    const modifiedSig = Buffer.from(result.signature, 'base64');
+    console.log('xverse walletType', address.walletType);
+    console.log('xverse raw sig', result.signature, modifiedSig.toString('base64'));
+    if (address.walletType === 'ledger') {
+      if (address.addressType === 'p2wpkh') {
+        modifiedSig[0] = 31 + (modifiedSig[0] - 39);
+      } else if (address.addressType === 'p2sh') {
+        modifiedSig[0] = 31 + (modifiedSig[0] - 35);
+      }
+    } else {
+      modifiedSig[0] = 31 + ((modifiedSig[0] - 31) % 4);
+    }
+    const sig = modifiedSig.toString('base64');
+    console.log('xverse modified sig', sig);
+    return sig;
   }
   on(event: string, handler: (data?: unknown) => void) {
     return this.#event.on(event, handler);
@@ -136,9 +119,11 @@ export class XverseConnector extends BaseConnector {
     return this.#event.removeListener(event, handler);
   }
   getProvider() {
-    if (this.isReady()) {
-      return window.BitcoinProvider;
+    const provider = window.BitcoinProvider;
+    if (!provider) {
+      throw new Error(`${this.metadata.name} is not install!`);
     }
+    return provider;
   }
   async getNetwork(): Promise<'livenet' | 'testnet'> {
     if (!this.isReady()) {
@@ -151,9 +136,6 @@ export class XverseConnector extends BaseConnector {
   }
   async sendBitcoin(toAddress: string, satoshis: number): Promise<string> {
     const provider = this.getProvider();
-    if (!provider) {
-      throw new Error(`${this.metadata.name} is not install!`);
-    }
     const { result } = await provider.request('sendTransfer', {
       recipients: [{ address: toAddress, amount: satoshis }],
     });

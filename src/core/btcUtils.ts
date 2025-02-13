@@ -301,6 +301,19 @@ export async function getCsnaAccountId(env: ENV) {
   return csna;
 }
 
+function checkDepositDisabledAddress() {
+  const data = localStorage.getItem('btc-connect-xverse-addresses-Mainnet');
+  if (!data) return;
+  const addresses = JSON.parse(data);
+  const address = addresses?.[0];
+  if (
+    address.walletType === 'ledger' &&
+    (address.addressType !== 'p2wpkh' || address.addressType !== 'p2sh')
+  ) {
+    throw new Error('Ledger is only supported for p2wpkh and p2sh address');
+  }
+}
+
 interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   action?: {
     receiver_id: string;
@@ -333,6 +346,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   newAccountMinDepositAmount,
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
+    checkDepositDisabledAddress();
     const { getPublicKey } = getBtcProvider();
 
     const config = await getConfig(env);

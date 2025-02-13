@@ -1,6 +1,6 @@
 import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
-import { executeBTCDepositAndAction } from '../core/btcUtils';
+import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
 
 interface OriginalWallet {
   account: string | null;
@@ -232,7 +232,9 @@ async function setupButtonClickHandler(
 
   const actions = {
     signAndSendTransaction: wallet.signAndSendTransaction,
-    executeBTCDepositAndAction: executeBTCDepositAndAction,
+    signAndSendTransactions: wallet.signAndSendTransactions,
+    executeBTCDepositAndAction,
+    getWithdrawTransaction,
   };
 
   window.addEventListener('message', async (event) => {
