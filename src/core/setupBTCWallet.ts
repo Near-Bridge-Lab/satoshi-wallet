@@ -374,7 +374,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     await checkGasTokenDebt(accountInfo, env, true);
 
     const trans = [...params.transactions];
-    console.log('raw trans:', trans);
+    console.log('signAndSendTransactions raw trans:', trans);
 
     const { transferGasTransaction, useNearPayGas, gasLimit } = await calculateGasStrategy(trans);
 
@@ -678,7 +678,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const txHex = Array.from(txBytes, (byte) => ('0' + (byte & 0xff).toString(16)).slice(-2)).join(
       '',
     );
-
     const hash = bs58.encode(new Uint8Array(sha256.array(txBytes)));
 
     return { txBytes, txHex, hash };
