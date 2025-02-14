@@ -44,25 +44,6 @@ export abstract class InjectedConnector extends BaseConnector {
     return accounts;
   }
 
-  private getUniversalLink(url: string): string {
-    url = 'https://www.deltatrade.ai/';
-    console.log(this.metadata.id);
-    switch (this.metadata.id) {
-      case 'unisat':
-        return `unisat://dapp?url=${encodeURIComponent(url)}`;
-      case 'okx':
-        return `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(url)}`;
-      case 'bitget':
-        return `https://bkcode.vip?action=dapp&url=${encodeURIComponent(url)}`;
-      case 'binance':
-        return `binance://dapp?url=${encodeURIComponent(url)}`;
-      case 'xverse':
-        return `https://connect.xverse.app/browser?url=${encodeURIComponent(url)}`;
-      default:
-        return url;
-    }
-  }
-
   async getAccounts(): Promise<string[]> {
     const accounts = await this.getProviderOrThrow().getAccounts();
     return accounts;
