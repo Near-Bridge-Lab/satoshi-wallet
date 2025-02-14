@@ -12,6 +12,27 @@ const cache = new Map<string, { timestamp: number; data: any }>();
 
 const defaultCacheTimeout = 3000;
 
+export function withCache<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  timeout: number = defaultCacheTimeout,
+): Promise<T> {
+  const cached = cache.get(key);
+  const isCacheValid = cached && Date.now() - cached.timestamp < timeout;
+
+  if (isCacheValid) {
+    return Promise.resolve(cached.data as T);
+  }
+
+  return fetcher().then((data) => {
+    cache.set(key, { timestamp: Date.now(), data });
+    setTimeout(() => {
+      cache.delete(key);
+    }, timeout);
+    return data;
+  });
+}
+
 export default async function request<T>(url: string, options?: RequestOptions<T>): Promise<T> {
   const defaultHeaders = {
     'Content-Type': 'application/json',
@@ -65,14 +86,7 @@ export default async function request<T>(url: string, options?: RequestOptions<T
       if (options.shouldStopPolling(data)) {
         return data as T;
       }
-      if (options.maxPollingAttempts && options.maxPollingAttempts > 0) {
-        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
-        return request(url, {
-          ...options,
-          maxPollingAttempts: options.maxPollingAttempts - 1,
-        });
-      }
-      throw new Error('Polling failed: maximum attempts reached without meeting the condition');
+      throw new Error('Polling should continue');
     }
 
     if (cacheKey) {
@@ -84,6 +98,7 @@ export default async function request<T>(url: string, options?: RequestOptions<T
 
     return data as T;
   } catch (err) {
+    console.error(err);
     if (retryCount > 0) {
       console.log(`Retrying... attempts left: ${retryCount}`);
       return request(url, { ...options, retryCount: retryCount - 1 });
@@ -98,6 +113,6 @@ export default async function request<T>(url: string, options?: RequestOptions<T
         });
       }
     }
-    throw err;
+    return Promise.reject(err);
   }
 }

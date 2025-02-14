@@ -3,6 +3,18 @@ import { providers } from 'near-api-js';
 import { nearRpcUrls } from '../config';
 import { delay } from '.';
 import type { FinalExecutionOutcome } from '@near-wallet-selector/core';
+import { withCache } from './request';
+
+export function getNearProvider(option: { network?: string; provider?: ProviderService }) {
+  return (
+    option.provider ||
+    new providers.FailoverRpcProvider(
+      nearRpcUrls[option?.network as keyof typeof nearRpcUrls].map(
+        (url) => new providers.JsonRpcProvider({ url }),
+      ),
+    )
+  );
+}
 
 export async function nearCallFunction<T>(
   contractId: string,
@@ -11,15 +23,32 @@ export async function nearCallFunction<T>(
   options: {
     network?: string;
     provider?: ProviderService;
+    cacheTimeout?: number;
+    skipCache?: boolean;
+  } = {},
+): Promise<T> {
+  if (!options.skipCache) {
+    const cacheKey = `near:${contractId}:${methodName}:${args ? JSON.stringify(args) : ''}`;
+    return withCache(
+      cacheKey,
+      () => executeNearCall<T>(contractId, methodName, args, options),
+      options.cacheTimeout,
+    );
+  }
+
+  return executeNearCall<T>(contractId, methodName, args, options);
+}
+
+async function executeNearCall<T>(
+  contractId: string,
+  methodName: string,
+  args: any,
+  options: {
+    network?: string;
+    provider?: ProviderService;
   },
 ): Promise<T> {
-  const nearProvider =
-    options?.provider ||
-    new providers.FailoverRpcProvider(
-      nearRpcUrls[options?.network as keyof typeof nearRpcUrls].map(
-        (url) => new providers.JsonRpcProvider({ url }),
-      ),
-    );
+  const nearProvider = getNearProvider(options);
   const res: any = await nearProvider.query({
     request_type: 'call_function',
     account_id: contractId,
