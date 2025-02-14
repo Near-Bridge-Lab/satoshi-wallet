@@ -44,8 +44,7 @@ export const walletConfig: Record<
     nearTokenDecimals: 24,
     accountContractId: 'acc.toalice.near',
     bridgeContractId: 'brg.toalice.near',
-    // walletUrl: 'https://wallet-stg.satoshibridge.top',
-    walletUrl: 'http://localhost:3100',
+    walletUrl: 'https://wallet-stg.satoshibridge.top',
     bridgeUrl: 'https://old.ramp.satos.network',
   },
   mainnet: {

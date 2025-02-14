@@ -360,7 +360,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function signAndSendTransactions(params: { transactions: Transaction[] }) {
-    console.log('signAndSendTransactions', params);
     if (!validateWalletState()) {
       throw new Error('Wallet state is invalid, please reconnect your wallet.');
     }
@@ -513,12 +512,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const accountInfo = await getAccountInfo({ csna: accountId, env });
     const gasTokenBalance = accountInfo?.gas_token[currentConfig.btcToken] || '0';
-    const nearBalance = await getTokenBalance({
+    const { balance: nearBalance } = await getTokenBalance({
       csna: accountId,
       tokenId: currentConfig.nearToken,
       env,
     });
-    const btcBalance = await getTokenBalance({
+    const { balance: btcBalance } = await getTokenBalance({
       csna: accountId,
       tokenId: currentConfig.btcToken,
       env,
@@ -526,49 +525,45 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const transferAmount = transactions.reduce(
       (acc, tx) => {
-        // transfer near
-        if (tx.actions[0].type === 'Transfer') {
-          const amount =
-            Number(tx.actions[0].params.deposit) / 10 ** currentConfig.nearTokenDecimals;
-          return { near: acc.near.add(amount), btc: acc.btc };
-        }
-        // function call
-        if (tx.actions[0].type === 'FunctionCall') {
-          tx.actions.forEach((action: any) => {
-            if (
-              [currentConfig.nearToken, currentConfig.btcToken].includes(tx.receiverId) &&
-              ['ft_transfer_call', 'ft_transfer'].includes(action.params.methodName)
-            ) {
-              const nearAmount =
-                tx.receiverId === currentConfig.nearToken
-                  ? Number(action.params.args.amount) / 10 ** currentConfig.nearTokenDecimals
-                  : 0;
-              const btcAmount =
-                tx.receiverId === currentConfig.btcToken
-                  ? Number(action.params.args.amount) / 10 ** currentConfig.btcTokenDecimals
-                  : 0;
-              return { near: acc.near.add(nearAmount), btc: acc.btc.add(btcAmount) };
-            }
-            return acc;
-          });
-        }
+        // deposit near
+        tx.actions.forEach((action: any) => {
+          // deposit near
+          if (action.params.deposit) {
+            const amount = Number(action.params.deposit) / 10 ** currentConfig.nearTokenDecimals;
+            console.log('near deposit amount:', amount);
+            acc.near = acc.near.plus(amount);
+          }
+          //transfer btc
+          if (
+            tx.receiverId === currentConfig.btcToken &&
+            ['ft_transfer_call', 'ft_transfer'].includes(action.params.methodName)
+          ) {
+            const amount = Number(action.params.args.amount) / 10 ** currentConfig.btcTokenDecimals;
+            console.log('btc transfer amount:', amount);
+            acc.btc = acc.btc.plus(amount);
+          }
+        });
         return acc;
       },
       { near: new Big(0), btc: new Big(0) },
     );
 
-    console.log('transferAmount near:', transferAmount.near.toString());
-    console.log('transferAmount btc:', transferAmount.btc.toString());
+    const nearAvailableBalance = new Big(nearBalance).minus(transferAmount.near).toNumber();
+    const btcAvailableBalance = new Big(btcBalance).minus(transferAmount.btc).toNumber();
 
-    console.log('available near balance:', nearBalance);
+    if (btcAvailableBalance < 0.000008) {
+      throw new Error('BTC balance is not enough, please deposit more BTC.');
+    }
 
+    console.log('available near balance:', nearAvailableBalance);
+    console.log('available btc balance:', btcAvailableBalance);
     console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    if (nearBalance > 0.5) {
+    if (nearAvailableBalance > 0.5) {
       console.log('near balance is enough, get the protocol fee of each transaction');
       const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
         currentConfig.accountContractId,

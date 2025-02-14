@@ -81,7 +81,7 @@ export async function getTokenBalance({
   csna: string;
   tokenId: string;
   env: ENV;
-}) {
+}): Promise<{ balance: number; rawBalance: string }> {
   const network = await getNetwork();
   const config = await getConfig(env);
   const nearProvider = getNearProvider({ network });
@@ -92,26 +92,28 @@ export async function getTokenBalance({
         account_id: csna,
         finality: 'final',
       });
-      return parseFloat(nearAccount.amount) / 10 ** config.nearTokenDecimals;
+      const balance = parseFloat(nearAccount.amount) / 10 ** config.nearTokenDecimals;
+      return { balance, rawBalance: nearAccount.amount };
     } else {
       const res = await nearCall<string>(tokenId, 'ft_balance_of', { account_id: csna });
       const decimals =
         tokenId === config.btcToken
           ? config.btcTokenDecimals
           : (await nearCall<{ decimals: number }>(tokenId, 'ft_metadata', {})).decimals;
-      return parseFloat(res) / 10 ** decimals;
+      const balance = parseFloat(res) / 10 ** decimals;
+      return { balance, rawBalance: res };
     }
   } catch (error) {
     console.error('getTokenBalance error:', error);
-    return 0;
+    return { balance: 0, rawBalance: '0' };
   }
 }
 
 export async function checkGasTokenBalance(csna: string, minAmount: string, env: ENV) {
   const config = await getConfig(env);
-  const amount = await getTokenBalance({ csna, tokenId: config.btcToken, env });
-  console.log('gas token balance:', amount);
-  if (new Big(amount).lt(minAmount)) {
+  const { rawBalance } = await getTokenBalance({ csna, tokenId: config.btcToken, env });
+  console.log('gas token balance:', rawBalance);
+  if (new Big(rawBalance).lt(minAmount)) {
     await Dialog.confirm({
       title: 'Gas token balance is insufficient',
       message: 'Please deposit gas token to continue, will open bridge website.',
@@ -233,25 +235,6 @@ export async function getBtcBalance() {
     balance,
     availableBalance: Math.max(availableBalance, 0),
   };
-}
-
-export async function getNBTCBalance(address: string, env: ENV = 'mainnet') {
-  const config = await getConfig(env);
-  const rawBalance = await getTokenBalance({
-    csna: address,
-    tokenId: config.btcToken,
-    env,
-  });
-  const balance = new Big(rawBalance)
-    .div(10 ** config.btcTokenDecimals)
-    .round(config.btcTokenDecimals, Big.roundDown)
-    .toNumber();
-  const rawAvailableBalance = new Big(rawBalance).minus(1000).toNumber();
-  const availableBalance = new Big(rawAvailableBalance)
-    .div(10 ** config.btcTokenDecimals)
-    .round(config.btcTokenDecimals, Big.roundDown)
-    .toNumber();
-  return { balance, availableBalance, rawBalance, rawAvailableBalance };
 }
 
 export async function sendBitcoin(
