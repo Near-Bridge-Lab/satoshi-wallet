@@ -24,7 +24,8 @@ export class MobileWalletConnect {
     if (isMobile()) {
       const currentUrl = window.location.href;
       const universalLink = this.getUniversalLink(walletId, currentUrl);
-      if (!universalLink) {
+
+      const showGuideDialog = async () => {
         try {
           await navigator.clipboard?.writeText(currentUrl);
         } catch (error) {
@@ -43,9 +44,27 @@ export class MobileWalletConnect {
           `,
           dangerouslyUseHTML: true,
         });
+      };
+
+      if (!universalLink) {
+        await showGuideDialog();
         return false;
       }
+
+      const openWallet = () => {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = universalLink;
+        document.body.appendChild(iframe);
+
+        setTimeout(async () => {
+          document.body.removeChild(iframe);
+          await showGuideDialog();
+        }, 2000);
+      };
+
       window.location.href = universalLink;
+      setTimeout(openWallet, 100);
       return true;
     }
     return false;
