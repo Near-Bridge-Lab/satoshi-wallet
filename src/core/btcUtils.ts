@@ -534,7 +534,7 @@ export async function getWithdrawTransaction({
   env = 'mainnet',
 }: WithdrawParams): Promise<Transaction> {
   const provider = getBtcProvider();
-  const btcAddress = await provider.account;
+  const btcAddress = provider.account;
   const config = await getConfig(env);
 
   // Get configuration
@@ -546,6 +546,7 @@ export async function getWithdrawTransaction({
     };
     max_btc_gas_fee: string;
     change_address: string;
+    min_change_amount: string;
   }>(config.bridgeContractId, 'get_config', {});
 
   // Check minimum withdrawal amount
@@ -591,7 +592,7 @@ export async function getWithdrawTransaction({
 
   const _feeRate = feeRate || (await getBtcGasPrice());
   // Use coinselect to calculate inputs and outputs
-  const { inputs, outputs, fee } = coinselect(
+  let { inputs, outputs, fee } = coinselect(
     utxos,
     [{ address: btcAddress, value: Number(amount) }],
     Math.ceil(_feeRate),
@@ -603,37 +604,85 @@ export async function getWithdrawTransaction({
 
   // Process outputs
   const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
-  const newFee = fee;
-  const withdrawChangeAddress = brgConfig.change_address;
+  const transactionFee = fee;
+  const changeAddress = brgConfig.change_address;
 
-  if (newFee > maxBtcFee) {
+  if (transactionFee > maxBtcFee) {
     throw new Error('Gas exceeds maximum value');
   }
 
   // Process output amounts
-  let userOutput, noUserOutput;
+  let recipientOutput, changeOutput;
   for (let i = 0; i < outputs.length; i++) {
     const output = outputs[i];
     if (output.value.toString() === amount.toString()) {
-      userOutput = output;
+      recipientOutput = output;
     } else {
-      noUserOutput = output;
+      changeOutput = output;
     }
     if (!output.address) {
-      output.address = withdrawChangeAddress;
+      output.address = changeAddress;
     }
   }
 
-  userOutput.value = new Big(userOutput.value).minus(newFee).minus(withdrawFee).toNumber();
+  // from recipient output deduct the fee
+  recipientOutput.value = new Big(recipientOutput.value)
+    .minus(transactionFee)
+    .minus(withdrawFee)
+    .toNumber();
 
-  if (noUserOutput) {
-    noUserOutput.value = new Big(noUserOutput.value).plus(newFee).plus(withdrawFee).toNumber();
+  if (changeOutput) {
+    // add the fee to the change output
+    changeOutput.value = new Big(changeOutput.value)
+      .plus(transactionFee)
+      .plus(withdrawFee)
+      .toNumber();
+
+    // handle the minimum input value logic
+    const remainingInputs = [...inputs];
+    let smallestInput = Math.min.apply(
+      null,
+      remainingInputs.map((input) => input.value),
+    );
+    let remainingChangeAmount = changeOutput.value;
+
+    while (
+      remainingChangeAmount >= smallestInput &&
+      smallestInput > 0 &&
+      remainingInputs.length > 0
+    ) {
+      remainingChangeAmount -= smallestInput;
+      changeOutput.value = remainingChangeAmount;
+      const smallestInputIndex = remainingInputs.findIndex(
+        (input) => input.value === smallestInput,
+      );
+      if (smallestInputIndex > -1) {
+        remainingInputs.splice(smallestInputIndex, 1);
+      }
+      smallestInput = Math.min.apply(
+        null,
+        remainingInputs.map((input) => input.value),
+      );
+    }
+
+    // handle the minimum change amount logic
+    const minChangeAmount = Number(brgConfig.min_change_amount);
+    let additionalFee = 0;
+
+    if (changeOutput.value === 0) {
+      outputs = outputs.filter((item: { value: number }) => item.value !== 0);
+    } else if (changeOutput.value < minChangeAmount) {
+      additionalFee = minChangeAmount - changeOutput.value;
+      recipientOutput.value -= additionalFee;
+      changeOutput.value = minChangeAmount;
+    }
   } else {
-    noUserOutput = {
-      address: withdrawChangeAddress,
-      value: new Big(newFee).plus(withdrawFee).toNumber(),
+    // if there is no change output, create a new change output
+    changeOutput = {
+      address: changeAddress,
+      value: new Big(transactionFee).plus(withdrawFee).toNumber(),
     };
-    outputs.push(noUserOutput);
+    outputs.push(changeOutput);
   }
 
   // Validate outputs
@@ -646,7 +695,7 @@ export async function getWithdrawTransaction({
   const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
   const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
 
-  if (newFee + outputSum !== inputSum) {
+  if (transactionFee + outputSum !== inputSum) {
     throw new Error('compute error');
   }
 
