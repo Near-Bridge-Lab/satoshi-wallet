@@ -2,7 +2,7 @@ import Big from 'big.js';
 import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
 import { delay, retryOperation } from '../utils';
-import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
+import { getNearProvider, nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
   checkBridgeTransactionStatus,
   getWhitelist,
@@ -62,8 +62,9 @@ export interface AccountInfo {
   relayer_fee?: { amount?: string };
 }
 
-export async function getAccountInfo(csna: string, accountContractId: string) {
-  const accountInfo = await nearCall<AccountInfo>(accountContractId, 'get_account', {
+export async function getAccountInfo({ csna, env }: { csna: string; env: ENV }) {
+  const config = await getConfig(env);
+  const accountInfo = await nearCall<AccountInfo>(config.accountContractId, 'get_account', {
     account_id: csna,
   }).catch((error) => {
     return undefined;
@@ -72,20 +73,51 @@ export async function getAccountInfo(csna: string, accountContractId: string) {
   return accountInfo;
 }
 
-export async function checkGasTokenBalance(
-  csna: string,
-  gasToken: string,
-  minAmount: string,
-  env: ENV,
-) {
-  const amount = await nearCall<string>(gasToken, 'ft_balance_of', { account_id: csna });
-  console.log('gas token balance:', amount);
-  if (new Big(amount).lt(minAmount)) {
+export async function getTokenBalance({
+  csna,
+  tokenId,
+  env,
+}: {
+  csna: string;
+  tokenId: string;
+  env: ENV;
+}): Promise<{ balance: number; rawBalance: string }> {
+  const network = await getNetwork();
+  const config = await getConfig(env);
+  const nearProvider = getNearProvider({ network });
+  try {
+    if (tokenId === config.nearToken) {
+      const nearAccount = await nearProvider.query<any>({
+        request_type: 'view_account',
+        account_id: csna,
+        finality: 'final',
+      });
+      const balance = parseFloat(nearAccount.amount) / 10 ** config.nearTokenDecimals;
+      return { balance, rawBalance: nearAccount.amount };
+    } else {
+      const res = await nearCall<string>(tokenId, 'ft_balance_of', { account_id: csna });
+      const decimals =
+        tokenId === config.btcToken
+          ? config.btcTokenDecimals
+          : (await nearCall<{ decimals: number }>(tokenId, 'ft_metadata', {})).decimals;
+      const balance = parseFloat(res) / 10 ** decimals;
+      return { balance, rawBalance: res };
+    }
+  } catch (error) {
+    console.error('getTokenBalance error:', error);
+    return { balance: 0, rawBalance: '0' };
+  }
+}
+
+export async function checkGasTokenBalance(csna: string, minAmount: string, env: ENV) {
+  const config = await getConfig(env);
+  const { rawBalance } = await getTokenBalance({ csna, tokenId: config.btcToken, env });
+  console.log('gas token balance:', rawBalance);
+  if (new Big(rawBalance).lt(minAmount)) {
     await Dialog.confirm({
       title: 'Gas token balance is insufficient',
       message: 'Please deposit gas token to continue, will open bridge website.',
     });
-    const config = await getConfig(env);
     window.open(config.bridgeUrl, '_blank');
     throw new Error('Gas token balance is insufficient');
   }
@@ -205,23 +237,6 @@ export async function getBtcBalance() {
   };
 }
 
-export async function getNBTCBalance(address: string, env?: ENV) {
-  const config = await getConfig(env || 'mainnet');
-  const rawBalance = await nearCall<string>(config.token, 'ft_balance_of', {
-    account_id: address,
-  });
-  const balance = new Big(rawBalance)
-    .div(10 ** 8)
-    .round(8, Big.roundDown)
-    .toNumber();
-  const rawAvailableBalance = new Big(rawBalance).minus(1000).toNumber();
-  const availableBalance = new Big(rawAvailableBalance)
-    .div(10 ** 8)
-    .round(8, Big.roundDown)
-    .toNumber();
-  return { balance, availableBalance, rawBalance, rawAvailableBalance };
-}
-
 export async function sendBitcoin(
   address: string,
   amount: number,
@@ -254,7 +269,7 @@ export async function getDepositAmount(
   const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
   const config = await getConfig(env);
   const csna = await getCsnaAccountId(env);
-  const accountInfo = await getAccountInfo(csna, config.accountContractId);
+  const accountInfo = await getAccountInfo({ csna, env });
   const debtAction = await checkGasTokenDebt(accountInfo, env, false);
   const repayAmount = debtAction?.amount || 0;
   const {
@@ -370,7 +385,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       newAccountMinDepositAmount,
     });
 
-    const accountInfo = await getAccountInfo(csna, config.accountContractId);
+    const accountInfo = await getAccountInfo({ csna, env });
 
     const newActions = [];
 
@@ -404,13 +419,13 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     const registerRes = await nearCall<{
       available: string;
       total: string;
-    }>(action?.receiver_id || config.token, 'storage_balance_of', {
+    }>(action?.receiver_id || config.btcToken, 'storage_balance_of', {
       account_id: csna,
     });
 
     if (!registerRes?.available) {
       storageDepositMsg.storage_deposit_msg = {
-        contract_id: action?.receiver_id || config.token,
+        contract_id: action?.receiver_id || config.btcToken,
         deposit: registerDeposit || NEAR_STORAGE_DEPOSIT_AMOUNT,
         registration_only: true,
       };
@@ -519,7 +534,7 @@ export async function getWithdrawTransaction({
   env = 'mainnet',
 }: WithdrawParams): Promise<Transaction> {
   const provider = getBtcProvider();
-  const btcAddress = await provider.account;
+  const btcAddress = provider.account;
   const config = await getConfig(env);
 
   // Get configuration
@@ -531,6 +546,7 @@ export async function getWithdrawTransaction({
     };
     max_btc_gas_fee: string;
     change_address: string;
+    min_change_amount: string;
   }>(config.bridgeContractId, 'get_config', {});
 
   // Check minimum withdrawal amount
@@ -576,7 +592,7 @@ export async function getWithdrawTransaction({
 
   const _feeRate = feeRate || (await getBtcGasPrice());
   // Use coinselect to calculate inputs and outputs
-  const { inputs, outputs, fee } = coinselect(
+  let { inputs, outputs, fee } = coinselect(
     utxos,
     [{ address: btcAddress, value: Number(amount) }],
     Math.ceil(_feeRate),
@@ -588,37 +604,85 @@ export async function getWithdrawTransaction({
 
   // Process outputs
   const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
-  const newFee = fee;
-  const withdrawChangeAddress = brgConfig.change_address;
+  const transactionFee = fee;
+  const changeAddress = brgConfig.change_address;
 
-  if (newFee > maxBtcFee) {
+  if (transactionFee > maxBtcFee) {
     throw new Error('Gas exceeds maximum value');
   }
 
   // Process output amounts
-  let userOutput, noUserOutput;
+  let recipientOutput, changeOutput;
   for (let i = 0; i < outputs.length; i++) {
     const output = outputs[i];
     if (output.value.toString() === amount.toString()) {
-      userOutput = output;
+      recipientOutput = output;
     } else {
-      noUserOutput = output;
+      changeOutput = output;
     }
     if (!output.address) {
-      output.address = withdrawChangeAddress;
+      output.address = changeAddress;
     }
   }
 
-  userOutput.value = new Big(userOutput.value).minus(newFee).minus(withdrawFee).toNumber();
+  // from recipient output deduct the fee
+  recipientOutput.value = new Big(recipientOutput.value)
+    .minus(transactionFee)
+    .minus(withdrawFee)
+    .toNumber();
 
-  if (noUserOutput) {
-    noUserOutput.value = new Big(noUserOutput.value).plus(newFee).plus(withdrawFee).toNumber();
+  if (changeOutput) {
+    // add the fee to the change output
+    changeOutput.value = new Big(changeOutput.value)
+      .plus(transactionFee)
+      .plus(withdrawFee)
+      .toNumber();
+
+    // handle the minimum input value logic
+    const remainingInputs = [...inputs];
+    let smallestInput = Math.min.apply(
+      null,
+      remainingInputs.map((input) => input.value),
+    );
+    let remainingChangeAmount = changeOutput.value;
+
+    while (
+      remainingChangeAmount >= smallestInput &&
+      smallestInput > 0 &&
+      remainingInputs.length > 0
+    ) {
+      remainingChangeAmount -= smallestInput;
+      changeOutput.value = remainingChangeAmount;
+      const smallestInputIndex = remainingInputs.findIndex(
+        (input) => input.value === smallestInput,
+      );
+      if (smallestInputIndex > -1) {
+        remainingInputs.splice(smallestInputIndex, 1);
+      }
+      smallestInput = Math.min.apply(
+        null,
+        remainingInputs.map((input) => input.value),
+      );
+    }
+
+    // handle the minimum change amount logic
+    const minChangeAmount = Number(brgConfig.min_change_amount);
+    let additionalFee = 0;
+
+    if (changeOutput.value === 0) {
+      outputs = outputs.filter((item: { value: number }) => item.value !== 0);
+    } else if (changeOutput.value < minChangeAmount) {
+      additionalFee = minChangeAmount - changeOutput.value;
+      recipientOutput.value -= additionalFee;
+      changeOutput.value = minChangeAmount;
+    }
   } else {
-    noUserOutput = {
-      address: withdrawChangeAddress,
-      value: new Big(newFee).plus(withdrawFee).toNumber(),
+    // if there is no change output, create a new change output
+    changeOutput = {
+      address: changeAddress,
+      value: new Big(transactionFee).plus(withdrawFee).toNumber(),
     };
-    outputs.push(noUserOutput);
+    outputs.push(changeOutput);
   }
 
   // Validate outputs
@@ -631,7 +695,7 @@ export async function getWithdrawTransaction({
   const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
   const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
 
-  if (newFee + outputSum !== inputSum) {
+  if (transactionFee + outputSum !== inputSum) {
     throw new Error('compute error');
   }
 
@@ -689,7 +753,7 @@ export async function getWithdrawTransaction({
   const csna = await getCsnaAccountId(env);
   // Finally return the transaction object
   const transaction: Transaction = {
-    receiverId: config.token,
+    receiverId: config.btcToken,
     signerId: csna,
     actions: [
       {

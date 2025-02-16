@@ -4,7 +4,10 @@ export const walletConfig: Record<
   ENV,
   {
     base_url: string;
-    token: string;
+    btcToken: string;
+    btcTokenDecimals: number;
+    nearToken: string;
+    nearTokenDecimals: number;
     accountContractId: string;
     bridgeContractId: string;
     walletUrl: string;
@@ -13,7 +16,10 @@ export const walletConfig: Record<
 > = {
   dev: {
     base_url: 'https://api.dev.satoshibridge.top',
-    token: 'nbtc-dev.testnet',
+    btcToken: 'nbtc-dev.testnet',
+    btcTokenDecimals: 8,
+    nearToken: 'wrap.testnet',
+    nearTokenDecimals: 24,
     accountContractId: 'acc-dev.testnet',
     bridgeContractId: 'brg-dev.testnet',
     walletUrl: 'https://wallet-dev.satoshibridge.top',
@@ -21,7 +27,10 @@ export const walletConfig: Record<
   },
   testnet: {
     base_url: 'https://api.testnet.satoshibridge.top',
-    token: 'nbtc2-nsp.testnet',
+    btcToken: 'nbtc2-nsp.testnet',
+    btcTokenDecimals: 8,
+    nearToken: 'wrap.testnet',
+    nearTokenDecimals: 24,
     accountContractId: 'acc2-nsp.testnet',
     bridgeContractId: 'brg2-nsp.testnet',
     walletUrl: 'https://wallet-test.satoshibridge.top',
@@ -29,7 +38,10 @@ export const walletConfig: Record<
   },
   private_mainnet: {
     base_url: 'https://api.stg.satoshibridge.top',
-    token: 'nbtc.toalice.near',
+    btcToken: 'nbtc.toalice.near',
+    btcTokenDecimals: 8,
+    nearToken: 'wrap.near',
+    nearTokenDecimals: 24,
     accountContractId: 'acc.toalice.near',
     bridgeContractId: 'brg.toalice.near',
     walletUrl: 'https://wallet-stg.satoshibridge.top',
@@ -37,7 +49,10 @@ export const walletConfig: Record<
   },
   mainnet: {
     base_url: 'https://api.satos.network',
-    token: 'nbtc.bridge.near',
+    btcToken: 'nbtc.bridge.near',
+    btcTokenDecimals: 8,
+    nearToken: 'wrap.near',
+    nearTokenDecimals: 24,
     accountContractId: 'acc.ref-labs.near',
     bridgeContractId: 'btc-connector.bridge.near',
     walletUrl: 'https://wallet.satoshibridge.top',

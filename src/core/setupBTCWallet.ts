@@ -27,6 +27,7 @@ import {
   checkSatoshiWhitelist,
   getAccountInfo,
   getCsnaAccountId,
+  getTokenBalance,
 } from './btcUtils';
 
 import {
@@ -364,9 +365,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     }
 
     const btcContext = window.btcContext;
-    const accountId = state.getAccount();
+    const csna = state.getAccount();
 
-    const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
+    const accountInfo = await getAccountInfo({ csna, env });
 
     // check gas token arrears
     await checkGasTokenDebt(accountInfo, env, true);
@@ -374,19 +375,14 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const trans = [...params.transactions];
     console.log('signAndSendTransactions raw trans:', trans);
 
-    const gasTokenBalance = accountInfo?.gas_token[currentConfig.token] || '0';
-
-    const { transferGasTransaction, useNearPayGas, gasLimit } = await calculateGasStrategy(
-      gasTokenBalance,
-      trans,
-    );
+    const { transferGasTransaction, useNearPayGas, gasLimit } = await calculateGasStrategy(trans);
 
     console.log('transferGasTransaction:', transferGasTransaction);
     console.log('useNearPayGas:', useNearPayGas);
     console.log('gasLimit:', gasLimit);
 
     // check gas token balance
-    await checkGasTokenBalance(accountId, currentConfig.token, gasLimit, env);
+    await checkGasTokenBalance(csna, gasLimit, env);
 
     if (transferGasTransaction) {
       trans.unshift(transferGasTransaction);
@@ -398,7 +394,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       trans.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    const nonceFromApi = await getNonce(currentConfig.base_url, accountId as string);
+    const nonceFromApi = await getNonce(currentConfig.base_url, csna);
 
     const nonceFromContract = accountInfo?.nonce || 0;
 
@@ -409,9 +405,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     const intention = {
       chain_id: '397',
-      csna: accountId,
+      csna,
       near_transactions: newTrans.map((t) => t.txHex),
-      gas_token: currentConfig.token,
+      gas_token: currentConfig.btcToken,
       gas_limit: gasLimit,
       use_near_pay_gas: useNearPayGas,
       nonce,
@@ -436,16 +432,10 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   }
 
   async function calculateGasLimit(params: { transactions: Transaction[] }) {
-    const accountId = state.getAccount();
-
-    const accountInfo = await getAccountInfo(accountId, currentConfig.accountContractId);
-
     const trans = [...params.transactions];
     console.log('raw trans:', trans);
 
-    const gasTokenBalance = accountInfo?.gas_token[currentConfig.token] || '0';
-
-    const { gasLimit } = await calculateGasStrategy(gasTokenBalance, trans);
+    const { gasLimit } = await calculateGasStrategy(trans);
 
     return gasLimit;
   }
@@ -453,7 +443,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   async function createGasTokenTransfer(accountId: string, amount: string) {
     return {
       signerId: accountId,
-      receiverId: currentConfig.token,
+      receiverId: currentConfig.btcToken,
       actions: [
         {
           type: 'FunctionCall',
@@ -486,7 +476,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     } else {
       newGasLimit = await getPredictedGasAmount(
         currentConfig.accountContractId,
-        currentConfig.token,
+        currentConfig.btcToken,
         [transferTxHex, ...transactions.map((t) => t.txHex)],
       );
     }
@@ -513,44 +503,78 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     return gasAmount.toString();
   }
 
-  async function calculateGasStrategy(
-    gasTokenBalance: string,
-    transactions: Transaction[],
-  ): Promise<{
+  async function calculateGasStrategy(transactions: Transaction[]): Promise<{
     transferGasTransaction?: Transaction;
     useNearPayGas: boolean;
     gasLimit: string;
   }> {
     const accountId = state.getAccount();
 
-    // check near balance
-    const nearAccount = await provider.query<any>({
-      request_type: 'view_account',
-      account_id: accountId,
-      finality: 'final',
+    const accountInfo = await getAccountInfo({ csna: accountId, env });
+    const gasTokenBalance = accountInfo?.gas_token[currentConfig.btcToken] || '0';
+    const { balance: nearBalance } = await getTokenBalance({
+      csna: accountId,
+      tokenId: currentConfig.nearToken,
+      env,
     });
-    const availableBalance = parseFloat(nearAccount.amount) / 10 ** 24;
+    const { balance: btcBalance } = await getTokenBalance({
+      csna: accountId,
+      tokenId: currentConfig.btcToken,
+      env,
+    });
 
-    console.log('available near balance:', availableBalance);
+    const transferAmount = transactions.reduce(
+      (acc, tx) => {
+        // deposit near
+        tx.actions.forEach((action: any) => {
+          // deposit near
+          if (action.params.deposit) {
+            const amount = Number(action.params.deposit) / 10 ** currentConfig.nearTokenDecimals;
+            console.log('near deposit amount:', amount);
+            acc.near = acc.near.plus(amount);
+          }
+          //transfer btc
+          if (
+            tx.receiverId === currentConfig.btcToken &&
+            ['ft_transfer_call', 'ft_transfer'].includes(action.params.methodName)
+          ) {
+            const amount = Number(action.params.args.amount) / 10 ** currentConfig.btcTokenDecimals;
+            console.log('btc transfer amount:', amount);
+            acc.btc = acc.btc.plus(amount);
+          }
+        });
+        return acc;
+      },
+      { near: new Big(0), btc: new Big(0) },
+    );
 
+    const nearAvailableBalance = new Big(nearBalance).minus(transferAmount.near).toNumber();
+    const btcAvailableBalance = new Big(btcBalance).minus(transferAmount.btc).toNumber();
+
+    if (btcAvailableBalance < 0.000008) {
+      throw new Error('BTC balance is not enough, please deposit more BTC.');
+    }
+
+    console.log('available near balance:', nearAvailableBalance);
+    console.log('available btc balance:', btcAvailableBalance);
     console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(
       transactions.map((transaction, index) => convertTransactionToTxHex(transaction, index)),
     );
 
-    if (availableBalance > 0.5) {
+    if (nearAvailableBalance > 0.5) {
       console.log('near balance is enough, get the protocol fee of each transaction');
       const gasTokens = await nearCall<Record<string, { per_tx_protocol_fee: string }>>(
         currentConfig.accountContractId,
         'list_gas_token',
-        { token_ids: [currentConfig.token] },
+        { token_ids: [currentConfig.btcToken] },
       );
 
       console.log('list_gas_token gas tokens:', gasTokens);
 
       const perTxFee = Math.max(
-        Number(gasTokens[currentConfig.token]?.per_tx_protocol_fee || 0),
+        Number(gasTokens[currentConfig.btcToken]?.per_tx_protocol_fee || 0),
         100,
       );
       console.log('perTxFee:', perTxFee);
@@ -570,7 +594,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       console.log('near balance is not enough, predict the gas token amount required');
       const adjustedGas = await getPredictedGasAmount(
         currentConfig.accountContractId,
-        currentConfig.token,
+        currentConfig.btcToken,
         convertTx.map((t) => t.txHex),
       );
 
