@@ -60,6 +60,15 @@ export const walletConfig: Record<
   },
 };
 
+export function getWalletConfig(env: ENV) {
+  const config = walletConfig[env];
+  const network = env === 'mainnet' || env === 'private_mainnet' ? 'mainnet' : 'testnet';
+  return {
+    ...config,
+    network,
+  };
+}
+
 export const nearRpcUrls = {
   mainnet: [
     'https://near.lava.build',

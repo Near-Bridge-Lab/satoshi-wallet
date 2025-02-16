@@ -32,7 +32,7 @@ export async function nearCallFunction<T>(
     return withCache(
       cacheKey,
       () => executeNearCall<T>(contractId, methodName, args, options),
-      options.cacheTimeout,
+      options.cacheTimeout || 5000,
     );
   }
 
