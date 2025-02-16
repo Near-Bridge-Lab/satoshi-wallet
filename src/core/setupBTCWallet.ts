@@ -517,11 +517,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       tokenId: currentConfig.nearToken,
       env,
     });
-    const { balance: btcBalance } = await getTokenBalance({
-      csna: accountId,
-      tokenId: currentConfig.btcToken,
-      env,
-    });
 
     const transferAmount = transactions.reduce(
       (acc, tx) => {
@@ -549,14 +544,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     );
 
     const nearAvailableBalance = new Big(nearBalance).minus(transferAmount.near).toNumber();
-    const btcAvailableBalance = new Big(btcBalance).minus(transferAmount.btc).toNumber();
-
-    if (btcAvailableBalance < 0.000008) {
-      throw new Error('BTC balance is not enough, please deposit more BTC.');
-    }
 
     console.log('available near balance:', nearAvailableBalance);
-    console.log('available btc balance:', btcAvailableBalance);
     console.log('available gas token balance:', gasTokenBalance);
 
     const convertTx = await Promise.all(

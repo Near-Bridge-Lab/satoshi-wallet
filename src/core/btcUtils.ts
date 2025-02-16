@@ -1,7 +1,7 @@
 import Big from 'big.js';
 import type { ENV } from '../config';
 import { walletConfig, btcRpcUrls } from '../config';
-import { delay, retryOperation } from '../utils';
+import { retryOperation } from '../utils';
 import { getNearProvider, nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
   checkBridgeTransactionStatus,
@@ -13,7 +13,12 @@ import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
 import bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
+import * as ecc from '@bitcoinerlab/secp256k1';
+// @ts-ignore
 import coinselect from 'coinselect';
+
+// init ecc lib
+bitcoin.initEccLib(ecc);
 
 /** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
