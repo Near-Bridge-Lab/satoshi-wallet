@@ -1,6 +1,6 @@
 {
   "name": "btc-wallet",
-  "version": "0.5.13-beta",
+  "version": "0.5.15-beta",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -41,6 +41,7 @@
     "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.2.0",
     "@ethereumjs/util": "^9.0.1",
     "@near-js/transactions": "^1.3.0",
     "@near-js/utils": "^1.0.1",
