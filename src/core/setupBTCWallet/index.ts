@@ -11,7 +11,7 @@ import type { ENV } from '../../config';
 import { getWalletConfig } from '../../config';
 import { nearCallFunction, pollTransactionStatuses } from '../../utils/nearUtils';
 
-import { checkGasTokenDebt, checkSatoshiWhitelist, getCsnaAccountId } from '../btcUtils';
+import { getCsnaAccountId } from '../btcUtils';
 
 import {
   getAccountInfo,
@@ -90,7 +90,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         const btcPublicKey = await btcContext.getPublicKey();
         if (btcPublicKey) {
           await getNearAccountByBtcPublicKey(btcPublicKey);
-          await checkSatoshiWhitelist(btcContext.account, env);
           removeWalletButton();
           setupWalletButton(env, wallet as any, btcContext);
         }
