@@ -2,7 +2,7 @@ import Big from 'big.js';
 import type { ENV } from '../config';
 import { getWalletConfig, btcRpcUrls } from '../config';
 import { retryOperation } from '../utils';
-import { getNearProvider, nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
+import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
   calculateGasLimit,
   checkBridgeTransactionStatus,

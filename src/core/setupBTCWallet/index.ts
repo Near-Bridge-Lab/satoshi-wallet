@@ -11,7 +11,7 @@ import type { ENV } from '../../config';
 import { getWalletConfig } from '../../config';
 import { nearCallFunction, pollTransactionStatuses } from '../../utils/nearUtils';
 
-import { getCsnaAccountId } from '../btcUtils';
+import { checkGasTokenDebt, getCsnaAccountId } from '../btcUtils';
 
 import {
   getAccountInfo,
@@ -270,7 +270,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountInfo = await getAccountInfo({ csna, env });
 
     // check gas token arrears
-    // await checkGasTokenDebt(csna, env, true);
+    await checkGasTokenDebt(csna, env, true);
 
     const trans = [...params.transactions];
     console.log('signAndSendTransactions raw trans:', trans);
