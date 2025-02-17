@@ -106,12 +106,14 @@ export async function checkBridgeTransactionStatus(url: string, txHash: string) 
     timeout: 300000,
     pollingInterval: 5000,
     maxPollingAttempts: 60,
-    shouldStopPolling: (res) =>
-      res.result_code === 0 && [4, 102].includes(res.result_data?.Status || 0),
+    shouldStopPolling: (res) => {
+      const status = res.result_data?.Status || 0;
+      return res.result_code === 0 && (status === 4 || status >= 50);
+    },
   });
   console.log('checkTransactionStatus resp:', { result_code, result_message, result_data });
   if (result_data?.Status !== 4) {
-    throw new Error(result_message);
+    throw new Error(result_message || `Transaction failed, status: ${result_data?.Status}`);
   }
   return result_data;
 }
@@ -123,12 +125,14 @@ export async function checkBtcTransactionStatus(url: string, sig: string) {
     timeout: 300000,
     pollingInterval: 5000,
     maxPollingAttempts: 60,
-    shouldStopPolling: (res) =>
-      res.result_code === 0 && [3, 101, 102].includes(res.result_data?.Status || 0),
+    shouldStopPolling: (res) => {
+      const status = res.result_data?.Status || 0;
+      return res.result_code === 0 && (status === 3 || status >= 10);
+    },
   });
   console.log('checkBtcTransactionStatus resp:', { result_code, result_message, result_data });
   if (result_data?.Status !== 3) {
-    throw new Error(result_message);
+    throw new Error(result_message || `Transaction failed, status: ${result_data?.Status}`);
   }
   return result_data;
 }
