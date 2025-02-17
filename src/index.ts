@@ -4,6 +4,7 @@ export * from './hooks';
 export * from './core/btcWalletSelectorContext';
 export * from './core/setupBTCWallet/index';
 export * from './core/btcUtils';
+export * from './config';
 export const getVersion = () => {
   return '__buildVersion';
 };
