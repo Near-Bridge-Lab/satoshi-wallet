@@ -420,22 +420,22 @@ export async function calculateGasStrategy({
     const protocolFee = new Big(perTxFee || '0').mul(convertTx.length).toFixed(0);
     console.log('protocolFee:', protocolFee);
 
-    if (new Big(gasTokenBalance).gte(protocolFee)) {
-      console.log('use near pay gas and enough gas token balance');
-      return { useNearPayGas: true, gasLimit: protocolFee };
-    } else {
-      console.log('use near pay gas and not enough gas token balance');
-      // gas token balance is not enough, need to transfer
-      const transferTx = await createGasTokenTransfer({ csna, amount: protocolFee, env });
-      return recalculateGasWithTransfer({
-        csna,
-        transferTx,
-        transactions: convertTx,
-        useNearPayGas: true,
-        perTxFee: perTxFee.toString(),
-        env,
-      });
-    }
+    // if (new Big(gasTokenBalance).gte(protocolFee)) {
+    //   console.log('use near pay gas and enough gas token balance');
+    //   return { useNearPayGas: true, gasLimit: protocolFee };
+    // } else {
+    //   console.log('use near pay gas and not enough gas token balance');
+    // gas token balance is not enough, need to transfer
+    const transferTx = await createGasTokenTransfer({ csna, amount: protocolFee, env });
+    return recalculateGasWithTransfer({
+      csna,
+      transferTx,
+      transactions: convertTx,
+      useNearPayGas: true,
+      perTxFee: perTxFee.toString(),
+      env,
+    });
+    // }
   } else {
     console.log('near balance is not enough, predict the gas token amount required');
     const adjustedGas = await getPredictedGasAmount({
@@ -445,20 +445,20 @@ export async function calculateGasStrategy({
       env,
     });
 
-    if (new Big(gasTokenBalance).gte(adjustedGas)) {
-      console.log('use gas token and gas token balance is enough');
-      return { useNearPayGas: false, gasLimit: adjustedGas };
-    } else {
-      console.log('use gas token and gas token balance is not enough, need to transfer');
-      const transferTx = await createGasTokenTransfer({ csna, amount: adjustedGas, env });
-      return recalculateGasWithTransfer({
-        csna,
-        transferTx,
-        transactions: convertTx,
-        useNearPayGas: false,
-        env,
-      });
-    }
+    // if (new Big(gasTokenBalance).gte(adjustedGas)) {
+    //   console.log('use gas token and gas token balance is enough');
+    //   return { useNearPayGas: false, gasLimit: adjustedGas };
+    // } else {
+    //   console.log('use gas token and gas token balance is not enough, need to transfer');
+    const transferTx = await createGasTokenTransfer({ csna, amount: adjustedGas, env });
+    return recalculateGasWithTransfer({
+      csna,
+      transferTx,
+      transactions: convertTx,
+      useNearPayGas: false,
+      env,
+    });
+    // }
   }
 }
 

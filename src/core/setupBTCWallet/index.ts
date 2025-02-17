@@ -271,7 +271,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountInfo = await getAccountInfo({ csna, env });
 
     // check gas token arrears
-    await checkGasTokenDebt(csna, env, true);
+    // await checkGasTokenDebt(csna, env, true);
 
     const trans = [...params.transactions];
     console.log('signAndSendTransactions raw trans:', trans);
