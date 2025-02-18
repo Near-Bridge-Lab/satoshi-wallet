@@ -4,9 +4,10 @@ import { getWalletConfig, btcRpcUrls } from '../config';
 import { retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
-  calculateGasLimit,
+  calculateWithdraw,
   checkBridgeTransactionStatus,
   getAccountInfo,
+  getBridgeConfig,
   getWhitelist,
   preReceiveDepositMsg,
   receiveDepositMsg,
@@ -16,8 +17,6 @@ import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/c
 import bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
-// @ts-ignore
-import coinselect from 'coinselect';
 
 // init ecc lib
 bitcoin.initEccLib(ecc);
@@ -199,7 +198,6 @@ export async function getDepositAmount(
 ) {
   const env = option?.env || 'mainnet';
   const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
-  const config = getWalletConfig(env);
   const csna = await getCsnaAccountId(env);
   const accountInfo = await getAccountInfo({ csna, env });
   const debtAction = await checkGasTokenDebt(csna, env, false);
@@ -207,10 +205,7 @@ export async function getDepositAmount(
   const {
     deposit_bridge_fee: { fee_min, fee_rate },
     min_deposit_amount,
-  } = await nearCall<{
-    deposit_bridge_fee: { fee_min: string; fee_rate: number };
-    min_deposit_amount: string;
-  }>(config.bridgeContractId, 'get_config', {});
+  } = await getBridgeConfig({ env });
   const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
   const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
   const newAccountMinDepositAmount =
@@ -471,277 +466,71 @@ export async function getWithdrawTransaction({
   feeRate,
   env = 'mainnet',
 }: WithdrawParams): Promise<Transaction> {
-  console.log('=== Start getWithdrawTransaction ===');
-
+  const config = getWalletConfig(env);
   const provider = getBtcProvider();
   const btcAddress = provider.account;
-
-  const config = getWalletConfig(env);
-
   const csna = await getCsnaAccountId(env);
 
-  // Get configuration
-  const brgConfig = await nearCall<{
-    min_withdraw_amount: string;
-    withdraw_bridge_fee: {
-      fee_rate: number;
-      fee_min: string;
-    };
-    max_btc_gas_fee: string;
-    change_address: string;
-    min_change_amount: string;
-  }>(config.bridgeContractId, 'get_config', {});
+  const _feeRate = feeRate || (await getBtcGasPrice());
 
-  // Check minimum withdrawal amount
-  if (brgConfig.min_withdraw_amount) {
-    if (Number(amount) < Number(brgConfig.min_withdraw_amount)) {
-      throw new Error('Mini withdraw amount is ' + brgConfig.min_withdraw_amount);
-    }
-  }
-
-  // Calculate withdrawal fee
-  const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * Number(amount);
-  const withdrawFee =
-    feePercent > Number(brgConfig.withdraw_bridge_fee.fee_min)
-      ? feePercent
-      : Number(brgConfig.withdraw_bridge_fee.fee_min);
-  console.log('Withdrawal Fee:', {
-    feePercent,
-    withdrawFee,
-    minFee: brgConfig.withdraw_bridge_fee.fee_min,
-  });
-
-  // calculate gas limit mock transaction
-  const gasLimit = await calculateGasLimit({
+  // calculate gas and get transaction details
+  const { inputs, outputs, isError, errorMsg, ...rest } = await calculateWithdraw({
+    amount,
+    feeRate: _feeRate,
     csna,
-    transactions: [
-      {
-        signerId: '',
-        receiverId: config.btcToken,
-        actions: [
-          {
-            type: 'FunctionCall',
-            params: {
-              methodName: 'ft_transfer_call',
-              args: {
-                receiver_id: config.btcToken,
-                amount: '100',
-                msg: '',
-              },
-              gas: '300000000000000',
-              deposit: '1',
-            },
-          },
-        ],
-      },
-    ],
+    btcAddress,
     env,
   });
-  const finalAmount = Number(gasLimit) > 0 ? Number(amount) - Number(gasLimit) : Number(amount);
 
-  // Get UTXOs
-  const allUTXO = await nearCall<
-    Record<
-      string,
-      {
-        vout: number;
-        balance: string;
-        script: string;
-      }
-    >
-  >(config.bridgeContractId, 'get_utxos_paged', {});
-  console.log('All UTXOs:', allUTXO);
-
-  if (!allUTXO || Object.keys(allUTXO).length === 0) {
-    throw new Error('The network is busy, please try again later.');
+  if (isError || !inputs || !outputs) {
+    throw new Error(errorMsg);
   }
+  console.log('inputs:', JSON.stringify(inputs));
+  console.log('outputs:', JSON.stringify(outputs));
 
-  // Format UTXOs
-  const utxos = Object.keys(allUTXO).map((key) => {
-    const txid = key.split('@');
-    return {
-      txid: txid[0],
-      vout: allUTXO[key].vout,
-      value: Number(allUTXO[key].balance),
-      script: allUTXO[key].script,
-    };
-  });
-  console.log('Formatted UTXOs:', utxos);
-
-  const _feeRate = feeRate || (await getBtcGasPrice());
-  console.log('Fee Rate:', _feeRate);
-
-  // Use coinselect to calculate inputs and outputs
-  const coinSelectResult = coinselect(
-    utxos,
-    [{ address: btcAddress, value: Number(finalAmount) }],
-    Math.ceil(_feeRate),
+  console.log('inputs - outputs = gas');
+  console.log(
+    `(${inputs.map((item) => item.value).join(' + ')}) - (${outputs.map((item) => item.value).join(' + ')}) = ${rest.gasFee}`,
   );
-  console.log('Coinselect Result:', coinSelectResult);
 
-  const { inputs, outputs, fee } = coinSelectResult;
-
-  if (!outputs || !inputs) {
-    throw new Error('The network is busy, please try again later.');
-  }
-
-  // Process outputs
-  const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
-  const transactionFee = fee;
-  console.log('Transaction Fee:', { transactionFee, maxBtcFee });
-
-  if (transactionFee > maxBtcFee) {
-    throw new Error('Gas exceeds maximum value');
-  }
-
-  // Process output amounts
-  let recipientOutput, changeOutput;
-  for (let i = 0; i < outputs.length; i++) {
-    const output = outputs[i];
-    if (output.value.toString() === finalAmount.toString()) {
-      recipientOutput = output;
-    } else {
-      changeOutput = output;
-    }
-    if (!output.address) {
-      output.address = brgConfig.change_address;
-    }
-  }
-  console.log('Initial Outputs:', { recipientOutput, changeOutput });
-
-  // Deduct fees from recipient output
-  recipientOutput.value = new Big(recipientOutput.value)
-    .minus(transactionFee)
-    .minus(withdrawFee)
-    .toNumber();
-
-  if (changeOutput) {
-    changeOutput.value = new Big(changeOutput.value)
-      .plus(transactionFee)
-      .plus(withdrawFee)
-      .toNumber();
-
-    // Handle minimum input value logic
-    const remainingInputs = [...inputs];
-    let smallestInput = Math.min.apply(
-      null,
-      remainingInputs.map((input) => input.value),
-    );
-    let remainingChangeAmount = changeOutput.value;
-    console.log('Initial Change Processing:', { smallestInput, remainingChangeAmount });
-
-    while (
-      remainingChangeAmount >= smallestInput &&
-      smallestInput > 0 &&
-      remainingInputs.length > 0
-    ) {
-      remainingChangeAmount -= smallestInput;
-      changeOutput.value = remainingChangeAmount;
-      const smallestInputIndex = remainingInputs.findIndex(
-        (input) => input.value === smallestInput,
-      );
-      if (smallestInputIndex > -1) {
-        remainingInputs.splice(smallestInputIndex, 1);
-      }
-      smallestInput = Math.min.apply(
-        null,
-        remainingInputs.map((input) => input.value),
-      );
-      console.log('Change Processing Loop:', {
-        remainingChangeAmount,
-        smallestInput,
-        remainingInputsCount: remainingInputs.length,
-      });
-    }
-
-    // Handle minimum change amount logic
-    const minChangeAmount = Number(brgConfig.min_change_amount);
-    let additionalFee = 0;
-    console.log('Checking minimum change amount:', {
-      changeValue: changeOutput.value,
-      minChangeAmount,
-    });
-
-    let finalOutputs = [...outputs];
-    if (changeOutput.value === 0) {
-      finalOutputs = finalOutputs.filter((output) => output.value !== 0);
-      console.log('Removed zero-value change output', finalOutputs);
-    } else if (changeOutput.value < minChangeAmount) {
-      additionalFee = minChangeAmount - changeOutput.value;
-      recipientOutput.value -= additionalFee;
-      changeOutput.value = minChangeAmount;
-      console.log('Adjusted for minimum change amount:', {
-        additionalFee,
-        newRecipientValue: recipientOutput.value,
-        newChangeValue: changeOutput.value,
-      });
-    }
-  } else {
-    changeOutput = {
-      address: brgConfig.change_address,
-      value: new Big(transactionFee).plus(withdrawFee).toNumber(),
-    };
-    outputs.push(changeOutput);
-    console.log('Created new change output:', changeOutput);
-  }
-
-  // Validate outputs
-  const insufficientOutput = outputs.some((item: any) => item.value < 0);
-  if (insufficientOutput) {
-    console.error('Negative output value detected');
-    throw new Error('Not enough gas');
-  }
-
-  // Verify input/output balance
-  const inputSum = inputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
-  const outputSum = outputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
-  console.log('Balance verification:', { inputSum, outputSum, transactionFee });
-
-  if (transactionFee + outputSum !== inputSum) {
-    console.error('Balance mismatch:', { inputSum, outputSum, transactionFee });
-    throw new Error('compute error');
-  }
-
-  // Build PSBT transaction
   const network = await getNetwork();
   const btcNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
   const psbt = new bitcoin.Psbt({ network: btcNetwork });
 
   // Add inputs
   const btcRpcUrl = await getBtcRpcUrl();
-  for (let i = 0; i < inputs.length; i++) {
-    const input = inputs[i];
-    const txData = await fetch(`${btcRpcUrl}/tx/${input.txid}`).then((res) => res.json());
+  Promise.all(
+    inputs.map(async (input) => {
+      const txData = await fetch(`${btcRpcUrl}/tx/${input.txid}`).then((res) => res.json());
 
-    const inputOptions = {
-      hash: input.txid,
-      index: input.vout,
-      sequence: 0xfffffffd,
-      witnessUtxo: {
-        script: Buffer.from(txData.vout[input.vout].scriptpubkey, 'hex'),
-        value: input.value,
-      },
-    };
+      const inputOptions = {
+        hash: input.txid,
+        index: input.vout,
+        sequence: 0xfffffffd,
+        witnessUtxo: {
+          script: Buffer.from(txData.vout[input.vout].scriptpubkey, 'hex'),
+          value: input.value,
+        },
+      };
 
-    psbt.addInput(inputOptions);
-  }
+      psbt.addInput(inputOptions);
+    }),
+  );
 
   // Add outputs
-  outputs.forEach((output: { address: string; value: any }) => {
+  outputs.forEach((output: { address: string; value: number }) => {
     psbt.addOutput({
       address: output.address,
       value: output.value,
     });
   });
 
-  console.log('outputs:', JSON.stringify(outputs));
-
   // Build contract call message
-  const _inputs = inputs.map((item: any) => {
+  const _inputs = inputs.map((item: { txid: string; vout: number; value: number }) => {
     return `${item.txid}:${item.vout}`;
   });
 
-  const txOutputs = psbt.txOutputs.map((item: any) => {
+  const txOutputs = psbt.txOutputs.map((item: { script: Uint8Array; value: number }) => {
     return {
       script_pubkey: uint8ArrayToHex(item.script),
       value: item.value,

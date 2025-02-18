@@ -98,7 +98,6 @@ export default async function request<T>(url: string, options?: RequestOptions<T
 
     return data as T;
   } catch (err) {
-    console.error(err);
     if (retryCount > 0) {
       console.log(`Retrying... attempts left: ${retryCount}`);
       return request(url, { ...options, retryCount: retryCount - 1 });
@@ -113,6 +112,7 @@ export default async function request<T>(url: string, options?: RequestOptions<T
         });
       }
     }
+    console.error(err);
     return Promise.reject(err);
   }
 }
