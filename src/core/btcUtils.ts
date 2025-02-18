@@ -11,12 +11,15 @@ import {
   getWhitelist,
   preReceiveDepositMsg,
   receiveDepositMsg,
+  calculateGasLimit,
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
 import bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
+
+export { calculateGasLimit };
 
 // init ecc lib
 bitcoin.initEccLib(ecc);

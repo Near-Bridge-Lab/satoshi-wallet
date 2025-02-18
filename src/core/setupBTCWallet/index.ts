@@ -21,7 +21,6 @@ import {
   receiveTransaction,
   checkGasTokenBalance,
   calculateGasStrategy,
-  calculateGasLimit,
 } from '../../utils/satoshi';
 import { getVersion } from '../../index';
 import state from './state';
@@ -57,7 +56,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     isSignedIn,
     signAndSendTransaction,
     signAndSendTransactions,
-    calculateGasLimit,
   };
   const env = (metadata as any).env || options.network.networkId || 'mainnet';
   const currentConfig = getWalletConfig(env as ENV);
