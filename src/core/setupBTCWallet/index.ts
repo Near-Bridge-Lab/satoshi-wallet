@@ -47,6 +47,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
   id,
   provider,
 }) => {
+  let initializing = false;
+  let connectionUpdateTimeout: NodeJS.Timeout;
+
   const wallet = {
     signIn,
     signOut,
@@ -73,8 +76,43 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     return true;
   }
 
+  async function initBtcContext() {
+    if (initializing) {
+      console.log('BTC context initialization already in progress');
+      return;
+    }
+
+    console.log('initBtcContext');
+    try {
+      initializing = true;
+      const btcContext = await retryOperation(
+        async () => {
+          const ctx = window.btcContext;
+          if (!ctx) {
+            throw new Error('btcContext not found');
+          }
+          return ctx;
+        },
+        (res) => !!res,
+        {
+          maxRetries: 10,
+          delayMs: 500,
+        },
+      );
+
+      await setupBtcContextListeners();
+      return btcContext;
+    } finally {
+      initializing = false;
+    }
+  }
+
   async function setupBtcContextListeners() {
     const handleConnectionUpdate = async () => {
+      if (connectionUpdateTimeout) {
+        clearTimeout(connectionUpdateTimeout);
+      }
+
       await checkBtcNetwork(currentConfig.network);
 
       if (!state.isValid()) {
@@ -82,7 +120,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         console.log('setupBtcContextListeners clear');
       }
 
-      validateWalletState();
+      const valid = validateWalletState();
+      console.log('setupBtcContextListeners wallet state valid:', valid);
+      if (!valid) {
+        return;
+      }
+
       const btcContext = window.btcContext;
       if (btcContext.account) {
         const btcPublicKey = await btcContext.getPublicKey();
@@ -93,7 +136,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         }
       } else {
         removeWalletButton();
-        setTimeout(() => {
+        connectionUpdateTimeout = setTimeout(() => {
           handleConnectionUpdate();
         }, 5000);
       }
@@ -144,27 +187,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     ) {
       await window.btcContext.autoConnect();
     }
-  }
-
-  async function initBtcContext() {
-    console.log('initBtcContext');
-    const btcContext = await retryOperation(
-      async () => {
-        const ctx = window.btcContext;
-        if (!ctx) {
-          throw new Error('btcContext not found');
-        }
-        return ctx;
-      },
-      (res) => !!res,
-      {
-        maxRetries: 10,
-        delayMs: 500,
-      },
-    );
-
-    await setupBtcContextListeners();
-    return btcContext;
   }
 
   async function nearCall<T>(contractId: string, methodName: string, args: any) {
