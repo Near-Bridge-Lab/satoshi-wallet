@@ -17,6 +17,7 @@ import state from '../core/setupBTCWallet/state';
 
 // @ts-ignore
 import coinselect from 'coinselect';
+import { getBtcGasPrice } from '../core/btcUtils';
 
 interface RequestResult<T> {
   result_code: number;
@@ -278,6 +279,7 @@ export async function convertTransactionToTxHex({
   env: ENV;
   index?: number;
 }) {
+  if (!publicKey) return { txHex: '', txBytes: new Uint8Array(), hash: '' };
   const publicKeyFormat = PublicKey.from(publicKey);
   const currentConfig = getWalletConfig(env);
   const provider = getNearProvider({ network: currentConfig.network });
@@ -566,15 +568,18 @@ async function getPredictedGasAmount({
   env: ENV;
 }): Promise<string> {
   const currentConfig = getWalletConfig(env);
-  const predictedGas = await nearCallFunction<string>(
-    accountContractId,
-    'predict_txs_gas_token_amount',
-    {
-      gas_token_id: tokenId,
-      near_transactions: transactions,
-    },
-    { network: currentConfig.network },
-  );
+  const isValidTransactions = transactions.every((tx) => tx.length > 0);
+  const predictedGas = isValidTransactions
+    ? await nearCallFunction<string>(
+        accountContractId,
+        'predict_txs_gas_token_amount',
+        {
+          gas_token_id: tokenId,
+          near_transactions: transactions,
+        },
+        { network: currentConfig.network },
+      )
+    : '0';
 
   const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
   const miniGasAmount = 200 * transactions.length;
@@ -608,9 +613,10 @@ export async function calculateWithdraw({
   btcAddress,
   env,
 }: CalculateWithdrawParams): Promise<CalculateWithdrawResult> {
-  console.log('calculateWithdraw feeRate:', feeRate);
   try {
     const config = getWalletConfig(env);
+
+    const _feeRate = feeRate || (await getBtcGasPrice());
     // mock the gas limit
     const gasLimit = await calculateGasLimit({
       csna,
@@ -701,7 +707,7 @@ export async function calculateWithdraw({
     const { inputs, outputs, fee } = coinselect(
       utxos,
       [{ address: btcAddress, value: userSatoshis }],
-      Math.ceil(feeRate || 0),
+      Math.ceil(_feeRate),
     );
 
     const newInputs = inputs;
