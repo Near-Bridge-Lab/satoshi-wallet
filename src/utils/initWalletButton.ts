@@ -70,7 +70,6 @@ function createFloatingButtonWithIframe({
     zIndex: '100000',
     width: '60px',
     height: '60px',
-    borderRadius: '50%',
     cursor: 'grab',
     transition: 'transform 0.15s ease',
     userSelect: 'none',

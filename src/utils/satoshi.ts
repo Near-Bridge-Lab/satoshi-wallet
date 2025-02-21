@@ -185,7 +185,8 @@ export async function getAccountInfo({ csna, env }: { csna: string; env: ENV }) 
     },
     { network: config.network },
   ).catch((error) => {
-    return undefined;
+    console.log(`get_account error, please try again later`, error);
+    throw error;
   });
   return accountInfo;
 }
@@ -667,8 +668,7 @@ export async function calculateWithdraw({
         return {
           withdrawFee: 0,
           isError: true,
-          errorMsg:
-            'Mini withdraw amount is ' + (Number(brgConfig.min_withdraw_amount) + Number(gasLimit)),
+          errorMsg: `Mini withdraw amount is ${Number(brgConfig.min_withdraw_amount) + Number(gasLimit)} sats`,
         };
       }
     }
