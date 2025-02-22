@@ -14,6 +14,8 @@ import { useBTCProvider, useConnectModal } from '../hooks';
 import ComfirmBox from '../components/confirmBox';
 import { retryOperation } from '../utils';
 
+import 'ref-modal-ui/styles.css';
+
 const WalletSelectorContext = React.createContext<any>(null);
 
 export function BtcWalletSelectorContextProvider({
@@ -102,7 +104,8 @@ function InitBtcWalletSelectorContext() {
 
 export function useBtcWalletSelector() {
   // @ts-ignore
-  const { openConnectModal, disconnect, requestDirectAccount } = useConnectModal();
+  const { openConnectModal, disconnect, requestDirectAccount, connectModalOpen } =
+    useConnectModal();
   const {
     accounts,
     sendBitcoin,
@@ -117,7 +120,6 @@ export function useBtcWalletSelector() {
   const signMessageFn = useRef<any>(null);
   const connectorRef = useRef<any>(null);
   const context = useContext(WalletSelectorContext);
-  const isLoggingIn = useRef(false);
 
   useEffect(() => {
     if (provider) {
@@ -157,13 +159,14 @@ export function useBtcWalletSelector() {
     return {
       login: async () => {
         const account = accounts?.[0];
+        console.log('account', account);
+        console.log('connecting', connectModalOpen);
         if (!account) {
-          if (isLoggingIn.current) {
+          if (connectModalOpen) {
             return null;
           }
 
           try {
-            isLoggingIn.current = true;
             openConnectModal?.();
 
             const account1 = await retryOperation(
@@ -179,8 +182,9 @@ export function useBtcWalletSelector() {
               throw new Error('Failed to get account');
             }
             return account1;
-          } finally {
-            isLoggingIn.current = false;
+          } catch (error) {
+            console.error('btcLoginError', error);
+            context.emit('btcLoginError');
           }
         }
         return account;

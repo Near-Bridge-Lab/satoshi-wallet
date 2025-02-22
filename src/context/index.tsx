@@ -19,6 +19,7 @@ interface GlobalState {
   setConnectorId: (connectorId?: string) => void;
   connector?: BaseConnector;
   connectors: BaseConnector[];
+  connectModalOpen: boolean;
   openConnectModal: () => void;
   closeConnectModal: () => void;
   accounts: string[];
@@ -349,6 +350,7 @@ export const ConnectProvider = ({
         setConnectorId,
         connector,
         connectors,
+        connectModalOpen,
         openConnectModal,
         closeConnectModal,
         accounts,

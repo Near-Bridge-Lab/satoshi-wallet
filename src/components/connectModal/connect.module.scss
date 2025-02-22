@@ -3,7 +3,7 @@
 
   .title {
     font-size: 18px;
-    margin-bottom: 4px;
+    margin-bottom: 16px;
     font-weight: bold;
   }
 
@@ -24,26 +24,32 @@
   .walletItem {
     display: flex;
     border-radius: 8px;
-    border: 1px solid #3a3a3a;
+    background-color: hsla(0, 0%, 100%, 0.05);
     width: 100%;
-    padding: 8px;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    color: #fff;
     box-sizing: border-box;
     cursor: pointer;
-
+    transition: all 0.15s ease;
+    font-size: 14px;
+    font-weight: bold;
+    gap: 12px;
     &:hover {
-      background: hsla(0, 0%, 100%, 0.05);
+      border-color: #ff7a00;
+      color: #ff7a00;
+      background: hsla(0, 0%, 100%, 0.08);
     }
 
     .walletIcon {
-      height: 42px;
-      width: 42px;
-      border-radius: 4px;
+      height: 32px;
+      width: 32px;
+      border-radius: 8px;
     }
 
     .walletName {
       flex-grow: 1;
-      text-align: center;
-      line-height: 42px;
+      line-height: 32px;
     }
   }
 
