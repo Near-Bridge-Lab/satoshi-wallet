@@ -17,9 +17,11 @@ import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
 import bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
+import coinselect from 'coinselect';
+// @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
 
-export { calculateGasLimit };
+export { calculateGasLimit, calculateWithdraw };
 
 // init ecc lib
 bitcoin.initEccLib(ecc);
@@ -41,9 +43,13 @@ function getBtcProvider() {
 }
 
 async function getNetwork() {
-  const network = await getBtcProvider().getNetwork();
-  console.log('btc network:', network);
-  return network === 'livenet' ? 'mainnet' : 'testnet';
+  try {
+    const network = await getBtcProvider().getNetwork();
+    console.log('btc network:', network);
+    return network === 'livenet' ? 'mainnet' : 'testnet';
+  } catch (error) {
+    return 'mainnet';
+  }
 }
 
 async function getBtcRpcUrl() {
@@ -130,16 +136,31 @@ export async function getBtcGasPrice(): Promise<number> {
   }
 }
 
-export async function getBtcBalance() {
-  const { account } = await retryOperation(getBtcProvider, (res) => !!res.account);
-
-  if (!account) {
-    console.error('BTC Account is not available.');
-    return { rawBalance: 0, balance: 0, availableBalance: 0 };
-  }
-
+export async function getBtcUtxos(account: string) {
   const btcRpcUrl = await getBtcRpcUrl();
   const utxos = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
+  return utxos;
+}
+
+export async function calculateGasFee(account: string, amount: number, feeRate?: number) {
+  const _feeRate = feeRate || (await getBtcGasPrice());
+  const utxos = await getBtcUtxos(account);
+  const { fee } = coinselect(utxos, [{ address: account, value: amount }], Math.ceil(_feeRate));
+  console.log('calculateGasFee fee:', fee);
+  return fee;
+}
+
+export async function getBtcBalance(account?: string) {
+  if (!account) {
+    const res = await retryOperation(getBtcProvider, (res) => !!res.account);
+    if (!res.account) {
+      console.error('BTC Account is not available.');
+      return { rawBalance: 0, balance: 0, availableBalance: 0 };
+    }
+    account = res.account;
+  }
+
+  const utxos = await getBtcUtxos(account);
 
   const btcDecimals = 8;
 
@@ -147,17 +168,7 @@ export async function getBtcBalance() {
     utxos?.reduce((acc: number, cur: { value: number }) => acc + cur.value, 0) || 0;
   const balance = rawBalance / 10 ** btcDecimals;
 
-  // get the recommended fee rate
-  const feeRate = await getBtcGasPrice();
-
-  // P2WPKH input vsize ≈ 69 vbytes
-  const inputSize = (utxos?.length || 0) * 69;
-  const outputSize = 33 * 2;
-  const overheadSize = 11;
-  const estimatedTxSize = inputSize + outputSize + overheadSize;
-
-  const estimatedFee = Math.ceil(estimatedTxSize * feeRate);
-  console.log('estimatedFee:', estimatedFee);
+  const estimatedFee = await calculateGasFee(account, rawBalance);
   const availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
   const availableBalance = new Big(availableRawBalance)
     .div(10 ** btcDecimals)
@@ -194,6 +205,7 @@ export async function estimateDepositAmount(
 export async function getDepositAmount(
   amount: string,
   option?: {
+    csna?: string;
     env?: ENV;
     /** default is true, if true, new account minimum deposit amount 1000sat, otherwise 0 */
     newAccountMinDepositAmount?: boolean;
@@ -201,7 +213,7 @@ export async function getDepositAmount(
 ) {
   const env = option?.env || 'mainnet';
   const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
-  const csna = await getCsnaAccountId(env);
+  const csna = option?.csna || (await getCsnaAccountId(env));
   const accountInfo = await getAccountInfo({ csna, env });
   const debtAction = await checkGasTokenDebt(csna, env, false);
   const repayAmount = debtAction?.amount || 0;
@@ -461,27 +473,28 @@ Sign up now: <a style="color: #ff7a00; text-decoration: underline;" href="https:
 interface WithdrawParams {
   amount: string | number;
   feeRate?: number;
+  csna?: string;
+  btcAddress?: string;
   env?: ENV;
 }
 
 export async function getWithdrawTransaction({
   amount,
   feeRate,
+  csna,
+  btcAddress,
   env = 'mainnet',
 }: WithdrawParams): Promise<Transaction> {
   const config = getWalletConfig(env);
-  const provider = getBtcProvider();
-  const btcAddress = provider.account;
-  const csna = await getCsnaAccountId(env);
-
-  const _feeRate = feeRate || (await getBtcGasPrice());
+  const _btcAddress = btcAddress || getBtcProvider().account;
+  const _csna = csna || (await getCsnaAccountId(env));
 
   // calculate gas and get transaction details
   const { inputs, outputs, isError, errorMsg, ...rest } = await calculateWithdraw({
     amount,
-    feeRate: _feeRate,
-    csna,
-    btcAddress,
+    feeRate,
+    csna: _csna,
+    btcAddress: _btcAddress,
     env,
   });
 
@@ -502,7 +515,7 @@ export async function getWithdrawTransaction({
 
   // Add inputs
   const btcRpcUrl = await getBtcRpcUrl();
-  Promise.all(
+  await Promise.all(
     inputs.map(async (input) => {
       const txData = await fetch(`${btcRpcUrl}/tx/${input.txid}`).then((res) => res.json());
 
@@ -542,7 +555,7 @@ export async function getWithdrawTransaction({
 
   const msg = {
     Withdraw: {
-      target_btc_address: btcAddress,
+      target_btc_address: _btcAddress,
       input: _inputs,
       output: txOutputs,
     },
@@ -551,7 +564,7 @@ export async function getWithdrawTransaction({
   // Finally return the transaction object
   const transaction: Transaction = {
     receiverId: config.btcToken,
-    signerId: csna,
+    signerId: _csna,
     actions: [
       {
         type: 'FunctionCall',
