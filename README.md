@@ -43,6 +43,7 @@ setupWalletSelectorModal(selector, {
 
 // 3. Wrap your app with BtcWalletSelectorContextProvider
 import { BtcWalletSelectorContextProvider } from 'btc-wallet';
+import '@near-wallet-selector/modal-ui/styles.css';
 
 function App() {
   return (

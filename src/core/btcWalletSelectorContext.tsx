@@ -14,8 +14,6 @@ import { useBTCProvider, useConnectModal } from '../hooks';
 import ComfirmBox from '../components/confirmBox';
 import { retryOperation } from '../utils';
 
-import 'ref-modal-ui/styles.css';
-
 const WalletSelectorContext = React.createContext<any>(null);
 
 export function BtcWalletSelectorContextProvider({
