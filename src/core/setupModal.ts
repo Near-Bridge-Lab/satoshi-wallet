@@ -16,6 +16,14 @@ export function setupWalletSelectorModal(
   const state = selector.store.getState();
   const group = getGroup(state);
 
+  if (group.includes('btc')) {
+    document.head.appendChild(document.createElement('style')).textContent = `
+      #near-wallet-selector-modal .options-list .btc-wallet {
+        display: none;
+      }
+    `;
+  }
+
   const modal = _setupModal(selector, options);
   const originalShow = modal.show.bind(modal);
 
