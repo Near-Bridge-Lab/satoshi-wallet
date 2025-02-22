@@ -19,7 +19,7 @@ Initialize and integrate BTC wallet with NEAR wallet selector.
 ```typescript
 // 1. Setup wallet selector with BTC wallet module
 import { setupWalletSelector } from '@near-wallet-selector/core';
-import { setupBTCWallet } from 'btc-wallet';
+import { setupBTCWallet, setupWalletSelectorModal } from 'btc-wallet';
 
 const selector = await setupWalletSelector({
   network: 'mainnet', // or 'testnet'
@@ -36,7 +36,12 @@ const selector = await setupWalletSelector({
   ],
 });
 
-// 2. Wrap your app with BtcWalletSelectorContextProvider
+// 2. Setup wallet selector modal,params see setupModal @near-wallet-selector/modal-ui
+setupWalletSelectorModal(selector, {
+  contractId:'xxx.near',
+});
+
+// 3. Wrap your app with BtcWalletSelectorContextProvider
 import { BtcWalletSelectorContextProvider } from 'btc-wallet';
 
 function App() {

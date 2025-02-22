@@ -36,7 +36,7 @@ export class Dialog {
       backdrop-filter: blur(4px);
     }
     .dialog-container {
-      background: #21232f;
+      background: #131313;
       border-radius: 12px;
       padding: 24px;
       width: 350px;
@@ -121,6 +121,30 @@ export class Dialog {
       to {
         transform: translateY(0);
         opacity: 1;
+      }
+    }
+    .option-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #fff;
+      border: 1px solid transparent;
+      background-color: hsla(0, 0%, 100%, .05);
+      border-radius: 8px;
+      padding: 8px 16px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      &:hover {
+        border-color: #ff7a00;
+        color: #ff7a00;
+        background-color: hsla(0, 0%, 100%, .08);
       }
     }
   `;
@@ -218,6 +242,57 @@ export class Dialog {
       confirmBtn.addEventListener('click', () => {
         cleanup();
         resolve();
+      });
+    });
+  }
+
+  static openModal<T>({
+    title,
+    titleStyle,
+    content,
+  }: {
+    title: string;
+    titleStyle?: string;
+    content: (resolve: (value: T) => void, close: () => void) => HTMLElement;
+  }): Promise<T> {
+    return new Promise((resolve) => {
+      const modalContainer = document.createElement('div');
+      modalContainer.innerHTML = this.template;
+      document.body.appendChild(modalContainer);
+
+      const btns = modalContainer.querySelector('.dialog-buttons') as HTMLElement;
+      btns.style.display = 'none';
+
+      this.injectStyles();
+
+      const titleEl = modalContainer.querySelector('.dialog-title') as HTMLElement;
+
+      if (title) {
+        titleEl.textContent = title;
+        if (titleStyle) {
+          titleEl.style.cssText = titleStyle;
+        }
+      } else {
+        titleEl.style.display = 'none';
+      }
+
+      const cleanup = () => {
+        document.body.removeChild(modalContainer);
+      };
+
+      const close = () => {
+        cleanup();
+        resolve(null as T);
+      };
+
+      const messageEl = modalContainer.querySelector('.dialog-message') as HTMLElement;
+      messageEl.appendChild(content(resolve, close));
+
+      const overlay = modalContainer.querySelector('.dialog-overlay') as HTMLElement;
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          close();
+        }
       });
     });
   }

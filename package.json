@@ -1,6 +1,6 @@
 {
   "name": "btc-wallet",
-  "version": "0.5.24-beta",
+  "version": "0.5.25-beta",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -45,7 +45,7 @@
     "@ethereumjs/util": "^9.0.1",
     "@near-js/transactions": "^1.3.0",
     "@near-js/utils": "^1.0.1",
-    "@near-wallet-selector/core": "^8.9.13",
+    "@near-wallet-selector/core": "^8.10.0",
     "@particle-network/aa": "^1.5.0",
     "@particle-network/chains": "*",
     "@particle-network/wallet": "^1.4.6",
@@ -56,6 +56,7 @@
     "coinselect": "^3.1.13",
     "near-api-js": "^5.0.0",
     "react-remove-scroll": "^2.5.7",
+    "ref-modal-ui": "^8.9.13",
     "sats-connect": "^1.4.1",
     "viem": "^2.0.3"
   },
