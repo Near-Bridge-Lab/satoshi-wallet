@@ -490,7 +490,7 @@ export async function getWithdrawTransaction({
   const _csna = csna || (await getCsnaAccountId(env));
 
   // calculate gas and get transaction details
-  const { inputs, outputs, isError, errorMsg, ...rest } = await calculateWithdraw({
+  const { inputs, outputs, isError, errorMsg, fromAmount, gasFee } = await calculateWithdraw({
     amount,
     feeRate,
     csna: _csna,
@@ -506,7 +506,7 @@ export async function getWithdrawTransaction({
 
   console.log('inputs - outputs = gas');
   console.log(
-    `(${inputs.map((item) => item.value).join(' + ')}) - (${outputs.map((item) => item.value).join(' + ')}) = ${rest.gasFee}`,
+    `(${inputs.map((item) => item.value).join(' + ')}) - (${outputs.map((item) => item.value).join(' + ')}) = ${gasFee}`,
   );
 
   const network = await getNetwork();
@@ -572,7 +572,7 @@ export async function getWithdrawTransaction({
           methodName: 'ft_transfer_call',
           args: {
             receiver_id: config.bridgeContractId,
-            amount: amount.toString(),
+            amount: fromAmount,
             msg: JSON.stringify(msg),
           },
           gas: '300000000000000', // 300 TGas
