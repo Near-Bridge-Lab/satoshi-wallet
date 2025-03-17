@@ -138,8 +138,10 @@ export async function getBtcGasPrice(): Promise<number> {
 
 export async function getBtcUtxos(account: string) {
   const btcRpcUrl = await getBtcRpcUrl();
-  const utxos = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
-  return utxos;
+  const utxos: { value: number; status: { confirmed: boolean } }[] = await fetch(
+    `${btcRpcUrl}/address/${account}/utxo`,
+  ).then((res) => res.json());
+  return utxos.filter((item) => item.status.confirmed);
 }
 
 export async function calculateGasFee(account: string, amount: number, feeRate?: number) {
@@ -164,8 +166,7 @@ export async function getBtcBalance(account?: string) {
 
   const btcDecimals = 8;
 
-  const rawBalance: number =
-    utxos?.reduce((acc: number, cur: { value: number }) => acc + cur.value, 0) || 0;
+  const rawBalance = utxos?.reduce((acc, cur) => acc + cur.value, 0) || 0;
   const balance = rawBalance / 10 ** btcDecimals;
 
   const estimatedFee = await calculateGasFee(account, rawBalance);
@@ -572,7 +573,7 @@ export async function getWithdrawTransaction({
           methodName: 'ft_transfer_call',
           args: {
             receiver_id: config.bridgeContractId,
-            amount: fromAmount,
+            amount: fromAmount?.toString(),
             msg: JSON.stringify(msg),
           },
           gas: '300000000000000', // 300 TGas
