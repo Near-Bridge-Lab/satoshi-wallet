@@ -211,6 +211,9 @@ function createIframe({
   return iframe;
 }
 
+// save the message event handler reference
+let currentMessageHandler: ((event: MessageEvent) => void) | null = null;
+
 async function setupButtonClickHandler(
   button: HTMLImageElement,
   iframe: HTMLIFrameElement,
@@ -236,7 +239,12 @@ async function setupButtonClickHandler(
     getWithdrawTransaction,
   };
 
-  window.addEventListener('message', async (event) => {
+  if (currentMessageHandler) {
+    window.removeEventListener('message', currentMessageHandler);
+    currentMessageHandler = null;
+  }
+
+  const handleWalletMessage = async (event: MessageEvent) => {
     if (event.origin !== iframeSrc.origin) return;
     const { action, requestId, data } = event.data;
 
@@ -265,7 +273,10 @@ async function setupButtonClickHandler(
         { targetOrigin: event.origin },
       );
     }
-  });
+  };
+
+  currentMessageHandler = handleWalletMessage;
+  window.addEventListener('message', handleWalletMessage);
 }
 
 export function removeWalletButton() {

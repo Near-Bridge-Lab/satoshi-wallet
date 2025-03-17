@@ -138,8 +138,10 @@ export async function getBtcGasPrice(): Promise<number> {
 
 export async function getBtcUtxos(account: string) {
   const btcRpcUrl = await getBtcRpcUrl();
-  const utxos = await fetch(`${btcRpcUrl}/address/${account}/utxo`).then((res) => res.json());
-  return utxos;
+  const utxos: { value: number; status: { confirmed: boolean } }[] = await fetch(
+    `${btcRpcUrl}/address/${account}/utxo`,
+  ).then((res) => res.json());
+  return utxos.filter((item) => item.status.confirmed);
 }
 
 export async function calculateGasFee(account: string, amount: number, feeRate?: number) {
@@ -164,8 +166,7 @@ export async function getBtcBalance(account?: string) {
 
   const btcDecimals = 8;
 
-  const rawBalance: number =
-    utxos?.reduce((acc: number, cur: { value: number }) => acc + cur.value, 0) || 0;
+  const rawBalance = utxos?.reduce((acc, cur) => acc + cur.value, 0) || 0;
   const balance = rawBalance / 10 ** btcDecimals;
 
   const estimatedFee = await calculateGasFee(account, rawBalance);
@@ -490,7 +491,7 @@ export async function getWithdrawTransaction({
   const _csna = csna || (await getCsnaAccountId(env));
 
   // calculate gas and get transaction details
-  const { inputs, outputs, isError, errorMsg, ...rest } = await calculateWithdraw({
+  const { inputs, outputs, isError, errorMsg, fromAmount, gasFee } = await calculateWithdraw({
     amount,
     feeRate,
     csna: _csna,
@@ -506,7 +507,7 @@ export async function getWithdrawTransaction({
 
   console.log('inputs - outputs = gas');
   console.log(
-    `(${inputs.map((item) => item.value).join(' + ')}) - (${outputs.map((item) => item.value).join(' + ')}) = ${rest.gasFee}`,
+    `(${inputs.map((item) => item.value).join(' + ')}) - (${outputs.map((item) => item.value).join(' + ')}) = ${gasFee}`,
   );
 
   const network = await getNetwork();
@@ -572,7 +573,7 @@ export async function getWithdrawTransaction({
           methodName: 'ft_transfer_call',
           args: {
             receiver_id: config.bridgeContractId,
-            amount: amount.toString(),
+            amount: fromAmount?.toString(),
             msg: JSON.stringify(msg),
           },
           gas: '300000000000000', // 300 TGas
