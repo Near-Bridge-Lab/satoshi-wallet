@@ -15,7 +15,7 @@ import {
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
-import bitcoin from 'bitcoinjs-lib';
+import * as bitcoin from 'bitcoinjs-lib';
 // @ts-ignore
 import coinselect from 'coinselect';
 // @ts-ignore
