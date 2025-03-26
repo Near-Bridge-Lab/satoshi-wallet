@@ -30,8 +30,6 @@ bitcoin.initEccLib(ecc);
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
 /** NBTC Storage Deposit Amount */
 const NBTC_STORAGE_DEPOSIT_AMOUNT = '3000';
-/** NEAR Gas Limit */
-const GAS_LIMIT = '50000000000000';
 /** New account min deposit amount */
 const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
 
@@ -338,7 +336,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     if (debtAction) {
       newActions.push({
         ...debtAction,
-        gas: GAS_LIMIT,
+        gas: '30000000000000', // 30 TGas
       });
     }
 
@@ -346,7 +344,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     if (action) {
       newActions.push({
         ...action,
-        gas: GAS_LIMIT,
+        gas: '100000000000000', // 100 TGas
       });
     }
 
