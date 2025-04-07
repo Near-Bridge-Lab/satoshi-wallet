@@ -7,7 +7,6 @@ import SignModal from '../components/signModal';
 import { type BaseConnector } from '../connector/base';
 import { AASignerProvider } from '../evmSigner';
 import useModalStateValue from '../hooks/useModalStateValue';
-import type { AccountInfo } from '../types/accountInfo';
 import { EventName } from '../types/eventName';
 import { checkBTCVersion } from '../utils';
 

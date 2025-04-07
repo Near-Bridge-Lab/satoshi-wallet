@@ -133,7 +133,8 @@ export function useBtcWalletSelector() {
 
   useEffect(() => {
     const fn = (account: any) => {
-      if (account) {
+      console.log('accountsChanged account', account);
+      if (account?.length) {
         getPublicKey().then((res) => {
           publicKey.current = res;
           context.emit('updatePublicKey', res);
@@ -200,9 +201,20 @@ export function useBtcWalletSelector() {
         context.emit('btcLogOut');
       },
       account: accounts?.[0],
-      getPublicKey: () => {
-        return publicKey.current;
+      getPublicKey: async () => {
+        const publicKey = await getPublicKey();
+        if (publicKey) return publicKey;
+        if (connectModalOpen) return;
+        try {
+          await requestDirectAccount(connectorRef.current);
+          return await getPublicKey();
+        } catch (error) {
+          console.error('btcLoginError', error);
+          context.emit('btcLoginError');
+          return;
+        }
       },
+
       signMessage: (msg: string) => {
         return signMessageFn.current(msg);
       },
@@ -218,10 +230,12 @@ export function useBtcWalletSelector() {
     getNetwork,
     switchNetwork,
     sendBitcoin,
+    connectModalOpen,
     openConnectModal,
-    requestDirectAccount,
     context,
+    requestDirectAccount,
     disconnect,
+    getPublicKey,
   ]);
 
   return hook;
