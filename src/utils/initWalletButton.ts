@@ -3,8 +3,8 @@ import { walletConfig, type ENV } from '../config';
 import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
 
 interface OriginalWallet {
-  account: string | null;
-  getPublicKey: () => Promise<string>;
+  account: string | undefined;
+  getPublicKey: () => Promise<string | undefined>;
 }
 
 export function setupWalletButton(env: ENV, wallet: Wallet, originalWallet: OriginalWallet) {

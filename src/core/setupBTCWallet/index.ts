@@ -145,7 +145,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const context = window.btcContext.getContext();
 
     context.on('updatePublicKey', async (btcPublicKey: string) => {
-      console.log('updatePublicKey');
       state.clear();
       console.log('updatePublicKey clear');
       try {
