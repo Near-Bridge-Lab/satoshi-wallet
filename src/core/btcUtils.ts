@@ -485,7 +485,14 @@ export async function getWithdrawTransaction({
   env = 'mainnet',
 }: WithdrawParams): Promise<Transaction> {
   const config = getWalletConfig(env);
-  const _btcAddress = btcAddress || getBtcProvider().account;
+  let _btcAddress = btcAddress || getBtcProvider().account;
+  if (!_btcAddress) {
+    await getBtcProvider().autoConnect();
+    _btcAddress = getBtcProvider().account;
+    if (!_btcAddress) {
+      throw new Error('BTC Account is not available.');
+    }
+  }
   const _csna = csna || (await getCsnaAccountId(env));
 
   // calculate gas and get transaction details
