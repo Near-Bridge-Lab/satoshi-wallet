@@ -342,6 +342,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       gas_limit: gasLimit,
       use_near_pay_gas: useNearPayGas,
       nonce,
+      replace: true,
     };
 
     const strIntention = JSON.stringify(intention);
