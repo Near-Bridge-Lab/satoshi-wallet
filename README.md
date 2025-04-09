@@ -76,6 +76,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   pollResult?: T;         // optional: whether to poll for transaction result
   registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
   newAccountMinDepositAmount?: boolean; // default is true, if true, new account minimum deposit BTC amount 1000sat, otherwise 0
+  registerContractId?: string; // if registerContractId is provided, it will be used to register the contract, otherwise it will be the default contract id
 }
 
 // Example 1: dApp one-click BTC deposit

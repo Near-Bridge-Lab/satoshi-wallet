@@ -280,6 +280,8 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
   env?: ENV;
   pollResult?: T;
   newAccountMinDepositAmount?: boolean;
+  /** if registerContractId is provided, it will be used to register the contract, otherwise it will be the default contract id */
+  registerContractId?: string;
 }
 
 /**
@@ -297,6 +299,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   registerDeposit,
   env = 'mainnet',
   newAccountMinDepositAmount,
+  registerContractId,
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
     console.log('executeBTCDepositAndAction start', amount);
@@ -357,22 +360,21 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       btc_public_key?: string;
     } = {};
 
-    const registerContractId = (action?.receiver_id || config.btcToken).replace(
-      config.accountContractId,
-      config.btcToken,
-    );
-    console.log('executeBTCDepositAndAction registerContractId', registerContractId);
+    const _registerContractId =
+      registerContractId ||
+      (action?.receiver_id || config.btcToken).replace(config.accountContractId, config.btcToken);
+    console.log('executeBTCDepositAndAction registerContractId', _registerContractId);
     // check receiver_id is registered
     const registerRes = await nearCall<{
       available: string;
       total: string;
-    }>(registerContractId, 'storage_balance_of', {
+    }>(_registerContractId, 'storage_balance_of', {
       account_id: csna,
     });
 
     if (!registerRes?.available) {
       storageDepositMsg.storage_deposit_msg = {
-        contract_id: registerContractId,
+        contract_id: _registerContractId,
         deposit: registerDeposit || NEAR_STORAGE_DEPOSIT_AMOUNT,
         registration_only: true,
       };
