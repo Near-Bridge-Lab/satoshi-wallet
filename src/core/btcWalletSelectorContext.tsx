@@ -14,6 +14,12 @@ import { useBTCProvider, useConnectModal } from '../hooks';
 import ComfirmBox from '../components/confirmBox';
 import { retryOperation } from '../utils';
 
+// Global handler to prevent duplicate events
+const eventCache = {
+  lastProcessedAccount: '',
+  lastProcessedTime: 0,
+};
+
 const WalletSelectorContext = React.createContext<any>(null);
 
 export function BtcWalletSelectorContextProvider({
@@ -114,85 +120,82 @@ export function useBtcWalletSelector() {
     getNetwork,
     switchNetwork,
   } = useBTCProvider();
-  const publicKey = useRef<any>(null);
-  const signMessageFn = useRef<any>(null);
   const connectorRef = useRef<any>(null);
   const context = useContext(WalletSelectorContext);
 
   useEffect(() => {
-    if (provider) {
-      getPublicKey().then((res) => {
-        publicKey.current = res;
-      });
-    }
-  }, [getPublicKey, provider]);
+    const handleAccountsChanged = (account: any) => {
+      // Skip processing if we don't have an account
+      if (!account?.length) return;
 
-  useEffect(() => {
-    signMessageFn.current = signMessage;
-  }, [signMessage]);
+      // Create a key for this event
+      const accountKey = JSON.stringify(account);
+      const now = Date.now();
 
-  useEffect(() => {
-    const fn = (account: any) => {
-      console.log('accountsChanged account', account);
-      if (account?.length) {
-        getPublicKey().then((res) => {
-          publicKey.current = res;
-          context.emit('updatePublicKey', res);
-        });
+      // Force a minimum time between processing the same account (3 seconds)
+      if (
+        accountKey === eventCache.lastProcessedAccount &&
+        now - eventCache.lastProcessedTime < 3000
+      ) {
+        return;
       }
+
+      // Update cache
+      eventCache.lastProcessedAccount = accountKey;
+      eventCache.lastProcessedTime = now;
+
+      getPublicKey().then((res) => {
+        context.emit('updatePublicKey', res);
+      });
     };
 
-    if (connector) {
-      connector.on('accountsChanged', fn);
-    }
+    connector?.on('accountsChanged', handleAccountsChanged);
     connectorRef.current = connector;
 
     return () => {
-      if (connector) {
-        connector.removeListener('accountsChanged', fn);
-      }
+      connector?.removeListener('accountsChanged', handleAccountsChanged);
     };
   }, [connector, context, getPublicKey]);
 
   const hook = useMemo(() => {
+    // Common connect method with two connection modes
+    const connectWallet = async (useModal = false) => {
+      if (connectModalOpen) return null;
+
+      const account = accounts?.[0];
+      if (account) return account;
+
+      try {
+        if (useModal) {
+          openConnectModal?.();
+        } else {
+          await requestDirectAccount(connectorRef.current);
+        }
+
+        // Wait for account connection
+        const account = await retryOperation(
+          () => window.btcContext.account,
+          (res) => !!res,
+          {
+            maxRetries: 100,
+            delayMs: 1000,
+          },
+        );
+
+        return account || null;
+      } catch (error) {
+        console.error('btcLoginError', error);
+        context.emit('btcLoginError');
+        return null;
+      }
+    };
+
     return {
       login: async () => {
-        const account = accounts?.[0];
-        console.log('account', account);
-        console.log('connecting', connectModalOpen);
-        if (!account) {
-          if (connectModalOpen) {
-            return null;
-          }
-
-          try {
-            openConnectModal?.();
-
-            const account1 = await retryOperation(
-              () => window.btcContext.account,
-              (res) => !!res,
-              {
-                maxRetries: 100,
-                delayMs: 1000,
-              },
-            );
-
-            if (!account1) {
-              throw new Error('Failed to get account');
-            }
-            return account1;
-          } catch (error) {
-            console.error('btcLoginError', error);
-            context.emit('btcLoginError');
-          }
-        }
-        return account;
+        return connectWallet(true);
       },
       autoConnect: async () => {
-        return requestDirectAccount(connectorRef.current).catch((e: any) => {
-          console.error('btcLoginError', e);
-          context.emit('btcLoginError');
-        });
+        return connectWallet(false);
       },
       logout: () => {
         const accountId = accounts?.[0];
@@ -202,28 +205,25 @@ export function useBtcWalletSelector() {
       },
       account: accounts?.[0],
       getPublicKey: async () => {
-        const publicKey = await getPublicKey();
+        const publicKey = await getPublicKey().catch(() => null);
         if (publicKey) return publicKey;
-        if (connectModalOpen) return;
-        try {
-          await requestDirectAccount(connectorRef.current);
-          return await getPublicKey();
-        } catch (error) {
-          console.error('btcLoginError', error);
-          context.emit('btcLoginError');
-          return;
-        }
-      },
 
-      signMessage: (msg: string) => {
-        return signMessageFn.current(msg);
+        await connectWallet(false);
+        return getPublicKey();
+      },
+      signMessage: async (msg: string) => {
+        await connectWallet(false);
+        return signMessage(msg);
       },
       getContext: () => {
         return context;
       },
       getNetwork,
       switchNetwork,
-      sendBitcoin,
+      sendBitcoin: async (toAddress: string, satoshis: number, options?: { feeRate: number }) => {
+        await connectWallet(false);
+        return sendBitcoin(toAddress, satoshis, options);
+      },
     };
   }, [
     accounts,
@@ -236,6 +236,7 @@ export function useBtcWalletSelector() {
     requestDirectAccount,
     disconnect,
     getPublicKey,
+    signMessage,
   ]);
 
   return hook;

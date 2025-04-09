@@ -121,7 +121,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       }
 
       const valid = validateWalletState();
-      console.log('setupBtcContextListeners wallet state valid:', valid);
       if (!valid) {
         return;
       }
