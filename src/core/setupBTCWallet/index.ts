@@ -60,8 +60,8 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     signAndSendTransaction,
     signAndSendTransactions,
   };
-  const env = (metadata as any).env || options.network.networkId || 'mainnet';
-  const currentConfig = getWalletConfig(env as ENV);
+  const env: ENV = (metadata as any).env || options.network.networkId || 'mainnet';
+  const currentConfig = getWalletConfig(env);
 
   await initBtcContext();
 
@@ -341,7 +341,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       gas_limit: gasLimit,
       use_near_pay_gas: useNearPayGas,
       nonce,
-      replace: true,
+      replace: env === 'private_mainnet' ? true : undefined,
     };
 
     const strIntention = JSON.stringify(intention);

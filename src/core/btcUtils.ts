@@ -150,14 +150,23 @@ export async function calculateGasFee(account: string, amount: number, feeRate?:
   return fee;
 }
 
-export async function getBtcBalance(account?: string) {
+export async function getBtcBalance(
+  account?: string,
+  option?: {
+    env?: ENV;
+  },
+) {
+  const env = option?.env || 'mainnet';
+  let csna = '';
   if (!account) {
     const res = await retryOperation(getBtcProvider, (res) => !!res.account);
+
     if (!res.account) {
       console.error('BTC Account is not available.');
       return { rawBalance: 0, balance: 0, availableBalance: 0 };
     }
     account = res.account;
+    csna = await getCsnaAccountId(env);
   }
 
   const utxos = await getBtcUtxos(account);
@@ -168,7 +177,20 @@ export async function getBtcBalance(account?: string) {
   const balance = rawBalance / 10 ** btcDecimals;
 
   const estimatedFee = await calculateGasFee(account, rawBalance);
-  const availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
+
+  let availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
+
+  if (csna) {
+    const { protocolFee, repayAmount } = await getDepositAmount(rawBalance.toString(), {
+      env,
+      csna,
+    });
+    availableRawBalance = new Big(availableRawBalance)
+      .minus(protocolFee)
+      .minus(repayAmount)
+      .toFixed(0);
+  }
+
   const availableBalance = new Big(availableRawBalance)
     .div(10 ** btcDecimals)
     .round(btcDecimals, Big.roundDown)
