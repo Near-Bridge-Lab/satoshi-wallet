@@ -242,16 +242,24 @@ export async function getDepositAmount(
   const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
   const newAccountMinDepositAmount =
     !accountInfo?.nonce && _newAccountMinDepositAmount ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
-  const totalDepositAmount = new Big(depositAmount)
-    .plus(protocolFee)
-    .plus(repayAmount)
-    .plus(newAccountMinDepositAmount)
+  const receiveAmount = new Big(depositAmount)
+    .minus(protocolFee)
+    .minus(repayAmount)
     .round(0, Big.roundDown)
     .toNumber();
 
+  if (
+    Number(newAccountMinDepositAmount) > 0 &&
+    receiveAmount < Number(newAccountMinDepositAmount)
+  ) {
+    throw new Error(
+      `Receive amount (${receiveAmount}) is less than minimum required amount for new account (${newAccountMinDepositAmount})`,
+    );
+  }
+
   return {
     depositAmount,
-    totalDepositAmount,
+    receiveAmount,
     protocolFee,
     repayAmount,
     newAccountMinDepositAmount,
@@ -343,7 +351,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       throw new Error('amount must be greater than 0');
     }
 
-    const { totalDepositAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
+    const { receiveAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
       env,
       newAccountMinDepositAmount,
     });
@@ -423,7 +431,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       'Deposit Amount': depositAmount,
       'Protocol Fee': protocolFee,
       'Repay Amount': repayAmount,
-      'Total Deposit Amount': totalDepositAmount,
+      'Receive Amount': receiveAmount,
       'Fee Rate': _feeRate,
     });
 
@@ -436,7 +444,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       extraMsg: depositMsg.extra_msg,
     });
 
-    const txHash = await sendBitcoin(userDepositAddress, totalDepositAmount, _feeRate);
+    const txHash = await sendBitcoin(userDepositAddress, Number(depositAmount), _feeRate);
 
     await receiveDepositMsg(config.base_url, {
       btcPublicKey,

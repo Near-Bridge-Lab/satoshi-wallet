@@ -129,18 +129,17 @@ const result = await getDepositAmount(
 
 // Returns
 interface DepositAmountResult {
-  depositAmount: number;            // Original deposit amount
-  totalDepositAmount: number;       // Total amount needed including all fees
-  protocolFee: number;             // Protocol fee
-  repayAmount: number;             // Amount to repay if there's debt
+  depositAmount: number;            // Original deposit amount to be sent
+  receiveAmount: number;            // Amount to be received after deducting fees and repayments
+  protocolFee: number;              // Protocol fee
+  repayAmount: number;              // Amount to repay if there's debt
   newAccountMinDepositAmount: number; // Minimum deposit amount for new accounts
 }
 
-To complete the deposit, you will need to send `totalDepositAmount` of BTC, which includes:
-- Original deposit amount
-- Protocol fees
-- Repayment amount (if you have existing debt)
-- New account minimum deposit (for first-time users)
+When making a deposit:
+- The user sends the `depositAmount` of BTC
+- After deducting protocol fees and repayment amounts, the user receives `receiveAmount` on NEAR
+- For new accounts, the function will throw an error if the `receiveAmount` is less than the minimum required amount
 ```
 
 ### `getWithdrawTransaction`
