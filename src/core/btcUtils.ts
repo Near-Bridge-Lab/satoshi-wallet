@@ -150,14 +150,7 @@ export async function calculateGasFee(account: string, amount: number, feeRate?:
   return fee;
 }
 
-export async function getBtcBalance(
-  account?: string,
-  option?: {
-    /** if csna is provided, available balance will be calculated protocol fee and repay amount */
-    csna?: string;
-    env?: ENV;
-  },
-) {
+export async function getBtcBalance(account?: string) {
   if (!account) {
     const res = await retryOperation(getBtcProvider, (res) => !!res.account);
 
@@ -177,15 +170,7 @@ export async function getBtcBalance(
 
   const estimatedFee = await calculateGasFee(account, rawBalance);
 
-  let availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
-
-  if (option?.csna) {
-    const { protocolFee, repayAmount } = await getDepositAmount(rawBalance.toString(), option);
-    availableRawBalance = new Big(availableRawBalance)
-      .minus(protocolFee)
-      .minus(repayAmount)
-      .toFixed(0);
-  }
+  const availableRawBalance = (rawBalance - estimatedFee).toFixed(0);
 
   const availableBalance = new Big(availableRawBalance)
     .div(10 ** btcDecimals)

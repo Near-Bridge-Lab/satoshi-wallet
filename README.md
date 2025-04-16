@@ -103,11 +103,7 @@ Get the native BTC balance for a given Bitcoin address.
 ```typescript
 import { getBtcBalance } from 'btc-wallet';
 
-const balance = await getBtcBalance(address: string, option?: {
-  /** if csna is provided, available balance will be calculated protocol fee and repay amount */
-  csna?: string;
-  env?: ENV;
-});
+const balance = await getBtcBalance(address: string);
 // Returns balance in satoshis
 ```
 
