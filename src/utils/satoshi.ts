@@ -107,9 +107,9 @@ export async function checkBridgeTransactionStatus(url: string, txHash: string) 
   const { result_code, result_message, result_data } = await request<
     RequestResult<{ Status: number; ToTxHash: string }>
   >(`${url}/v1/bridgeFromTx?fromTxHash=${txHash}&fromChainId=1`, {
-    timeout: 300000,
+    timeout: 3 * 60 * 60 * 1000,
     pollingInterval: 5000,
-    maxPollingAttempts: 60,
+    maxPollingAttempts: 3000,
     shouldStopPolling: (res) => {
       const status = res.result_data?.Status || 0;
       return res.result_code === 0 && (status === 4 || status >= 50);
