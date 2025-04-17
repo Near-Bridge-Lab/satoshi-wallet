@@ -4,7 +4,6 @@ import { getWalletConfig, btcRpcUrls } from '../config';
 import { retryOperation } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
-  calculateWithdraw,
   checkBridgeTransactionStatus,
   getAccountInfo,
   getBridgeConfig,
@@ -21,7 +20,7 @@ import coinselect from 'coinselect';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
 
-export { calculateGasLimit, calculateWithdraw };
+export { calculateGasLimit };
 
 // init ecc lib
 bitcoin.initEccLib(ecc);
@@ -219,27 +218,33 @@ export async function getDepositAmount(
   const accountInfo = await getAccountInfo({ csna, env });
   const debtAction = await checkGasTokenDebt(csna, env, false);
   const repayAmount = debtAction?.amount || 0;
+  const depositAmount = Number(amount);
   const {
     deposit_bridge_fee: { fee_min, fee_rate },
     min_deposit_amount,
   } = await getBridgeConfig({ env });
-  const depositAmount = Math.max(Number(min_deposit_amount), Number(amount));
-  const protocolFee = Math.max(Number(fee_min), Number(depositAmount) * fee_rate);
+
+  const protocolFee = Math.max(Number(fee_min), depositAmount * fee_rate);
   const newAccountMinDepositAmount =
     !accountInfo?.nonce && _newAccountMinDepositAmount ? NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT : 0;
-  const receiveAmount = new Big(depositAmount)
+  let receiveAmount = new Big(depositAmount)
     .minus(protocolFee)
     .minus(repayAmount)
     .round(0, Big.roundDown)
     .toNumber();
+  receiveAmount = Math.max(receiveAmount, 0);
 
   if (
     Number(newAccountMinDepositAmount) > 0 &&
     receiveAmount < Number(newAccountMinDepositAmount)
   ) {
-    throw new Error(
-      `Receive amount (${receiveAmount}) is less than minimum required amount for new account (${newAccountMinDepositAmount})`,
+    console.error(
+      `Receive amount (${receiveAmount}) is less than minimum required amount for new account (${newAccountMinDepositAmount} sat)`,
     );
+  }
+
+  if (receiveAmount <= 0) {
+    console.error(`Receive amount (${receiveAmount}) is less than 0`);
   }
 
   return {
@@ -325,7 +330,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       throw new Error('BTC Public Key is not available.');
     }
     if (!amount && !action) {
-      throw new Error('amount or action is required');
+      throw new Error('Deposit amount or action is required');
     }
 
     const csna = await getCsnaAccountId(env);
@@ -333,13 +338,17 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     const depositAmount = (action ? action.amount : amount) ?? '0';
 
     if (new Big(depositAmount).lt(0)) {
-      throw new Error('amount must be greater than 0');
+      throw new Error('Deposit amount must be greater than 0');
     }
 
     const { receiveAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
       env,
       newAccountMinDepositAmount,
     });
+
+    if (receiveAmount <= 0) {
+      throw new Error('Invalid deposit amount, too small');
+    }
 
     const accountInfo = await getAccountInfo({ csna, env });
 
@@ -603,6 +612,263 @@ export async function getWithdrawTransaction({
 
   console.log('=== End getWithdrawTransaction ===');
   return transaction;
+}
+
+interface CalculateWithdrawParams {
+  amount: string | number;
+  feeRate?: number;
+  csna?: string;
+  btcAddress?: string;
+  env: ENV;
+}
+interface CalculateWithdrawResult {
+  withdrawFee: number;
+  gasFee?: number;
+  inputs?: any[];
+  outputs?: any[];
+  fromAmount?: number;
+  receiveAmount?: string;
+  isError: boolean;
+  errorMsg?: string;
+}
+
+export async function calculateWithdraw({
+  amount,
+  feeRate: _feeRate,
+  csna: _csna,
+  btcAddress: _btcAddress,
+  env,
+}: CalculateWithdrawParams): Promise<CalculateWithdrawResult> {
+  try {
+    const config = getWalletConfig(env);
+
+    let btcAddress = _btcAddress || getBtcProvider().account;
+    if (!btcAddress) {
+      await getBtcProvider().autoConnect();
+      btcAddress = getBtcProvider().account;
+      if (!btcAddress) {
+        throw new Error('BTC Account is not available.');
+      }
+    }
+    const csna = _csna || (await getCsnaAccountId(env));
+
+    const feeRate = _feeRate || (await getBtcGasPrice());
+    // mock the gas limit
+    const gasLimit = await calculateGasLimit({
+      csna,
+      transactions: [
+        {
+          signerId: '',
+          receiverId: config.btcToken,
+          actions: [
+            {
+              type: 'FunctionCall',
+              params: {
+                methodName: 'ft_transfer_call',
+                args: {
+                  receiver_id: config.btcToken,
+                  amount: '100',
+                  msg: '',
+                },
+                gas: '300000000000000',
+                deposit: '1',
+              },
+            },
+          ],
+        },
+      ],
+      env,
+    });
+
+    let satoshis = Number(amount);
+    if (Number(gasLimit) > 0) {
+      satoshis = new Big(amount).minus(gasLimit).toNumber();
+    }
+
+    const brgConfig = await getBridgeConfig({ env });
+
+    const allUTXO = await nearCallFunction<
+      Record<
+        string,
+        {
+          vout: number;
+          balance: string;
+          script: string;
+        }
+      >
+    >(config.bridgeContractId, 'get_utxos_paged', {}, { network: config.network });
+
+    if (brgConfig.min_withdraw_amount) {
+      if (Number(satoshis) < Number(brgConfig.min_withdraw_amount)) {
+        return {
+          withdrawFee: 0,
+          isError: true,
+          errorMsg: `Mini withdraw amount is ${Number(brgConfig.min_withdraw_amount) + Number(gasLimit)} sats`,
+        };
+      }
+    }
+
+    const feePercent = Number(brgConfig.withdraw_bridge_fee.fee_rate) * Number(satoshis);
+    const withdrawFee =
+      feePercent > Number(brgConfig.withdraw_bridge_fee.fee_min)
+        ? feePercent
+        : Number(brgConfig.withdraw_bridge_fee.fee_min);
+
+    const withdrawChangeAddress = brgConfig.change_address;
+
+    const utxos = Object.keys(allUTXO)
+      .map((key) => {
+        const txid = key.split('@');
+        return {
+          txid: txid[0],
+          vout: allUTXO[key].vout,
+          value: Number(allUTXO[key].balance),
+          script: allUTXO[key].script,
+        };
+      })
+      .filter((utxo) => utxo.value > Number(brgConfig.min_change_amount));
+
+    if (!utxos || utxos.length === 0) {
+      return {
+        withdrawFee,
+        isError: true,
+        errorMsg: 'The network is busy, please try again later.',
+      };
+    }
+
+    const userSatoshis = Number(satoshis);
+    const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
+
+    const { inputs, outputs, fee } = coinselect(
+      utxos,
+      [{ address: btcAddress, value: userSatoshis }],
+      Math.ceil(feeRate),
+    );
+
+    const newInputs = inputs;
+    let newOutputs = outputs;
+    let newFee = fee;
+
+    if (!newOutputs || newOutputs.length === 0) {
+      return {
+        withdrawFee,
+        isError: true,
+        errorMsg: 'The network is busy, please try again later.',
+      };
+    }
+
+    let userOutput, noUserOutput;
+    for (let i = 0; i < newOutputs.length; i++) {
+      const output = newOutputs[i];
+      if (output.value.toString() === userSatoshis.toString()) {
+        userOutput = output;
+      } else {
+        noUserOutput = output;
+      }
+      if (!output.address) {
+        output.address = withdrawChangeAddress;
+      }
+    }
+
+    let dis = 0;
+    if (newFee > maxBtcFee) {
+      dis = newFee - maxBtcFee;
+      newFee = maxBtcFee;
+
+      return {
+        gasFee: newFee,
+        withdrawFee,
+        isError: true,
+        errorMsg: 'Gas exceeds maximum value',
+      };
+    }
+
+    userOutput.value = new Big(userOutput.value).minus(newFee).minus(withdrawFee).toNumber();
+
+    if (userOutput.value < 0) {
+      return {
+        gasFee: newFee,
+        withdrawFee,
+        isError: true,
+        errorMsg: 'Not enough gas',
+      };
+    }
+
+    if (noUserOutput) {
+      if (!noUserOutput.address) {
+        noUserOutput.address = withdrawChangeAddress;
+      }
+      noUserOutput.value = new Big(noUserOutput.value)
+        .plus(newFee)
+        .plus(withdrawFee)
+        .plus(dis)
+        .toNumber();
+    } else {
+      noUserOutput = {
+        address: withdrawChangeAddress,
+        value: new Big(newFee).plus(withdrawFee).plus(dis).toNumber(),
+      };
+      newOutputs.push(noUserOutput);
+    }
+
+    let minValue = Math.min(...newInputs.map((input: any) => input.value));
+    let totalNoUserOutputValue = noUserOutput.value;
+
+    while (totalNoUserOutputValue >= minValue && minValue > 0 && newInputs.length > 0) {
+      totalNoUserOutputValue -= minValue;
+      noUserOutput.value = totalNoUserOutputValue;
+      const minValueIndex = newInputs.findIndex((input: any) => input.value === minValue);
+      if (minValueIndex > -1) {
+        newInputs.splice(minValueIndex, 1);
+      }
+      minValue = Math.min(...newInputs.map((input: any) => input.value));
+    }
+
+    let gasMore = 0;
+    if (noUserOutput.value === 0) {
+      newOutputs = newOutputs.filter((item: any) => item.value !== 0);
+    } else if (noUserOutput.value < Number(brgConfig.min_change_amount)) {
+      gasMore = Number(brgConfig.min_change_amount) - noUserOutput.value;
+      userOutput.value -= gasMore;
+      noUserOutput.value = Number(brgConfig.min_change_amount);
+    }
+
+    const insufficientOutput = newOutputs.some((item: any) => item.value < 0);
+    if (insufficientOutput) {
+      return {
+        gasFee: newFee,
+        withdrawFee,
+        isError: true,
+        errorMsg: 'Not enough gas',
+      };
+    }
+
+    const inputSum = newInputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+    const outputSum = newOutputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
+
+    if (newFee + outputSum !== inputSum) {
+      return {
+        withdrawFee,
+        isError: true,
+        errorMsg: 'Service busy, please try again later',
+      };
+    }
+    return {
+      withdrawFee: new Big(withdrawFee).plus(gasLimit).plus(gasMore).toNumber(),
+      gasFee: new Big(newFee).toNumber(),
+      inputs: newInputs,
+      outputs: newOutputs,
+      fromAmount: satoshis,
+      receiveAmount: userOutput.value,
+      isError: false,
+    };
+  } catch (error: any) {
+    return {
+      withdrawFee: 0,
+      isError: true,
+      errorMsg: error.message,
+    };
+  }
 }
 
 // Helper function
