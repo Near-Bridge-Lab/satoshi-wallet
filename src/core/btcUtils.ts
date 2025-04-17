@@ -49,6 +49,10 @@ async function getNetwork() {
   }
 }
 
+function formatBtcAmount(amount: number | string) {
+  return new Big(amount).div(10 ** 8).toString();
+}
+
 async function getBtcRpcUrl() {
   const network = await getNetwork();
   return btcRpcUrls[network as keyof typeof btcRpcUrls];
@@ -89,19 +93,27 @@ export async function checkGasTokenDebt<T extends boolean>(
 
   if (!autoDeposit) return action as CheckGasTokenDebtReturnType<T>;
 
+  console.log('checkGasTokenDebt action:', action);
+
+  const { minDepositAmount } = await getDepositAmount(action.amount, {
+    env,
+  });
+
+  const remainingAmount = new Big(minDepositAmount).minus(transferAmount).toNumber();
+
   const confirmed = await Dialog.confirm({
-    title: hasDebtArrears ? 'Has gas token arrears' : 'Has relayer fee arrears',
+    title: hasDebtArrears ? 'Gas Token Arrears' : 'Relayer Fee Arrears',
     message: hasDebtArrears
-      ? 'You have gas token arrears, please deposit gas token to continue.'
-      : 'You have relayer fee arrears, please deposit relayer fee to continue.',
+      ? `You have gas token arrears. Minimum deposit amount is ${formatBtcAmount(minDepositAmount)} BTC, of which ${formatBtcAmount(transferAmount)} BTC will be used to repay the debt, and the remaining ${formatBtcAmount(remainingAmount)} BTC will be credited to your account.`
+      : `You have relayer fee arrears. Minimum deposit amount is ${formatBtcAmount(minDepositAmount)} BTC, of which ${formatBtcAmount(transferAmount)} BTC will be used for relayer fee, and the remaining ${formatBtcAmount(remainingAmount)} BTC will be credited to your account.`,
   });
 
   if (confirmed) {
-    await executeBTCDepositAndAction({ action, env });
+    await executeBTCDepositAndAction({ amount: minDepositAmount.toString(), action, env });
 
     await Dialog.alert({
-      title: 'Deposit success',
-      message: 'Deposit success, will continue to execute transaction.',
+      title: 'Deposit Success',
+      message: `Deposit successful. ${formatBtcAmount(transferAmount)} BTC has been paid for ${hasDebtArrears ? 'debt' : 'relayer fee'}, and the remaining ${formatBtcAmount(remainingAmount)} BTC has been credited to your account. Transaction will continue.`,
     });
   } else {
     throw new Error('Deposit failed, please deposit gas token first.');
@@ -234,18 +246,16 @@ export async function getDepositAmount(
     .toNumber();
   receiveAmount = Math.max(receiveAmount, 0);
 
-  if (
-    Number(newAccountMinDepositAmount) > 0 &&
-    receiveAmount < Number(newAccountMinDepositAmount)
-  ) {
-    console.error(
-      `Receive amount (${receiveAmount}) is less than minimum required amount for new account (${newAccountMinDepositAmount} sat)`,
-    );
-  }
+  const minDepositAmount = new Big(min_deposit_amount || 0)
+    .plus(newAccountMinDepositAmount)
+    .plus(protocolFee)
+    .plus(repayAmount)
+    .round(0, Big.roundUp)
+    .toNumber();
 
-  if (receiveAmount <= 0) {
-    console.error(`Receive amount (${receiveAmount}) is less than 0`);
-  }
+  console.log(
+    `minDepositAmount: ${minDepositAmount} = ${min_deposit_amount} + ${newAccountMinDepositAmount} + ${protocolFee} + ${repayAmount}`,
+  );
 
   return {
     depositAmount,
@@ -253,6 +263,7 @@ export async function getDepositAmount(
     protocolFee,
     repayAmount,
     newAccountMinDepositAmount,
+    minDepositAmount,
   };
 }
 
@@ -318,7 +329,15 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
   registerContractId,
 }: ExecuteBTCDepositAndActionParams<T>): Promise<ExecuteBTCDepositAndActionReturn<T>> {
   try {
-    console.log('executeBTCDepositAndAction start', amount);
+    console.log('executeBTCDepositAndAction start', {
+      action,
+      amount,
+      feeRate,
+      pollResult,
+      registerDeposit,
+      newAccountMinDepositAmount,
+      registerContractId,
+    });
     checkDepositDisabledAddress();
     const { getPublicKey } = getBtcProvider();
 
@@ -335,19 +354,26 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const csna = await getCsnaAccountId(env);
 
-    const depositAmount = (action ? action.amount : amount) ?? '0';
+    const depositAmount = Number(amount || action?.amount || 0);
 
-    if (new Big(depositAmount).lt(0)) {
-      throw new Error('Deposit amount must be greater than 0');
+    console.log('depositAmount', depositAmount);
+
+    if (depositAmount <= 0) {
+      throw new Error('Invalid deposit amount');
     }
 
-    const { receiveAmount, protocolFee, repayAmount } = await getDepositAmount(depositAmount, {
-      env,
-      newAccountMinDepositAmount,
-    });
+    const { receiveAmount, protocolFee, repayAmount, minDepositAmount } = await getDepositAmount(
+      depositAmount.toString(),
+      {
+        env,
+        newAccountMinDepositAmount,
+      },
+    );
 
-    if (receiveAmount <= 0) {
-      throw new Error('Invalid deposit amount, too small');
+    if (depositAmount < minDepositAmount) {
+      throw new Error(
+        `Invalid deposit amount, must be greater than ${formatBtcAmount(minDepositAmount)} BTC`,
+      );
     }
 
     const accountInfo = await getAccountInfo({ csna, env });
@@ -438,7 +464,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       extraMsg: depositMsg.extra_msg,
     });
 
-    const txHash = await sendBitcoin(userDepositAddress, Number(depositAmount), _feeRate);
+    const txHash = await sendBitcoin(userDepositAddress, depositAmount, _feeRate);
 
     await receiveDepositMsg(config.base_url, {
       btcPublicKey,
@@ -703,7 +729,7 @@ export async function calculateWithdraw({
         return {
           withdrawFee: 0,
           isError: true,
-          errorMsg: `Mini withdraw amount is ${Number(brgConfig.min_withdraw_amount) + Number(gasLimit)} sats`,
+          errorMsg: `Minimum withdraw amount is ${formatBtcAmount(Number(brgConfig.min_withdraw_amount) + Number(gasLimit))} BTC`,
         };
       }
     }
