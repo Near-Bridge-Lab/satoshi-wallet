@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #ff7a00;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .card {
+    @apply flex items-center justify-between gap-2 bg-default-100 hover:bg-default-200 rounded-xl p-3;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.toast-container {
+  --toastify-color-success: #00e695;
+  --toastify-color-progress-success: var(--toastify-color-success);
+  --toastify-icon-color-success: var(--toastify-color-success);
+}
