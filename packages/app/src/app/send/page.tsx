@@ -125,9 +125,10 @@ export default function Send() {
       console.log(res);
       refreshBalance(data.token);
       toast.success('Send success');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Send failed');
+      if (error?.message && !error?.message?.includes(`User rejected the request`))
+        toast.error(`Send failed: ${error.message}`);
     } finally {
       setLoading(false);
     }

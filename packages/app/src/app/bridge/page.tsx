@@ -179,9 +179,10 @@ export default function Bridge() {
         toast.success('Bridge success');
         refreshBalance(BTC_TOKEN_CONTRACT);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Bridge failed, please try again later');
+      if (error?.message && !error?.message?.includes(`User rejected the request`))
+        toast.error(`Bridge failed: ${error.message}`);
     } finally {
       setBridgeLoading(false);
     }

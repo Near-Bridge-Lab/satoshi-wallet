@@ -109,7 +109,8 @@ export function rpcToWallet<T extends RpcToWalletAction>(
 
     const timeout = setTimeout(() => {
       window.removeEventListener('message', handleMessage);
-      reject(new Error('Wallet request timeout'));
+      console.error('rpcToWallet timeout');
+      reject();
     }, 60000);
 
     function handleMessage(event: {

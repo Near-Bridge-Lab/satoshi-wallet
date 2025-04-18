@@ -115,7 +115,8 @@ export default function Swap() {
       manual: true,
       onError: (error) => {
         console.error(error);
-        toast.error('Swap failed');
+        if (error?.message && !error?.message?.includes(`User rejected the request`))
+          toast.error(`Swap failed: ${error.message}`);
       },
     },
   );
