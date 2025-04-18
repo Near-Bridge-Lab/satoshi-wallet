@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "concurrently \"pnpm --filter=btc-wallet dev\" \"pnpm --filter=@satoshi-wallet/app dev\"",
     "build": "pnpm -r build",
+    "build:cloudflare": "pnpm -r build:cloudflare",
     "start": "pnpm -r start",
     "clean": "pnpm -r run clean",
     "lint": "pnpm -r lint",
