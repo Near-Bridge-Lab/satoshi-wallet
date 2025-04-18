@@ -50,7 +50,7 @@ async function getNetwork() {
 }
 
 function formatBtcAmount(amount: number | string) {
-  return new Big(amount).div(10 ** 8).toString();
+  return new Big(amount).div(10 ** 8).toFixed();
 }
 
 async function getBtcRpcUrl() {

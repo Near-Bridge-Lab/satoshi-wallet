@@ -65,9 +65,10 @@ export default function DepositPrompt() {
         env: RUNTIME_NETWORK,
       });
       toast.success('Activation initiated, please wait for confirmation');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Activation failed');
+      if (error?.message && !error?.message?.includes(`User rejected the request`))
+        toast.error(`Activation failed: ${error.message}`);
     } finally {
       setActivateLoading(false);
     }
