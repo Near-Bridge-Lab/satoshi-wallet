@@ -1,6 +1,6 @@
 {
   "name": "btc-wallet",
-  "version": "0.5.50-beta",
+  "version": "0.5.51-beta",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
