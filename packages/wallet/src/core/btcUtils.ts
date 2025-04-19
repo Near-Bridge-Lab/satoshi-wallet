@@ -873,6 +873,26 @@ export async function calculateWithdraw({
       };
     }
 
+    // check if the output amount is below minimum change amount
+    const belowMinChangeAmount = newOutputs.some(
+      (item: any) => item.value > 0 && item.value < Number(brgConfig.min_change_amount),
+    );
+    if (belowMinChangeAmount) {
+      // Calculate minimum withdraw amount: min_change_amount + gas + fee
+      const minWithdrawAmount = new Big(brgConfig.min_withdraw_amount)
+        .plus(brgConfig.min_change_amount)
+        .plus(gasLimit)
+        .plus(withdrawFee)
+        .toNumber();
+
+      return {
+        gasFee: newFee,
+        withdrawFee,
+        isError: true,
+        errorMsg: `Transaction amount too small. Minimum required: ${formatBtcAmount(minWithdrawAmount)} BTC`,
+      };
+    }
+
     const inputSum = newInputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
     const outputSum = newOutputs.reduce((sum: number, cur: any) => sum + Number(cur.value), 0);
 

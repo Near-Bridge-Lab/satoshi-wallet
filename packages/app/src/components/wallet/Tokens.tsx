@@ -254,15 +254,16 @@ export function TokenSelectorButton({
   return (
     <Button
       variant="flat"
-      className={`flex items-center gap-2 ${className}`}
+      className={`flex-shrink-0 flex items-center gap-2 px-2.5 ${className}`}
       radius="full"
       onClick={handleSelect}
     >
       <Image
         src={tokenMeta[token]?.icon}
-        width={24}
-        height={24}
+        width={20}
+        height={20}
         alt={tokenMeta[token]?.symbol || 'token'}
+        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
       />
       <span>{formatToken(tokenMeta[token]?.symbol)}</span>
       <Icon icon="solar:alt-arrow-down-bold" className="text-xs text-default-500 flex-shrink-0" />

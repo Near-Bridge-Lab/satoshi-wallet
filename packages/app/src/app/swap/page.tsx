@@ -278,7 +278,7 @@ export default function Swap() {
                           classNames={{
                             base: 'flex-1',
                             input: 'text-2xl font-medium',
-                            inputWrapper: '!bg-transparent !border-none pl-0 shadow-none',
+                            inputWrapper: '!bg-transparent !border-none px-0 shadow-none',
                           }}
                           size="lg"
                           variant="bordered"
@@ -293,12 +293,14 @@ export default function Swap() {
                           }}
                           onFocus={() => setIsFocus(true)}
                           onBlur={() => setIsFocus(false)}
+                          endContent={
+                            <TokenSelectorButton
+                              token={tokenIn}
+                              onSelect={(token) => handleSelectToken('in', token)}
+                            />
+                          }
                         />
                       )}
-                    />
-                    <TokenSelectorButton
-                      token={tokenIn}
-                      onSelect={(token) => handleSelectToken('in', token)}
                     />
                   </div>
                   <div className="flex justify-between gap-2">

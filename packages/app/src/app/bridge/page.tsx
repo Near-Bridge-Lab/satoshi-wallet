@@ -240,7 +240,7 @@ export default function Bridge() {
                         classNames={{
                           base: 'flex-1',
                           input: 'text-2xl font-medium',
-                          inputWrapper: '!bg-transparent !border-none pl-0 shadow-none',
+                          inputWrapper: '!bg-transparent !border-none px-0 shadow-none',
                         }}
                         size="lg"
                         variant="bordered"
@@ -253,10 +253,10 @@ export default function Bridge() {
                         }}
                         onFocus={() => setIsFocus(true)}
                         onBlur={() => setIsFocus(false)}
+                        endContent={<TokenSelector chain={fromChain} />}
                       />
                     )}
                   />
-                  <TokenSelector chain={fromChain} />
                 </div>
                 <div className="flex justify-between gap-2">
                   <div className="text-default-500 text-sm">
@@ -403,7 +403,7 @@ function TokenSelector({
   return (
     <Button
       variant="flat"
-      className="flex items-center gap-2 cursor-default "
+      className="flex items-center gap-2 px-2.5 cursor-default flex-shrink-0"
       radius="full"
       onClick={() => onSelect?.(token)}
       disableAnimation
@@ -414,10 +414,10 @@ function TokenSelector({
             ? formatFileUrl('/assets/crypto/btc.svg')
             : tokenMeta[BTC_TOKEN_CONTRACT]?.icon
         }
-        width={16}
-        height={16}
+        width={20}
+        height={20}
         alt={token}
-        className="rounded-full"
+        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
       />
       <div className="flex items-center">
         {chain === 'btc' ? 'BTC' : tokenMeta[BTC_TOKEN_CONTRACT]?.symbol}
