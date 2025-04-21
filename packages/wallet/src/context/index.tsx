@@ -89,6 +89,19 @@ export const ConnectProvider = ({
       ]?.[0].version || '1.0.0',
   });
 
+  const getConnectorId = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    const id = localStorage.getItem('current-connector-id');
+    return id ?? '';
+  }, []);
+
+  const getConnector = useCallback(() => {
+    const connectorId = getConnectorId();
+    return connectors.find((item) => item.metadata.id === connectorId);
+  }, [connectorId, connectors]);
+
   const setAccountContract = useCallback(
     (config: AccountContract) => {
       if (!checkBTCVersion(options.aaOptions.accountContracts, config.name, config.version)) {
@@ -101,11 +114,11 @@ export const ConnectProvider = ({
   );
 
   useEffect(() => {
-    const id = localStorage.getItem('current-connector-id');
-    if (id) {
-      setConnectorId(id);
+    const connectorId = getConnectorId();
+    if (connectorId) {
+      setConnectorId(connectorId);
     }
-  }, [autoConnect]);
+  }, [autoConnect, getConnectorId]);
 
   const evmSupportChainIds = useMemo(() => {
     let chainIds = options.aaOptions.accountContracts[accountContract.name]
@@ -119,17 +132,16 @@ export const ConnectProvider = ({
     return chainIds;
   }, [options.aaOptions.accountContracts, accountContract]);
 
-  const connector = useMemo(() => {
-    return connectors.find((item) => item.metadata.id === connectorId);
-  }, [connectorId, connectors]);
+  const connector = useMemo(() => getConnector(), [connectorId, connectors]);
 
   const getPublicKey = useCallback(async () => {
+    const connector = getConnector();
     if (!connector) {
       throw new Error('Wallet not connected!');
     }
     const pubKey = await connector.getPublicKey();
     return pubKey;
-  }, [connector]);
+  }, [getConnector]);
 
   const signMessage = useCallback(
     async (message: string) => {
