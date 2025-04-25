@@ -6,7 +6,7 @@ import {
   XverseConnector,
   OKXConnector,
   BitgetConnector,
-  // MagicEdenConnector,
+  MagicEdenConnector,
   // BinanceConnector,
 } from '../connector';
 import { useBTCProvider, useConnectModal } from '../hooks';
@@ -36,7 +36,7 @@ export function BtcWalletSelectorContextProvider({
     new OKXConnector(),
     new BitgetConnector(),
     // new BinanceConnector(),
-    // new MagicEdenConnector(),
+    new MagicEdenConnector(),
   ];
 
   const walletSelectorContextValue = useMemo(() => {

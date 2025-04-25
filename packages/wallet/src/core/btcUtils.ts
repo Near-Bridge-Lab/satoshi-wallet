@@ -354,7 +354,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const csna = await getCsnaAccountId(env);
 
-    const depositAmount = Number(amount || action?.amount || 0);
+    const depositAmount = new Big(amount || action?.amount || 0).round(0, Big.roundDown).toNumber();
 
     console.log('depositAmount', depositAmount);
 
