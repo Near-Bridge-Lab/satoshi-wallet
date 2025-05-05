@@ -205,7 +205,8 @@ export default function Send() {
               )}
             ></Controller>
             <div className="text-default-500 text-right text-xs mt-3">
-              Balance: {formatNumber(balance)} {formatToken(tokenMeta[getValues('token')]?.symbol)}
+              Balance: {formatNumber(balance, { rm: Big.roundDown })}{' '}
+              {formatToken(tokenMeta[getValues('token')]?.symbol)}
               <Button
                 size="sm"
                 color="primary"

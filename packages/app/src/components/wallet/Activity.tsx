@@ -1,14 +1,16 @@
+import { useCallback, useState } from 'react';
 import { useInfiniteScroll, useRequest } from '@/hooks/useHooks';
 import Empty from '../basic/Empty';
-import { useCallback, useRef, useState } from 'react';
 import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/tranction';
 import Loading from '../basic/Loading';
-import dayjs from 'dayjs';
+import dayjs from '@/utils/dayjs';
 import { formatAmount, formatExplorerUrl, formatFileUrl, formatSortAddress } from '@/utils/format';
 import { Chip, ChipProps, Image, Link, Tab, Tabs } from '@nextui-org/react';
-import { Icon } from '@iconify/react/dist/iconify.js';
+import { Icon } from '@iconify/react';
 import Big from 'big.js';
 import Tooltip from '../basic/Tooltip';
+import NearActivity from './NearActivity';
+import { useWalletStore } from '@/stores/wallet';
 
 const StatusMap = {
   success: {
@@ -26,21 +28,30 @@ const StatusMap = {
 };
 
 export default function Activity() {
-  const [tab, setTab] = useState<'transaction' | 'bridge'>('transaction');
+  const { isNearWallet } = useWalletStore();
+  const [tab, setTab] = useState<'all' | 'near' | 'transaction' | 'bridge'>('all');
+
   return (
-    <div className="w-full">
-      <Tabs
-        color="primary"
-        selectedKey={tab}
-        onSelectionChange={(key) => setTab(key as 'transaction' | 'bridge')}
-      >
-        <Tab key="transaction" title="Transaction">
-          <TransactionHistory />
-        </Tab>
-        <Tab key="bridge" title="Bridge">
-          <BridgeTransactionHistory />
-        </Tab>
-      </Tabs>
+    <div className="w-full relative">
+      {isNearWallet ? (
+        <NearActivity />
+      ) : (
+        <Tabs
+          color="primary"
+          selectedKey={tab}
+          onSelectionChange={(key) => setTab(key as 'all' | 'transaction' | 'bridge')}
+        >
+          <Tab key="all" title="All">
+            <NearActivity />
+          </Tab>
+          <Tab key="transaction" title="Transaction">
+            <TransactionHistory />
+          </Tab>
+          <Tab key="bridge" title="Bridge">
+            <BridgeTransactionHistory />
+          </Tab>
+        </Tabs>
+      )}
     </div>
   );
 }
@@ -105,10 +116,10 @@ BridgeStatusWithdrawLessFee = 102
 
   return (
     <div className="w-full">
-      {txs.length ? (
+      {txs?.length ? (
         txs.map((tx, index) => (
-          <div key={index} className="card block mb-3 w-full">
-            <div className="flex items-center justify-between mb-2">
+          <div key={index} className="card block mb-3 w-full space-y-2">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Image
                   src={formatFileUrl(`/assets/chain/${tx.FromChainId === 1 ? 'btc' : 'near'}.svg`)}
@@ -121,13 +132,10 @@ BridgeStatusWithdrawLessFee = 102
                   width={18}
                   height={18}
                 />
-                <Status data={tx} className="ml-2" />
               </div>
-              <div className="text-default-500 text-xs">
-                {dayjs(tx.UpdateTime * 1000).format('YYYY/MM/DD HH:mm:ss')}
-              </div>
+              <Status data={tx} />
             </div>
-            <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center justify-between gap-3">
               <div className="text-default-500 text-xs">
                 Send: <span className="text-default-800">{formatSortAddress(tx.FromAccount)}</span>
               </div>
@@ -135,7 +143,7 @@ BridgeStatusWithdrawLessFee = 102
                 Receive: <span className="text-default-800">{formatSortAddress(tx.ToAccount)}</span>
               </div>
             </div>
-            <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center justify-between gap-3">
               <div className="text-default-500 text-xs">
                 Tx:{' '}
                 <Link
@@ -190,6 +198,9 @@ BridgeStatusWithdrawLessFee = 102
                 </Tooltip>
                 BTC
               </div>
+            </div>
+            <div className="text-default-400 text-xs text-right">
+              {dayjs(tx.UpdateTime * 1000).format('YYYY/MM/DD HH:mm')}
             </div>
           </div>
         ))
@@ -246,24 +257,21 @@ export function TransactionHistory({ address }: { address?: string }) {
 
   return (
     <div className="w-full">
-      {txs.length ? (
+      {txs?.length ? (
         txs.map((tx, index) => (
           <div key={index} className="card mb-3">
-            <div className="w-full">
+            <div className="w-full space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-base">Contract Call</span>
-                  {Status(tx)}
                 </div>
-                <div className="text-default-500 text-xs">
-                  {dayjs(tx.UpdateTime * 1000).format('YYYY/MM/DD HH:mm:ss')}
-                </div>
+                {Status(tx)}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {tx.NearHashList.map((hash, index) => (
                   <Link
                     key={index}
-                    className="text-default-500"
+                    className="text-default-500 text-xs"
                     href={formatExplorerUrl('NEAR', hash)}
                     showAnchorIcon
                     isExternal
@@ -272,6 +280,9 @@ export function TransactionHistory({ address }: { address?: string }) {
                     {formatSortAddress(hash)}
                   </Link>
                 ))}
+              </div>
+              <div className="text-default-400 text-xs text-right">
+                {dayjs(tx.UpdateTime * 1000).format('YYYY/MM/DD HH:mm')}
               </div>
             </div>
           </div>

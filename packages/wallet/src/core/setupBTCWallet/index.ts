@@ -134,7 +134,12 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         if (btcPublicKey) {
           await getNearAccountByBtcPublicKey(btcPublicKey);
           removeWalletButton();
-          setupWalletButton(env, wallet as any, btcContext, (metadata as any).walletUrl);
+          setupWalletButton({
+            env,
+            nearWallet: wallet as any,
+            btcWallet: btcContext,
+            walletUrl: (metadata as any).walletUrl,
+          });
         }
       } else {
         removeWalletButton();

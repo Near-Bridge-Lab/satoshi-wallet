@@ -40,7 +40,7 @@ export default function TokenDetailPage() {
             classNames={{ wrapper: 'rounded-full overflow-hidden w-15 h-15 mb-5' }}
           />
           <div className="text-lg font-bold">
-            {formatNumber(balance)} {formatToken(tm?.symbol)}
+            {formatNumber(balance, { rm: Big.roundDown })} {formatToken(tm?.symbol)}
           </div>
           <div className="text-default-500">${formatPrice(balancesUSD)}</div>
         </div>

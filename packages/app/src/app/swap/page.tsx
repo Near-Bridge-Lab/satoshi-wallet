@@ -64,7 +64,7 @@ export default function Swap() {
   const amountIn = watch('amountIn') || '0';
   const tokenIn = watch('tokenIn');
   const tokenOut = watch('tokenOut');
-  // 添加滑点相关状态
+
   const [slippage, setSlippage] = useState(defaultSlippage);
 
   const [priceReverse, setPriceReverse] = useState(false);
@@ -306,7 +306,7 @@ export default function Swap() {
                   <div className="flex justify-between gap-2">
                     <div className="text-default-500 text-sm">${formatPrice(tokenInUSDValue)}</div>
                     <div className="text-default-500 text-sm">
-                      Balance: {formatNumber(balanceIn)}
+                      Balance: {formatNumber(balanceIn, { rm: Big.roundDown })}
                       <Button
                         size="sm"
                         variant="light"
@@ -357,7 +357,7 @@ export default function Swap() {
                   <div className="flex justify-between gap-2">
                     <div className="text-default-500 text-sm">${formatPrice(tokenOutUSDValue)}</div>
                     <div className="text-default-500 text-sm">
-                      Balance: {formatNumber(balanceOut)}
+                      Balance: {formatNumber(balanceOut, { rm: Big.roundDown })}
                     </div>
                   </div>
                 </div>

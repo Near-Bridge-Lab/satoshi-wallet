@@ -5,16 +5,45 @@ import {
 } from 'ref-modal-ui';
 import type { WalletSelector, WalletSelectorState } from '@near-wallet-selector/core';
 import { Dialog } from '../utils/Dialog';
-export type WalletSelectorModalOptions = _ModalOptions;
+import { removeWalletButton, setupWalletButton } from '../utils/initWalletButton';
+import { ENV } from '../config';
+
+export interface WalletSelectorModalOptions extends _ModalOptions {
+  showChainGroups?: boolean;
+  showWalletUIForNearAccount?: boolean;
+  walletUrl?: string;
+  env?: ENV;
+}
 export type WalletSelectorModal = _WalletSelectorModal;
+
+let subscription: any;
 
 export function setupWalletSelectorModal(
   selector: WalletSelector,
   options: WalletSelectorModalOptions,
 ) {
   if (!selector) throw new Error('selector is required');
+
+  const {
+    showChainGroups = true,
+    showWalletUIForNearAccount = true,
+    env = 'mainnet',
+    walletUrl,
+  } = options;
+
+  subscription?.unsubscribe();
   const state = selector.store.getState();
   const group = getGroup(state);
+  subscription = selector.store.observable.subscribe((state: WalletSelectorState) => {
+    const walletId = state.selectedWalletId;
+    console.log('setupWalletSelectorModal walletId', walletId);
+    if (!walletId) removeWalletButton();
+    if (showWalletUIForNearAccount && walletId !== 'btc-wallet') {
+      selector.wallet().then((wallet) => {
+        setupWalletButton({ env, nearWallet: wallet, walletUrl });
+      });
+    }
+  });
 
   if (group.includes('btc')) {
     document.head.appendChild(document.createElement('style')).textContent = `
@@ -28,7 +57,7 @@ export function setupWalletSelectorModal(
   const originalShow = modal.show.bind(modal);
 
   modal.show = async () => {
-    const chain = group.length > 1 ? await openChainModal() : group[0];
+    const chain = group.length > 1 && showChainGroups ? await openChainModal() : group[0];
     if (chain === 'btc') {
       const module = state.modules.find((module) => module.id === 'btc-wallet');
       if (module) {

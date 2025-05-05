@@ -11,6 +11,7 @@ import { useMemo, useState, useEffect } from 'react';
 import Loading from '../basic/Loading';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
+import { useWalletStore } from '@/stores/wallet';
 
 export function useTokenSelector() {
   const { openModal } = useMessageBoxContext();
@@ -44,14 +45,17 @@ export function Tokens({
   search?: string;
   onClick?: (token: string) => void;
 }) {
+  const { isNearWallet } = useWalletStore();
   const { displayableTokens = [], tokenMeta, prices, balances } = useTokenStore();
 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (displayableTokens.every((token) => tokenMeta[token]?.icon)) {
+    if (displayableTokens.every((token) => tokenMeta[token]?.icon || tokenMeta[token]?.symbol)) {
       setIsLoading(false);
     }
+    const timer = setTimeout(() => setIsLoading(false), 3000);
+    return () => clearTimeout(timer);
   }, [tokenMeta, displayableTokens]);
 
   const filteredTokens = useDebouncedMemo(
@@ -83,8 +87,10 @@ export function Tokens({
   const sortedTokens = useMemo(() => {
     return filteredTokens?.sort((a, b) => {
       // if near is the first token
-      if (a === BTC_TOKEN_CONTRACT) return -1;
-      if (b === BTC_TOKEN_CONTRACT) return 1;
+      if (!isNearWallet) {
+        if (a === BTC_TOKEN_CONTRACT) return -1;
+        if (b === BTC_TOKEN_CONTRACT) return 1;
+      }
       return new Big(balancesUSD?.[b] || 0).minus(balancesUSD?.[a] || 0).toNumber();
     });
   }, [balancesUSD, filteredTokens]);
@@ -97,7 +103,7 @@ export function Tokens({
     <div className={`flex flex-col ${mode === 'select' ? 'gap-1' : 'gap-4'}`}>
       {sortedTokens?.map((token, index) => (
         <div
-          key={index}
+          key={token}
           className={`card cursor-pointer text-sm ${mode === 'select' ? 'bg-transparent' : ''}`}
           onClick={() => onClick?.(token)}
         >
@@ -118,7 +124,9 @@ export function Tokens({
             </div>
           </div>
           <div>
-            <div className="text-base font-bold text-right">{formatNumber(balances?.[token])}</div>
+            <div className="text-base font-bold text-right">
+              {formatNumber(balances?.[token], { rm: Big.roundDown })}
+            </div>
             <div className="text-xs text-default-500 text-right">
               ${formatPrice(balancesUSD?.[token])}
             </div>

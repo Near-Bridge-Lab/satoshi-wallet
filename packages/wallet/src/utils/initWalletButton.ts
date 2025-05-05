@@ -2,17 +2,24 @@ import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
 import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
 
+interface setupWalletButtonOptions {
+  env: ENV;
+  nearWallet: Wallet;
+  btcWallet?: OriginalWallet;
+  walletUrl?: string;
+}
+
 interface OriginalWallet {
   account: string | undefined;
   getPublicKey: () => Promise<string | undefined>;
 }
 
-export function setupWalletButton(
-  env: ENV,
-  wallet: Wallet,
-  originalWallet: OriginalWallet,
-  walletUrl?: string,
-) {
+export function setupWalletButton({
+  env,
+  nearWallet,
+  btcWallet,
+  walletUrl,
+}: setupWalletButtonOptions) {
   console.log(`setupWalletButton ${walletUrl || ''}`);
   if (document.getElementById('satoshi-wallet-button')) {
     return;
@@ -38,7 +45,7 @@ export function setupWalletButton(
     iframe,
   });
 
-  setupButtonClickHandler(button, iframe, wallet, originalWallet);
+  setupButtonClickHandler(button, iframe, nearWallet, btcWallet);
 }
 
 function createFloatingButtonWithIframe({
@@ -53,7 +60,7 @@ function createFloatingButtonWithIframe({
   const button = document.createElement('img');
   button.id = 'satoshi-wallet-button';
 
-  const isIframeVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+  const isIframeVisible = localStorage.getItem('satoshi-wallet-iframe-visible') === 'true';
 
   button.src = isIframeVisible ? closeImageUrl : openImageUrl;
   iframe.style.display = isIframeVisible ? 'block' : 'none';
@@ -62,7 +69,7 @@ function createFloatingButtonWithIframe({
   const windowHeight = window.innerHeight;
 
   const savedPosition = JSON.parse(
-    localStorage.getItem('btc-wallet-button-position') || '{"right": "20px", "bottom": "20px"}',
+    localStorage.getItem('satoshi-wallet-button-position') || '{"right": "20px", "bottom": "20px"}',
   );
 
   const right = Math.min(Math.max(20, parseInt(savedPosition.right)), windowWidth - 80);
@@ -183,7 +190,7 @@ function createFloatingButtonWithIframe({
     button.style.transition = 'transform 0.15s ease';
 
     localStorage.setItem(
-      'btc-wallet-button-position',
+      'satoshi-wallet-button-position',
       JSON.stringify({
         right: button.style.right,
         bottom: button.style.bottom,
@@ -206,7 +213,7 @@ function createFloatingButtonWithIframe({
     iframe.style.display = newVisibleState ? 'block' : 'none';
     button.src = newVisibleState ? closeImageUrl : openImageUrl;
 
-    localStorage.setItem('btc-wallet-iframe-visible', String(newVisibleState));
+    localStorage.setItem('satoshi-wallet-iframe-visible', String(newVisibleState));
 
     setTimeout(() => {
       if (newVisibleState) {
@@ -232,7 +239,7 @@ function createIframe({
   iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
-  const isVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+  const isVisible = localStorage.getItem('satoshi-wallet-iframe-visible') === 'true';
 
   Object.assign(iframe.style, {
     position: 'fixed',
@@ -256,12 +263,12 @@ let currentMessageHandler: ((event: MessageEvent) => void) | null = null;
 async function setupButtonClickHandler(
   button: HTMLImageElement,
   iframe: HTMLIFrameElement,
-  wallet: Wallet,
-  originalWallet: OriginalWallet,
+  nearWallet: Wallet,
+  btcWallet?: OriginalWallet,
 ) {
-  const accountId = (await wallet?.getAccounts())?.[0].accountId;
-  const originalAccountId = originalWallet.account;
-  const originalPublicKey = await originalWallet.getPublicKey();
+  const accountId = (await nearWallet?.getAccounts())?.[0].accountId;
+  const originalAccountId = btcWallet?.account;
+  const originalPublicKey = await btcWallet?.getPublicKey();
   console.log({ accountId, originalAccountId, originalPublicKey });
   const iframeSrc = new URL(iframe.src);
   iframeSrc.searchParams.set('origin', window.location.origin);
@@ -272,8 +279,8 @@ async function setupButtonClickHandler(
   iframe.src = iframeSrc.toString();
 
   const actions = {
-    signAndSendTransaction: wallet.signAndSendTransaction,
-    signAndSendTransactions: wallet.signAndSendTransactions,
+    signAndSendTransaction: nearWallet.signAndSendTransaction,
+    signAndSendTransactions: nearWallet.signAndSendTransactions,
     executeBTCDepositAndAction,
     getWithdrawTransaction,
   };
@@ -319,6 +326,7 @@ async function setupButtonClickHandler(
 }
 
 export function removeWalletButton() {
+  console.log('removeWalletButton');
   const button = document.getElementById('satoshi-wallet-button');
   button?.remove();
   const iframe = document.getElementById('satoshi-wallet-iframe');

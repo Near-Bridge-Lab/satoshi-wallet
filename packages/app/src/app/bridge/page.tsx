@@ -266,6 +266,7 @@ export default function Bridge() {
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: fromChain })?.balance || 0, {
                       displayDecimals: 8,
+                      rm: Big.roundDown,
                     })}
                     <Button
                       size="sm"
@@ -319,6 +320,7 @@ export default function Bridge() {
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: toChain })?.balance || 0, {
                       displayDecimals: 8,
+                      rm: Big.roundDown,
                     })}
                   </div>
                 </div>
