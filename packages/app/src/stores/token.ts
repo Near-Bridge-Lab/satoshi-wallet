@@ -18,7 +18,7 @@ type State = {
   displayableTokens?: string[];
   tokenMeta: Record<string, TokenMetadata | undefined>;
   setTokenMeta: (tokenMeta: Record<string, TokenMetadata | undefined>) => void;
-  prices: Record<string, string>;
+  prices: Record<string, { price: string; symbol: string; decimal: number }>;
   balances?: Record<string, string>;
   refreshBalance: (token: string) => void;
 };

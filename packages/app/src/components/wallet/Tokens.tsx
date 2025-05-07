@@ -75,14 +75,12 @@ export function Tokens({
   const balancesUSD = useMemo(() => {
     return displayableTokens.reduce(
       (acc, token) => {
-        const symbol = tokenMeta[token]?.symbol;
-        if (!symbol) return acc;
-        acc[token] = new Big(prices?.[symbol] || 0).times(balances?.[token] || 0).toNumber();
+        acc[token] = new Big(prices?.[token]?.price || 0).times(balances?.[token] || 0).toNumber();
         return acc;
       },
       {} as Record<string, number>,
     );
-  }, [balances, prices, tokenMeta, displayableTokens]);
+  }, [balances, prices, displayableTokens]);
 
   const sortedTokens = useMemo(() => {
     return filteredTokens?.sort((a, b) => {
@@ -119,7 +117,7 @@ export function Tokens({
             <div>
               <div className="text-base font-bold">{formatToken(tokenMeta[token]?.symbol)}</div>
               <div className="text-xs text-default-500">
-                {tokenMeta[token]?.symbol ? formatPrice(prices?.[tokenMeta[token]?.symbol]) : '-'}
+                {tokenMeta[token]?.symbol ? `$${formatPrice(prices?.[token]?.price)}` : '-'}
               </div>
             </div>
           </div>
@@ -128,7 +126,7 @@ export function Tokens({
               {formatNumber(balances?.[token], { rm: Big.roundDown })}
             </div>
             <div className="text-xs text-default-500 text-right">
-              ${formatPrice(balancesUSD?.[token])}
+              ≈ ${formatPrice(balancesUSD?.[token])}
             </div>
           </div>
         </div>

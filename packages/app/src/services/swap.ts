@@ -87,8 +87,8 @@ export const nearSwapServices = {
       slippage,
       routerCount,
     });
-    const { tokenMeta, prices } = useTokenStore.getState();
-    const tokenInPrice = prices[tokenMeta[tokenIn]?.symbol!] || 0;
+    const { prices } = useTokenStore.getState();
+    const tokenInPrice = prices[tokenIn]?.price || 0;
     // calculate new price (tokenIn/tokenOut)
     const newPrice = new Big(amountIn).div(new Big(newRes.amountOut).eq(0) ? 1 : newRes.amountOut);
     const minimumAmountIn = new Big(1)

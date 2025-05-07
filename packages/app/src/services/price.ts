@@ -7,13 +7,6 @@ export const priceServices = {
     const res = await request<Record<string, { price: string; symbol: string; decimal: number }>>(
       refFinanceApi + '/list-token-price',
     );
-    const prices = Object.fromEntries(
-      Object.values(res).map(({ price, symbol }) => [symbol, price]),
-    );
-    prices['NEAR'] = prices['wNEAR'];
-    prices['WETH'] = prices['ETH'];
-    prices['BTC'] = prices['WBTC'];
-    prices['NBTC'] = prices['WBTC'];
-    return prices;
+    return res;
   },
 };
