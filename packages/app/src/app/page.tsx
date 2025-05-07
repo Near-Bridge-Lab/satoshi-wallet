@@ -118,7 +118,7 @@ function Balance({ className }: { className?: string }) {
       }
       return acc.plus(
         safeBig(balance)
-          .times(safeBig(prices?.[tokenMeta[token]?.symbol!] || 0))
+          .times(safeBig(prices?.[token]?.price || 0))
           .toNumber(),
       );
     }, safeBig(0));

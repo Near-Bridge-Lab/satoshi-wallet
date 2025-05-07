@@ -164,16 +164,14 @@ export default function Swap() {
   const balanceOut = useMemo(() => balances?.[tokenOut], [balances, tokenOut]);
 
   const tokenInPrice = useMemo(() => {
-    const symbol = tokenMeta[tokenIn]?.symbol;
-    if (!symbol || !prices[symbol]) return '0';
-    return prices[symbol];
-  }, [tokenIn, tokenMeta, prices]);
+    if (!prices[tokenIn]?.price) return '0';
+    return prices[tokenIn].price;
+  }, [tokenIn, prices]);
 
   const tokenOutPrice = useMemo(() => {
-    const symbol = tokenMeta[tokenOut]?.symbol;
-    if (!symbol || !prices[symbol]) return '0';
-    return prices[symbol];
-  }, [tokenOut, tokenMeta, prices]);
+    if (!prices[tokenOut]?.price) return '0';
+    return prices[tokenOut].price;
+  }, [tokenOut, prices]);
 
   const tokenInUSDValue = useMemo(() => {
     if (new Big(amountIn).eq(0) || !tokenIn) return '0';

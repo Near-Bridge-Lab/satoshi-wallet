@@ -24,8 +24,8 @@ export default function TokenDetailPage() {
     pollingInterval: 30000,
   });
   const balancesUSD = useMemo(
-    () => (tm?.symbol ? new Big(prices?.[tm.symbol] || 0).times(balance || 0).toNumber() : 0),
-    [balance, prices, tm],
+    () => new Big(prices?.[address]?.price || 0).times(balance || 0).toNumber(),
+    [balance, prices, address],
   );
 
   return (

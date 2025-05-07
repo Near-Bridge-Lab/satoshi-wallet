@@ -100,7 +100,7 @@ export default function Bridge() {
 
   const calculateUSD = useCallback(
     ({ amount }: { amount: string }) => {
-      const btcPrice = prices?.['BTC'];
+      const btcPrice = prices?.[process.env.NEXT_PUBLIC_BTC_TOKEN_CONTRACT]?.price;
       return '$ ' + formatPrice(new Big(amount).times(btcPrice || 0).toString());
     },
     [prices],
