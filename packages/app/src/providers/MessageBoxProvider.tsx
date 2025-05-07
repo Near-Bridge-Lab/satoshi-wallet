@@ -138,7 +138,8 @@ export const MessageBoxProvider = ({ children }: { children: React.ReactNode }) 
           <Modal
             {...rest}
             key={id}
-            isOpen={true}
+            defaultOpen={true}
+            scrollBehavior="inside"
             onClose={() => {
               reject?.(id);
               close?.();

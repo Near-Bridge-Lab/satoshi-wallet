@@ -54,7 +54,7 @@ export default function Tokens() {
           size="lg"
           isClearable
           placeholder="Search tokens"
-          startContent={<Icon icon="eva:search-fill" className="text-default-500" />}
+          startContent={<Icon icon="eva:search-fill" className="text-default-500 text-lg" />}
           onChange={(e) => setSearch(e.target.value)}
           onClear={() => setSearch('')}
         />

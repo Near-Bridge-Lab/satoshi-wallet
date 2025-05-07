@@ -236,6 +236,7 @@ export function TokenSelector({
       <div>
         <Input
           placeholder="Search Tokens"
+          startContent={<Icon icon="eva:search-fill" className="text-default-500 text-lg" />}
           size="lg"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
