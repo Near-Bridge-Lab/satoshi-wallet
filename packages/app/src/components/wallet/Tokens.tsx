@@ -3,7 +3,7 @@ import { BTC_TOKEN_CONTRACT } from '@/config';
 import { useDebouncedMemo, useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
 import { useTokenStore } from '@/stores/token';
-import { formatNumber, formatPrice, formatToken } from '@/utils/format';
+import { formatNumber, formatPrice, formatSortAddress, formatToken } from '@/utils/format';
 import { isValidNearAddress } from '@/utils/validate';
 import { Button, Image, Input } from '@nextui-org/react';
 import Big from 'big.js';
@@ -106,16 +106,20 @@ export function Tokens({
           onClick={() => onClick?.(token)}
         >
           <div className="flex items-center gap-2">
-            {tokenMeta[token]?.icon && (
+            {tokenMeta[token]?.icon ? (
               <Image
                 src={tokenMeta[token]?.icon}
                 width={30}
                 height={30}
                 alt={tokenMeta[token]?.symbol || 'token'}
               />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-default-200 flex items-center justify-center"></div>
             )}
             <div>
-              <div className="text-base font-bold">{formatToken(tokenMeta[token]?.symbol)}</div>
+              <div className="text-base font-bold">
+                {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
+              </div>
               <div className="text-xs text-default-500">
                 {tokenMeta[token]?.symbol ? `$${formatPrice(prices?.[token]?.price)}` : '-'}
               </div>

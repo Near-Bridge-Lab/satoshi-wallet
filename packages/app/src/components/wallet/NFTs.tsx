@@ -33,12 +33,14 @@ export function NFTs() {
         const imageUrl = nft?.metadata?.media || '/assets/nft-placeholder.png';
 
         return (
-          <Card key={index} className="py-0" radius="lg">
-            <CardBody className="overflow-visible py-2 flex justify-center items-center">
+          <div key={index} className="card flex flex-col gap-4">
+            <div className="overflow-visible flex justify-center items-center">
               <Image alt={displayName} className="object-cover h-20" src={imageUrl} width="100%" />
-            </CardBody>
-            <CardFooter className="py-2 text-xs line-clamp-2">{displayName}</CardFooter>
-          </Card>
+            </div>
+            <div className="text-xs line-clamp-2 overflow-hidden max-w-full break-words">
+              {displayName}
+            </div>
+          </div>
         );
       })}
     </div>

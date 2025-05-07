@@ -17,7 +17,7 @@ type State = {
   setHiddenTokens?: (hiddenTokens: string[]) => void;
   displayableTokens?: string[];
   tokenMeta: Record<string, TokenMetadata | undefined>;
-  setTokenMeta: (tokenMeta: Record<string, TokenMetadata | undefined>) => void;
+  setTokenMeta: (tokenMeta?: Record<string, TokenMetadata | undefined>) => void;
   prices: Record<string, { price: string; symbol: string; decimal: number }>;
   balances?: Record<string, string>;
   refreshBalance: (token: string) => void;
@@ -74,7 +74,7 @@ export const useTokenStore = create<State>((set, get) => ({
     (token) => !storage?.get<string[]>('hiddenTokens')?.includes(token),
   ),
   setTokenMeta: (tokenMeta) => {
-    const mergedTokenMeta = { ...get().tokenMeta, ...tokenMeta };
+    const mergedTokenMeta = { ...get().tokenMeta, ...(tokenMeta || {}) };
     storage?.set('tokenMeta', mergedTokenMeta);
     set({ tokenMeta: mergedTokenMeta });
   },
@@ -138,14 +138,14 @@ async function subscribeTokensChange(store: StoreApi<State>) {
 
   if (existingTokens?.length) {
     queryTokenMetadata(existingTokens)?.then((tokenMeta) => {
-      store.setState({ tokenMeta: tokenMeta || {} });
+      store.getState().setTokenMeta(tokenMeta);
     });
   }
 
   store.subscribe(async (state, prevState) => {
     if (state.tokens && !isEqual(state.tokens, prevState.tokens)) {
       const tokenMeta = await queryTokenMetadata(state.tokens);
-      state.setTokenMeta(tokenMeta || {});
+      state.setTokenMeta(tokenMeta);
       setDisplayableTokens();
     }
   });
