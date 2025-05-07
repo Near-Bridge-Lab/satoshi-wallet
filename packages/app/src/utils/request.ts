@@ -82,7 +82,7 @@ export default async function request<T>(url: string, options?: RequestOptions<T
     } else if (options?.pollingInterval && options?.maxPollingAttempts) {
       if (options.maxPollingAttempts > 0) {
         console.log(`Polling... attempts left: ${options.maxPollingAttempts}`);
-        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval)); // 等待轮询间隔时间
+        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
         return request(url, {
           ...options,
           maxPollingAttempts: options.maxPollingAttempts - 1,

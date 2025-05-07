@@ -73,7 +73,7 @@ export const nearRpcUrls = {
   mainnet: [
     'https://near.lava.build',
     'https://rpc.mainnet.near.org',
-    'https://free.rpc.fastnear.com',
+    'https://mw.rpc.fastnear.com',
     'https://near.drpc.org',
   ],
   testnet: ['https://rpc.testnet.near.org'],

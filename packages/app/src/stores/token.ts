@@ -2,10 +2,13 @@ import { create, StoreApi } from 'zustand';
 import { priceServices } from '@/services/price';
 import { TOKEN_WHITE_LIST } from '@/config';
 import { sleep, storageStore } from '@/utils/common';
-import { nearServices } from '@/services/near';
 import { isEqual } from 'lodash-es';
+import { formatAmount } from '@/utils/format';
+import { nearServices } from '@/services/near';
+import { fastNearServices } from '@/services/fastnear';
 
 const storage = storageStore('tokens');
+const nftStorage = storageStore('nfts');
 
 type State = {
   tokens?: string[];
@@ -19,6 +22,35 @@ type State = {
   balances?: Record<string, string>;
   refreshBalance: (token: string) => void;
 };
+
+// NFT Store
+type NFTState = {
+  nfts: NFTMetadata[];
+  setNFTs: (nfts: NFTMetadata[]) => void;
+  refreshNFTs: () => void;
+};
+
+export const useNFTStore = create<NFTState>((set, get) => ({
+  nfts: nftStorage?.get('nfts') || [],
+  setNFTs: (nfts) => {
+    set({ nfts });
+    nftStorage?.set('nfts', nfts);
+  },
+  refreshNFTs: async () => {
+    const accountId = nearServices.getNearAccountId();
+    if (!accountId) return;
+
+    try {
+      const data = await fastNearServices.getAccountNFTs(accountId);
+      if (data?.length && Array.isArray(data)) {
+        set({ nfts: data });
+        nftStorage?.set('nfts', data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch NFTs from FastNear:', error);
+    }
+  },
+}));
 
 export const useTokenStore = create<State>((set, get) => ({
   tokens: storage?.get('tokens') || TOKEN_WHITE_LIST,
@@ -48,7 +80,7 @@ export const useTokenStore = create<State>((set, get) => ({
   },
   prices: {},
   balances: {},
-  refreshBalance: (token) => {
+  refreshBalance: async (token) => {
     nearServices.getBalance(token).then((balance) => {
       set((state) => {
         return (state.balances = {
@@ -60,12 +92,53 @@ export const useTokenStore = create<State>((set, get) => ({
   },
 }));
 
-function subscribeTokensChange(store: StoreApi<State>) {
-  const initState = store.getState();
+function setDisplayableTokens() {
+  const { tokens, hiddenTokens } = useTokenStore.getState();
+  const displayableTokens = (tokens || []).filter((token) => !hiddenTokens?.includes(token));
+  useTokenStore.setState({ displayableTokens });
+}
 
-  if (initState.tokens?.length) {
-    queryTokenMetadata(initState.tokens)?.then((tokenMeta) => {
-      initState.setTokenMeta(tokenMeta || {});
+async function queryTokenMetadata(tokens: string[]) {
+  try {
+    const unFetchedTokens = tokens?.filter((token) => !useTokenStore.getState().tokenMeta?.[token]);
+    return nearServices.queryTokenMetadata(unFetchedTokens) as Promise<
+      Record<string, TokenMetadata | undefined> | undefined
+    >;
+  } catch (error) {
+    console.error(error);
+    return undefined;
+  }
+}
+
+async function subscribeTokensChange(store: StoreApi<State>) {
+  let existingTokens = store.getState().tokens || [];
+  const accountId = nearServices.getNearAccountId();
+
+  try {
+    if (accountId) {
+      const data = await fastNearServices.getAccountTokens(accountId);
+
+      if (data && Array.isArray(data)) {
+        const heldTokens = data.map((t: any) => t.contract_id);
+
+        const newTokens = heldTokens.filter((token: string) => !existingTokens.includes(token));
+
+        if (newTokens.length > 0) {
+          const updatedTokens = [...existingTokens, ...newTokens];
+          store.setState({ tokens: updatedTokens });
+          storage?.set('tokens', updatedTokens);
+          existingTokens = updatedTokens;
+          setDisplayableTokens();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch tokens from FastNear:', error);
+  }
+
+  if (existingTokens?.length) {
+    queryTokenMetadata(existingTokens)?.then((tokenMeta) => {
+      store.setState({ tokenMeta: tokenMeta || {} });
     });
   }
 
@@ -78,60 +151,60 @@ function subscribeTokensChange(store: StoreApi<State>) {
   });
 }
 
-function setDisplayableTokens() {
-  const { tokens, hiddenTokens } = useTokenStore.getState();
-  const displayableTokens = tokens?.filter((token) => !hiddenTokens?.includes(token));
-  useTokenStore.setState({ displayableTokens });
-}
-
-function queryTokenMetadata(tokens: string[]) {
-  try {
-    const unFetchedTokens = tokens?.filter((token) => !useTokenStore.getState().tokenMeta?.[token]);
-    return nearServices.queryTokenMetadata(unFetchedTokens);
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-function pollingQueryPrice(store: StoreApi<State>) {
-  priceServices.queryPrices().then((prices) => {
+async function pollingQueryPrice(store: StoreApi<State>) {
+  const { tokenMeta } = store.getState();
+  if (tokenMeta) {
+    // const symbols = Object.values(tokenMeta).map((meta) => meta?.symbol || '');
+    const prices = await priceServices.queryPrices();
     store.setState({ prices });
-  });
-  setTimeout(() => pollingQueryPrice(store), 60000);
+  }
+  setTimeout(() => pollingQueryPrice(store), 30000);
 }
 
 async function pollingQueryBalance(store: StoreApi<State>) {
-  await sleep(1000);
   const { displayableTokens } = store.getState();
-  if (displayableTokens?.length) {
-    const res = await Promise.all(displayableTokens.map((token) => nearServices.getBalance(token)));
-    const balances = displayableTokens.reduce(
-      (acc, token, index) => {
-        acc[token] = res[index];
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-    store.setState({ balances });
+  const accountId = nearServices.getNearAccountId();
+
+  if (displayableTokens?.length && accountId) {
+    try {
+      const balanceRes = await Promise.all(
+        displayableTokens.map((token) => nearServices.getBalance(token)),
+      );
+      const balances = displayableTokens.reduce(
+        (acc, token, index) => {
+          acc[token] = balanceRes[index];
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+      store.setState({ balances });
+    } catch (error) {
+      console.error('Failed to fetch token balances:', error);
+    }
   }
-  setTimeout(
-    () => pollingQueryBalance(store),
-    process.env.NODE_ENV === 'development' ? 120000 : 30000,
-  );
+
+  setTimeout(() => pollingQueryBalance(store), 30000);
+}
+
+async function pollingQueryNFTs(store: StoreApi<NFTState>) {
+  const accountId = nearServices.getNearAccountId();
+  if (accountId) {
+    store.getState().refreshNFTs();
+  }
+  setTimeout(() => pollingQueryNFTs(store), 600000);
 }
 
 async function initializeStore() {
   try {
     await subscribeTokensChange(useTokenStore);
-    pollingQueryPrice(useTokenStore);
     pollingQueryBalance(useTokenStore);
+    pollingQueryPrice(useTokenStore);
+    pollingQueryNFTs(useNFTStore);
   } catch (error) {
     console.error('initialize store failed:', error);
   }
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('load', () => {
-    initializeStore();
-  });
+  window.addEventListener('load', initializeStore);
 }
