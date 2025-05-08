@@ -25,6 +25,7 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  Link,
 } from '@nextui-org/react';
 import Big from 'big.js';
 import dynamic from 'next/dynamic';
@@ -40,6 +41,12 @@ export default function Home() {
       <Balance className="mb-10" />
       <Tools className="mb-10" />
       <Portfolio />
+      <footer className="text-center text-xs text-default-500 pt-6">
+        Powered By{' '}
+        <Link href="https://satos.network/" isExternal className="text-xs">
+          SatoshiProtocol
+        </Link>
+      </footer>
     </main>
   );
 }

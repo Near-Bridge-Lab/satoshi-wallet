@@ -69,6 +69,8 @@ export default function Setting() {
                   <Icon icon="eva:chevron-right-fill" className="text-lg text-default-500" />
                 }
                 classNames={{ base: 'py-3' }}
+                href="https://docs.satos.network/general/contact-us"
+                target="_blank"
               >
                 Contact Us
               </ListboxItem>
@@ -79,6 +81,8 @@ export default function Setting() {
                   <Icon icon="eva:chevron-right-fill" className="text-lg text-default-500" />
                 }
                 classNames={{ base: 'py-3' }}
+                href="https://docs.satos.network/general/privacy-policy"
+                target="_blank"
               >
                 Privacy Policy
               </ListboxItem>

@@ -8,6 +8,7 @@ import { useRequest } from '@/hooks/useHooks';
 import { formatExplorerUrl, formatSortAddress } from '@/utils/format';
 import { useTokenStore } from '@/stores/token';
 import { NEAR_TOKEN_CONTRACT } from '@/config';
+import TokenIcon from './TokenIcon';
 
 // Get transaction action type and details
 const getTransactionAction = (tx: Transaction) => {
@@ -167,12 +168,7 @@ export default function NearActivity() {
                 <div className="flex items-center gap-4 w-full">
                   <div className="flex-shrink-0">
                     {action.token ? (
-                      <Image
-                        src={tokenMeta[action.token]?.icon}
-                        width={30}
-                        height={30}
-                        alt={tokenMeta[action.token]?.symbol || 'token'}
-                      />
+                      <TokenIcon address={action.token} width={30} height={30} />
                     ) : (
                       getTransactionIcon(action.type, action.details)
                     )}

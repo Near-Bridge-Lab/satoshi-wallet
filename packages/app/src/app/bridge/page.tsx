@@ -27,6 +27,7 @@ import { getBtcBalance, getWithdrawTransaction } from 'btc-wallet';
 import { btcBridgeServices } from '@/services/bridge';
 import { rpcToWallet } from '@/utils/request';
 import { nearServices } from '@/services/near';
+import TokenIcon from '@/components/wallet/TokenIcon';
 
 interface BridgeForm {
   fromChain: string;
@@ -410,17 +411,16 @@ function TokenSelector({
       onClick={() => onSelect?.(token)}
       disableAnimation
     >
-      <Image
-        src={
+      <TokenIcon
+        url={
           chain === 'btc'
             ? formatFileUrl('/assets/crypto/btc.svg')
             : tokenMeta[BTC_TOKEN_CONTRACT]?.icon
         }
         width={20}
         height={20}
-        alt={token}
-        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
       />
+
       <div className="flex items-center">
         {chain === 'btc' ? 'BTC' : tokenMeta[BTC_TOKEN_CONTRACT]?.symbol}
       </div>

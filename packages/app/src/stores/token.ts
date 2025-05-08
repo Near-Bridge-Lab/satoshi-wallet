@@ -1,14 +1,12 @@
 import { create, StoreApi } from 'zustand';
 import { priceServices } from '@/services/price';
 import { TOKEN_WHITE_LIST } from '@/config';
-import { sleep, storageStore } from '@/utils/common';
+import { storageStore } from '@/utils/common';
 import { isEqual } from 'lodash-es';
-import { formatAmount } from '@/utils/format';
 import { nearServices } from '@/services/near';
 import { fastNearServices } from '@/services/fastnear';
 
-const storage = storageStore('tokens');
-const nftStorage = storageStore('nfts');
+const storage = storageStore('SATOSHI_WALLET_UI_TOKENS');
 
 type State = {
   tokens?: string[];
@@ -31,10 +29,10 @@ type NFTState = {
 };
 
 export const useNFTStore = create<NFTState>((set, get) => ({
-  nfts: nftStorage?.get('nfts') || [],
+  nfts: storage?.get('nfts') || [],
   setNFTs: (nfts) => {
     set({ nfts });
-    nftStorage?.set('nfts', nfts);
+    storage?.set('nfts', nfts);
   },
   refreshNFTs: async () => {
     const accountId = nearServices.getNearAccountId();
@@ -44,7 +42,7 @@ export const useNFTStore = create<NFTState>((set, get) => ({
       const data = await fastNearServices.getAccountNFTs(accountId);
       if (data?.length && Array.isArray(data)) {
         set({ nfts: data });
-        nftStorage?.set('nfts', data);
+        storage?.set('nfts', data);
       }
     } catch (error) {
       console.error('Failed to fetch NFTs from FastNear:', error);

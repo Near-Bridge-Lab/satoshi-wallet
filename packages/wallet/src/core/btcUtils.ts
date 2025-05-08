@@ -1,7 +1,7 @@
 import Big from 'big.js';
 import type { ENV } from '../config';
 import { getWalletConfig, btcRpcUrls } from '../config';
-import { retryOperation } from '../utils';
+import { retryOperation, storageStore } from '../utils';
 import { nearCallFunction, pollTransactionStatuses } from '../utils/nearUtils';
 import {
   checkBridgeTransactionStatus,
@@ -285,10 +285,12 @@ export async function getCsnaAccountId(env: ENV) {
 }
 
 function checkDepositDisabledAddress() {
-  const data = localStorage.getItem('btc-connect-xverse-addresses-Mainnet');
+  const data =
+    storageStore('SATOSHI_WALLET_XVERSE')?.get<{ walletType: string; addressType: string }[]>(
+      `Mainnet:addresses`,
+    );
   if (!data) return;
-  const addresses = JSON.parse(data);
-  const address = addresses?.[0];
+  const address = data?.[0];
   if (address.walletType === 'ledger' && !['p2wpkh', 'p2sh'].includes(address.addressType)) {
     throw new Error('Ledger is only supported for p2wpkh and p2sh address');
   }
@@ -496,14 +498,15 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
 export async function checkSatoshiWhitelist(btcAccountId: string, env: ENV = 'mainnet') {
   if (env !== 'mainnet') return;
-  const hasShownNotice = localStorage.getItem('btc-wallet-private-mainnet-notice');
+  const storage = storageStore();
+  const hasShownNotice = storage?.get<string>('private-mainnet-notice');
   if (!hasShownNotice) {
     Dialog.alert({
       title: 'Notice',
       message:
         'You are currently using Satoshi Private Mainnet. This is a private version for testing. Please try a small amount of assets in Ramp',
     });
-    localStorage.setItem('btc-wallet-private-mainnet-notice', 'true');
+    storage?.set('private-mainnet-notice', 'true');
   }
   if (!btcAccountId) return;
   const whitelist = await getWhitelist({ env });

@@ -12,6 +12,7 @@ import Loading from '../basic/Loading';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
 import { useWalletStore } from '@/stores/wallet';
+import TokenIcon from './TokenIcon';
 
 export function useTokenSelector() {
   const { openModal } = useMessageBoxContext();
@@ -106,16 +107,7 @@ export function Tokens({
           onClick={() => onClick?.(token)}
         >
           <div className="flex items-center gap-2">
-            {tokenMeta[token]?.icon ? (
-              <Image
-                src={tokenMeta[token]?.icon}
-                width={30}
-                height={30}
-                alt={tokenMeta[token]?.symbol || 'token'}
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-default-200 flex items-center justify-center"></div>
-            )}
+            <TokenIcon address={token} width={30} height={30} />
             <div>
               <div className="text-base font-bold">
                 {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
@@ -196,7 +188,7 @@ export function ImportToken({ onSuccess }: { onSuccess?: () => void }) {
         <>
           {tokenMeta ? (
             <div className="card gap-2">
-              <Image src={tokenMeta.icon} width={30} height={30} />
+              <TokenIcon url={tokenMeta.icon} width={30} height={30} />
               <div className="flex-1 ml-1">
                 <div className="text-base font-bold">{formatToken(tokenMeta.symbol)}</div>
                 <div className="text-xs text-default-500">{tokenMeta.name}</div>
@@ -269,13 +261,7 @@ export function TokenSelectorButton({
       radius="full"
       onClick={handleSelect}
     >
-      <Image
-        src={tokenMeta[token]?.icon}
-        width={20}
-        height={20}
-        alt={tokenMeta[token]?.symbol || 'token'}
-        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
-      />
+      <TokenIcon address={token} width={20} height={20} />
       <span>{formatToken(tokenMeta[token]?.symbol)}</span>
       <Icon icon="solar:alt-arrow-down-bold" className="text-xs text-default-500 flex-shrink-0" />
     </Button>

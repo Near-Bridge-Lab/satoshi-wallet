@@ -8,7 +8,7 @@ import { type BaseConnector } from '../connector/base';
 import { AASignerProvider } from '../evmSigner';
 import useModalStateValue from '../hooks/useModalStateValue';
 import { EventName } from '../types/eventName';
-import { checkBTCVersion } from '../utils';
+import { checkBTCVersion, storageStore } from '../utils';
 
 import events from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
@@ -93,7 +93,7 @@ export const ConnectProvider = ({
     if (typeof window === 'undefined') {
       return '';
     }
-    const id = localStorage.getItem('current-connector-id');
+    const id = storageStore()?.get<string>('current-connector-id');
     return id ?? '';
   }, []);
 
@@ -264,7 +264,7 @@ export const ConnectProvider = ({
   }, [connectorId, connectors]);
 
   const disconnect = useCallback(() => {
-    localStorage.removeItem('current-connector-id');
+    storageStore()?.remove('current-connector-id');
     txConfirm.reset();
     if (connector) {
       connector.disconnect();

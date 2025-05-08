@@ -1,6 +1,7 @@
 import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
 import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
+import { storageStore } from '.';
 
 interface setupWalletButtonOptions {
   env: ENV;
@@ -13,6 +14,8 @@ interface OriginalWallet {
   account: string | undefined;
   getPublicKey: () => Promise<string | undefined>;
 }
+
+const storage = storageStore('SATOSHI_WALLET_BUTTON');
 
 export function setupWalletButton({
   env,
@@ -60,7 +63,7 @@ function createFloatingButtonWithIframe({
   const button = document.createElement('img');
   button.id = 'satoshi-wallet-button';
 
-  const isIframeVisible = localStorage.getItem('satoshi-wallet-iframe-visible') === 'true';
+  const isIframeVisible = storage?.get<boolean>('visible') ?? true;
 
   button.src = isIframeVisible ? closeImageUrl : openImageUrl;
   iframe.style.display = isIframeVisible ? 'block' : 'none';
@@ -68,9 +71,10 @@ function createFloatingButtonWithIframe({
   const windowWidth = window.innerWidth;
   const windowHeight = window.innerHeight;
 
-  const savedPosition = JSON.parse(
-    localStorage.getItem('satoshi-wallet-button-position') || '{"right": "20px", "bottom": "20px"}',
-  );
+  const savedPosition = storage?.get<{ right: string; bottom: string }>('position') || {
+    right: '20px',
+    bottom: '20px',
+  };
 
   const right = Math.min(Math.max(20, parseInt(savedPosition.right)), windowWidth - 80);
   const bottom = Math.min(Math.max(20, parseInt(savedPosition.bottom)), windowHeight - 80);
@@ -189,13 +193,10 @@ function createFloatingButtonWithIframe({
     button.style.cursor = 'grab';
     button.style.transition = 'transform 0.15s ease';
 
-    localStorage.setItem(
-      'satoshi-wallet-button-position',
-      JSON.stringify({
-        right: button.style.right,
-        bottom: button.style.bottom,
-      }),
-    );
+    storage?.set('position', {
+      right: button.style.right,
+      bottom: button.style.bottom,
+    });
 
     if (!isDragEvent) {
       handleButtonClick();
@@ -213,7 +214,7 @@ function createFloatingButtonWithIframe({
     iframe.style.display = newVisibleState ? 'block' : 'none';
     button.src = newVisibleState ? closeImageUrl : openImageUrl;
 
-    localStorage.setItem('satoshi-wallet-iframe-visible', String(newVisibleState));
+    storage?.set('visible', newVisibleState);
 
     setTimeout(() => {
       if (newVisibleState) {
@@ -239,7 +240,7 @@ function createIframe({
   iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
-  const isVisible = localStorage.getItem('satoshi-wallet-iframe-visible') === 'true';
+  const isVisible = storage?.get<boolean>('visible') ?? true;
 
   Object.assign(iframe.style, {
     position: 'fixed',

@@ -4,10 +4,13 @@ import icon from '../icons/xverse.png';
 import { BaseConnector, type WalletMetadata } from './base';
 import { MobileWalletConnect } from './universalLink';
 import { isMobile } from '../utils';
+import { storageStore } from '../utils';
 
 interface XverseAddress extends Address {
   walletType: 'software' | 'ledger';
 }
+
+const storage = storageStore('SATOSHI_WALLET_XVERSE');
 export class XverseConnector extends BaseConnector {
   #network = 'Mainnet';
   #event = new EventEmitter();
@@ -44,7 +47,7 @@ export class XverseConnector extends BaseConnector {
     }));
     console.log('🚀 ~ XverseConnector ~ loadAccounts ~ res:', addresses);
 
-    localStorage.setItem('btc-connect-xverse-addresses-' + network, JSON.stringify(addresses));
+    storage?.set(`${network}:addresses`, addresses);
     return addresses;
   };
   async sendInscription(): Promise<{ txid: string }> {
@@ -63,9 +66,9 @@ export class XverseConnector extends BaseConnector {
     return addresses.map((item) => item.address);
   }
   async getAddresses() {
-    const data = localStorage.getItem('btc-connect-xverse-addresses-' + this.#network);
+    const data = storage?.get<XverseAddress[]>(`${this.#network}:addresses`);
     if (data) {
-      return JSON.parse(data) as XverseAddress[];
+      return data;
     }
     return [];
   }
@@ -135,7 +138,6 @@ export class XverseConnector extends BaseConnector {
     return result.txid;
   }
   disconnect(): void {
-    localStorage.removeItem('btc-connect-xverse-addresses-Mainnet');
-    localStorage.removeItem('btc-connect-xverse-addresses-Testnet');
+    storage?.remove(`${this.#network}:addresses`);
   }
 }

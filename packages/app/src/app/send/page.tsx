@@ -1,6 +1,7 @@
 'use client';
 import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
+import TokenIcon from '@/components/wallet/TokenIcon';
 import { useTokenSelector } from '@/components/wallet/Tokens';
 import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
 import { nearServices } from '@/services/near';
@@ -144,7 +145,7 @@ export default function Send() {
           <div>
             <div className="card cursor-pointer" onClick={handleSelectToken}>
               <div className="flex items-center gap-3">
-                <Image src={tokenMeta[getValues('token')]?.icon} width={24} height={24} />
+                <TokenIcon address={getValues('token')} width={24} height={24} />
                 <span className="text-base">
                   {formatToken(tokenMeta[getValues('token')]?.symbol)}
                 </span>

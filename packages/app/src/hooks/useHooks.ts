@@ -385,7 +385,7 @@ export function useStorageState<T>(
   defaultValue: T,
   options?: { storage?: Storage; namespace?: string },
 ) {
-  const { storage, namespace = 'DELTA_DEFAULT' } = options || {};
+  const { storage, namespace = 'SATOSHI_WALLET_UI_DEFAULT' } = options || {};
   const storageAPI = storageStore(namespace, { storage });
   const [state, _setState] = useState<T>(() => {
     const storedValue = storageAPI?.get(key) as T;

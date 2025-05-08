@@ -166,7 +166,7 @@ export function formatFileUrl(key: string) {
 }
 
 export function formatToken(symbol?: string) {
-  if (symbol === 'NBTC') return 'BTC';
+  // if (symbol === 'NBTC') return 'BTC';
   return symbol;
 }
 

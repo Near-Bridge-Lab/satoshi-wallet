@@ -7,7 +7,9 @@ import type {
 } from 'sats-connect';
 import icon from '../icons/magicEden.png';
 import { BaseConnector, type WalletMetadata } from './base';
+import { storageStore } from '../utils';
 
+const storage = storageStore('SATOSHI_WALLET_MAGICEDEN');
 export class MagicEdenConnector extends BaseConnector {
   #network = 'Mainnet';
   #event = new EventEmitter();
@@ -50,7 +52,7 @@ export class MagicEdenConnector extends BaseConnector {
       };
       getAddress(getAddressOptions).catch((error) => reject(error));
     });
-    localStorage.setItem('btc-connect-magicEden-addresses-' + network, JSON.stringify(addresses));
+    storage?.set(`${network}:addresses`, addresses);
     return addresses;
   };
 
@@ -70,10 +72,9 @@ export class MagicEdenConnector extends BaseConnector {
     if (!this.isReady()) {
       throw new Error(`${this.metadata.name} is not install!`);
     }
-    const data = localStorage.getItem('btc-connect-magicEden-addresses-' + this.#network);
+    const data = storage?.get<Address[]>(`${this.#network}:addresses`);
     if (data) {
-      const addresses: Address[] = JSON.parse(data);
-      return addresses.map((item) => item.address);
+      return data.map((item) => item.address);
     } else {
       return [];
     }
@@ -83,10 +84,9 @@ export class MagicEdenConnector extends BaseConnector {
     if (!this.isReady()) {
       throw new Error(`${this.metadata.name} is not install!`);
     }
-    const data = localStorage.getItem('btc-connect-magicEden-addresses-' + this.#network);
+    const data = storage?.get<Address[]>(`${this.#network}:addresses`);
     if (data) {
-      const addresses: Address[] = JSON.parse(data);
-      return addresses[0].publicKey;
+      return data[0].publicKey;
     } else {
       return '';
     }
@@ -201,7 +201,6 @@ export class MagicEdenConnector extends BaseConnector {
   }
 
   disconnect(): void {
-    localStorage.removeItem('btc-connect-magicEden-addresses-Mainnet');
-    localStorage.removeItem('btc-connect-magicEden-addresses-Testnet');
+    storage?.remove(`${this.#network}:addresses`);
   }
 }
