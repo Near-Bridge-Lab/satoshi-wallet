@@ -35,13 +35,15 @@ import { useMemo, useState } from 'react';
 export default function Home() {
   const { isNearWallet } = useWalletStore();
   return (
-    <main className="s-container">
-      {!isNearWallet && <DepositPrompt />}
-      <Header className="mb-10" />
-      <Balance className="mb-10" />
-      <Tools className="mb-10" />
-      <Portfolio />
-      <footer className="text-center text-xs text-default-500 pt-6">
+    <main className="s-container flex flex-col min-h-screen">
+      <div className="flex-1">
+        {!isNearWallet && <DepositPrompt />}
+        <Header className="mb-10" />
+        <Balance className="mb-10" />
+        <Tools className="mb-10" />
+        <Portfolio />
+      </div>
+      <footer className="text-center text-xs text-default-500 pt-6 mt-auto">
         Powered By{' '}
         <Link href="https://satos.network/" isExternal className="text-xs">
           SatoshiProtocol
