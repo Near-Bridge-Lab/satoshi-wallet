@@ -30,7 +30,11 @@ const selector = await setupWalletSelector({
       deprecated?: boolean,     // optional: mark as deprecated
       autoConnect?: boolean,    // optional: enable auto-connect, defaults to true
       syncLogOut?: boolean,     // optional: sync logout across tabs, defaults to true
-      env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // optional: defaults to NEAR network environment
+      env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+      gasStrategy?: 'auto' | 'near' | 'btc' // optional: specify gas payment strategy, defaults to 'auto'
+                                           // 'auto': use NEAR if balance > 0.5, otherwise use BTC token
+                                           // 'near': force use NEAR for gas payment
+                                           // 'btc': force use BTC token for gas payment
     }),
     // setup other wallets...
   ],

@@ -38,6 +38,7 @@ interface BTCWalletParams {
   syncLogOut?: boolean;
   env?: ENV;
   walletUrl?: string;
+  gasStrategy?: 'auto' | 'near' | 'btc';
 }
 
 const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
@@ -305,6 +306,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
       csna,
       transactions: trans,
       env,
+      gasStrategy: (metadata as any).gasStrategy,
     });
 
     console.log('transferGasTransaction:', transferGasTransaction);
@@ -394,8 +396,9 @@ export function setupBTCWallet({
   syncLogOut = true,
   env = 'mainnet',
   walletUrl,
+  gasStrategy = 'auto',
 }: BTCWalletParams | undefined = {}): WalletModuleFactory<InjectedWallet> {
-  console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env);
+  console.log('⚡️ BTC Wallet Version:', getVersion(), 'env:', env, 'gasStrategy:', gasStrategy);
 
   const btcWallet = async () => {
     return {
@@ -412,6 +415,7 @@ export function setupBTCWallet({
         syncLogOut,
         env,
         walletUrl,
+        gasStrategy,
       },
       init: BTCWallet,
     } as any;
