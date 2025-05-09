@@ -21,7 +21,7 @@ export const NEAR_RPC_NODES = IS_MAINNET
   ? {
       Lava: 'https://near.lava.build',
       Official: 'https://rpc.mainnet.near.org',
-      Fastnear: 'https://mw.rpc.fastnear.com',
+      Fastnear: 'https://free.rpc.fastnear.com',
       Drpc: 'https://near.drpc.org',
     }
   : {
