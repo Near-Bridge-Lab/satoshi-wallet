@@ -100,7 +100,7 @@ async function openChainModal(): Promise<string> {
     return div;
   };
   return await Dialog.openModal({
-    title: 'Choose Chain',
+    title: 'Choose Wallet',
     titleStyle:
       'font-size: 18px; font-weight: 600; color: #fff; text-align: center;padding-bottom: 10px;',
     content,

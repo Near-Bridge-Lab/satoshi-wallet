@@ -129,10 +129,8 @@ export const getUrlHash = (
 
 export function isMobileDevice() {
   const userAgent = navigator.userAgent;
-  return (
-    /android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|mobi|palm|phone|pie|tablet|up\.browser|up\.link|webos|wos/i.test(
-      userAgent,
-    ) || window.innerWidth < 640
+  return /android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|mobi|palm|phone|pie|tablet|up\.browser|up\.link|webos|wos/i.test(
+    userAgent,
   );
 }
 

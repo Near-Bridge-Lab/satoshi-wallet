@@ -92,9 +92,10 @@ export default function Bridge() {
       if (chain === 'btc') {
         return btcBalanceRes || {};
       }
-      const balance = balances?.[BTC_TOKEN_CONTRACT] || 0;
+      const balance = balances?.[BTC_TOKEN_CONTRACT] || '0';
+      const availableBalance = nearServices.getAvailableBalance(BTC_TOKEN_CONTRACT, balance);
 
-      return { balance, availableBalance: balance };
+      return { balance, availableBalance };
     },
     [btcBalanceRes, balances],
   );

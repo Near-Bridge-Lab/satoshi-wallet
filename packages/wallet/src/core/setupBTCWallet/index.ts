@@ -143,7 +143,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
           });
         }
       } else {
-        removeWalletButton();
         connectionUpdateTimeout = setTimeout(() => {
           handleConnectionUpdate();
         }, 5000);

@@ -23,16 +23,27 @@ type State = {
 
 // NFT Store
 type NFTState = {
-  nfts: NFTMetadata[];
-  setNFTs: (nfts: NFTMetadata[]) => void;
+  nfts: Record<string, NFTMetadata[]>;
+  setNFTs: (accountId: string, nfts: NFTMetadata[]) => void;
   refreshNFTs: () => void;
+  getNFTsByAccount: (accountId: string) => NFTMetadata[];
 };
 
 export const useNFTStore = create<NFTState>((set, get) => ({
-  nfts: storage?.get('nfts') || [],
-  setNFTs: (nfts) => {
-    set({ nfts });
-    storage?.set('nfts', nfts);
+  nfts: storage?.get('nfts') || {},
+  setNFTs: (accountId, nfts) => {
+    if (!accountId) return;
+    const currentNfts = get().nfts;
+    const updatedNfts = {
+      ...currentNfts,
+      [accountId]: nfts,
+    };
+    set({ nfts: updatedNfts });
+    storage?.set('nfts', updatedNfts);
+  },
+  getNFTsByAccount: (accountId) => {
+    if (!accountId) return [];
+    return get().nfts[accountId] || [];
   },
   refreshNFTs: async () => {
     const accountId = nearServices.getNearAccountId();
@@ -41,8 +52,7 @@ export const useNFTStore = create<NFTState>((set, get) => ({
     try {
       const data = await fastNearServices.getAccountNFTs(accountId);
       if (data?.length && Array.isArray(data)) {
-        set({ nfts: data });
-        storage?.set('nfts', data);
+        get().setNFTs(accountId, data);
       }
     } catch (error) {
       console.error('Failed to fetch NFTs from FastNear:', error);

@@ -3,18 +3,22 @@ import { useEffect, useState } from 'react';
 import { Card, CardBody, CardFooter, Image } from '@nextui-org/react';
 import Empty from '../basic/Empty';
 import Loading from '../basic/Loading';
+import { nearServices } from '@/services/near';
 
 export function NFTs() {
-  const { nfts } = useNFTStore();
+  const { getNFTsByAccount, refreshNFTs } = useNFTStore();
   const [isLoading, setIsLoading] = useState(true);
+  const accountId = nearServices.getNearAccountId();
+  const nfts = getNFTsByAccount(accountId || '');
 
   useEffect(() => {
+    refreshNFTs();
     if (nfts.length) {
       setIsLoading(false);
     }
     const timer = setTimeout(() => setIsLoading(false), 2000);
     return () => clearTimeout(timer);
-  }, [nfts]);
+  }, [nfts.length, refreshNFTs]);
 
   if (isLoading) {
     return <Loading className="flex items-center justify-center min-h-[200px]" />;
