@@ -452,10 +452,14 @@ export function WalletTransactions() {
     return <Empty>No transactions found</Empty>;
   }
 
+  const sortedTransactions = [...transactions.transactions].sort(
+    (a, b) => b.execution_outcome.block_timestamp - a.execution_outcome.block_timestamp,
+  );
+
   // Group transactions by date
   const groupedTransactions: Record<string, Transaction[]> = {};
 
-  transactions.transactions.forEach((tx) => {
+  sortedTransactions.forEach((tx) => {
     let timestamp = tx.execution_outcome.block_timestamp / 1000000;
     const dateString = dayjs(timestamp).format('YYYY-MM-DD');
 
