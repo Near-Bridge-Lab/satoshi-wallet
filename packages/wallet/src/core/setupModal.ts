@@ -53,13 +53,22 @@ export function setupWalletSelectorModal(
     `;
   }
 
+  if (group.includes('eth')) {
+    document.head.appendChild(document.createElement('style')).textContent = `
+      #near-wallet-selector-modal .options-list .ethereum-wallets {
+        display: none;
+      }
+    `;
+  }
+
   const modal = _setupModal(selector, options);
   const originalShow = modal.show.bind(modal);
 
   modal.show = async () => {
-    const chain = group.length > 1 && showChainGroups ? await openChainModal() : group[0];
-    if (chain === 'btc') {
-      const module = state.modules.find((module) => module.id === 'btc-wallet');
+    const chain = group.length > 1 && showChainGroups ? await openChainModal(group) : group[0];
+    if (['btc', 'eth'].includes(chain)) {
+      const moduleId = chain === 'btc' ? 'btc-wallet' : 'ethereum-wallets';
+      const module = state.modules.find((module) => module.id === moduleId);
       if (module) {
         const wallet = await module.wallet();
         await wallet.signIn(options as any);
@@ -71,15 +80,21 @@ export function setupWalletSelectorModal(
   return modal;
 }
 
-async function openChainModal(): Promise<string> {
-  const chains = ['btc', 'near'];
+const CHAINS = [
+  { id: 'btc', name: 'Bitcoin' },
+  { id: 'eth', name: 'Ethereum' },
+  { id: 'near', name: 'Near' },
+];
+
+async function openChainModal(group: string[]): Promise<string> {
+  const chains = CHAINS.filter((chain) => group.includes(chain.id));
   const content = (resolve: (v: string) => void, close: () => void) => {
     const buttons = `
       <div class="option-list">${chains
         .map(
-          (chain) => `<button class="chain-button option-item" data-chain="${chain}">
-        <img src="https://assets.deltatrade.ai/assets/chain/${chain}.svg" alt="${chain}" style="width:32px; height: 32px;" />
-        ${chain.toUpperCase()}
+          (chain) => `<button class="chain-button option-item" data-chain="${chain.id}">
+        <img src="https://assets.deltatrade.ai/assets/chain/${chain.id}.svg" alt="${chain.id}" style="width:32px; height: 32px;" />
+        ${chain.name}
         </button>`,
         )
         .join('')}
@@ -109,9 +124,13 @@ async function openChainModal(): Promise<string> {
 
 function getGroup(state: WalletSelectorState) {
   const hasBtcWallet = state.modules.some((module) => module.id === 'btc-wallet');
-  const hasNearWallet = state.modules.some((module) => module.id !== 'btc-wallet');
+  const hasEvmWallet = state.modules.some((module) => module.id === 'ethereum-wallets');
+  const hasNearWallet = state.modules.some(
+    (module) => module.id !== 'btc-wallet' && module.id !== 'ethereum-wallets',
+  );
   const group = [];
   if (hasBtcWallet) group.push('btc');
+  if (hasEvmWallet) group.push('eth');
   if (hasNearWallet) group.push('near');
   return group;
 }

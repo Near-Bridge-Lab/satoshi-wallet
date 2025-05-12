@@ -2,29 +2,21 @@
 import { formatFileUrl } from '@/utils/format';
 import { useWalletStore } from '@/stores/wallet';
 import { Image } from '@nextui-org/react';
-import { useState } from 'react';
 
 export default function ChainSelector() {
-  const [chain, setChain] = useState<`${Chain}-${Chain}`>('btc-near');
   const { isNearWallet } = useWalletStore();
+  const chains = isNearWallet ? ['near'] : ['btc', 'near'];
   return (
     <div className="flex">
-      {!isNearWallet && (
+      {chains.map((chain, index) => (
         <Image
-          src={formatFileUrl(`/assets/chain/${chain.split('-')[0]}.svg`)}
+          key={chain}
+          src={formatFileUrl(`/assets/chain/${chain}.svg`)}
           width={26}
           height={26}
-          classNames={{ wrapper: 'overflow-hidden rounded-full' }}
+          classNames={{ wrapper: `overflow-hidden rounded-full ${index > 0 ? '-ml-1' : ''}` }}
         />
-      )}
-      {isNearWallet && (
-        <Image
-          src={formatFileUrl(`/assets/chain/${chain.split('-')[1]}.svg`)}
-          width={26}
-          height={26}
-          classNames={{ wrapper: 'overflow-hidden rounded-full -ml-1' }}
-        />
-      )}
+      ))}
     </div>
   );
 }

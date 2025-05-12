@@ -171,7 +171,7 @@ export class MagicEdenConnector extends BaseConnector {
     if (addresses.length === 0) {
       throw new Error(`${this.metadata.name} not connected!`);
     }
-    const result = await new Promise<string>((resolve, reject) => {
+    const result = await new Promise<any>((resolve, reject) => {
       const sendBtcOptions: SendBtcTransactionOptions = {
         payload: {
           network: {
@@ -197,7 +197,7 @@ export class MagicEdenConnector extends BaseConnector {
       };
       sendBtcTransaction(sendBtcOptions).catch((e) => reject(e));
     });
-    return result;
+    return result?.txid || result;
   }
 
   disconnect(): void {

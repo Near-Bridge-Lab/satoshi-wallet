@@ -44,9 +44,17 @@ export function setupWalletButton({
     }
   });
 
+  const isNearWallet = !btcWallet;
+  const openImageUrl = `https://assets.deltatrade.ai/wallet-assets/wallet${
+    isNearWallet ? '-near' : ''
+  }-btn.png`;
+  const closeImageUrl = `https://assets.deltatrade.ai/wallet-assets/wallet${
+    isNearWallet ? '-near' : ''
+  }-btn-active.png`;
+
   const button = createFloatingButtonWithIframe({
-    openImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn.png',
-    closeImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn-active.png',
+    openImageUrl,
+    closeImageUrl,
     iframe,
   });
 
