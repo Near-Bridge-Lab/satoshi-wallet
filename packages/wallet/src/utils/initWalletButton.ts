@@ -1,7 +1,7 @@
 import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
 import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
-import { storageStore } from '.';
+import { isMobile, storageStore } from '.';
 
 interface setupWalletButtonOptions {
   env: ENV;
@@ -30,7 +30,9 @@ export function setupWalletButton({
 
   const iframe = createIframe({
     iframeUrl: walletUrl || walletConfig[env].walletUrl,
-    iframeStyle: { width: '400px', height: '650px' },
+    iframeStyle: isMobile()
+      ? { width: 'calc(100% - 40px)', height: '80%' }
+      : { width: '400px', height: '650px' },
   });
 
   iframe.addEventListener('mouseenter', () => {
@@ -92,6 +94,13 @@ function createFloatingButtonWithIframe({
     touchAction: 'none',
   });
 
+  if (isMobile()) {
+    Object.assign(button.style, {
+      width: '40px',
+      height: '40px',
+    });
+  }
+
   document.body.appendChild(button);
 
   updateIframePosition(iframe, right, bottom, windowWidth, windowHeight);
@@ -102,19 +111,6 @@ function createFloatingButtonWithIframe({
   let initialRight = 0;
   let initialBottom = 0;
   let dragStartTime = 0;
-
-  button.addEventListener('mousedown', (e) => {
-    startDrag(e.clientX, e.clientY);
-    e.preventDefault();
-  });
-
-  button.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      startDrag(touch.clientX, touch.clientY);
-      e.preventDefault();
-    }
-  });
 
   function startDrag(clientX: number, clientY: number) {
     isDragging = true;
@@ -128,17 +124,83 @@ function createFloatingButtonWithIframe({
     button.style.transition = 'none';
   }
 
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    moveButton(e.clientX, e.clientY);
-  });
+  // Primary click handler for opening/closing the wallet
+  function toggleWallet() {
+    const isCurrentlyVisible = iframe.style.display === 'block';
+    button.style.transform = 'scale(0.8)';
+    setTimeout(() => {
+      button.style.transform = 'scale(1)';
+    }, 150);
 
-  document.addEventListener('touchmove', (e) => {
-    if (!isDragging || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    moveButton(touch.clientX, touch.clientY);
-    e.preventDefault();
-  });
+    const newVisibleState = !isCurrentlyVisible;
+    iframe.style.display = newVisibleState ? 'block' : 'none';
+    button.src = newVisibleState ? closeImageUrl : openImageUrl;
+
+    storage?.set('visible', newVisibleState);
+
+    setTimeout(() => {
+      if (newVisibleState) {
+        iframe.focus();
+      }
+    }, 0);
+  }
+
+  button.addEventListener(
+    'click',
+    (e) => {
+      if (!isDragging) {
+        toggleWallet();
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
+
+  // Drag functionality
+  button.addEventListener(
+    'mousedown',
+    (e) => {
+      startDrag(e.clientX, e.clientY);
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
+
+  button.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        startDrag(touch.clientX, touch.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'mousemove',
+    (e) => {
+      if (!isDragging) return;
+      moveButton(e.clientX, e.clientY);
+      e.preventDefault();
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      moveButton(touch.clientX, touch.clientY);
+      e.preventDefault();
+    },
+    { capture: true },
+  );
 
   function moveButton(clientX: number, clientY: number) {
     const deltaX = startX - clientX;
@@ -171,23 +233,53 @@ function createFloatingButtonWithIframe({
     updateIframePosition(iframe, newRight, newBottom, windowWidth, windowHeight);
   }
 
-  document.addEventListener('mouseup', () => {
-    endDrag();
-  });
+  document.addEventListener(
+    'mouseup',
+    (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      endDrag();
+    },
+    { capture: true },
+  );
 
-  document.addEventListener('touchend', () => {
-    endDrag();
-  });
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      endDrag();
 
-  document.addEventListener('touchcancel', () => {
-    endDrag();
-  });
+      // For mobile: check if this was just a tap (not a drag)
+      const dragEndTime = Date.now();
+      const dragDuration = dragEndTime - dragStartTime;
+
+      // If it was a short touch without much movement, handle as tap
+      if (
+        dragDuration < 200 &&
+        Math.abs(parseInt(button.style.right) - initialRight) < 5 &&
+        Math.abs(parseInt(button.style.bottom) - initialBottom) < 5
+      ) {
+        toggleWallet();
+      }
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'touchcancel',
+    () => {
+      endDrag();
+    },
+    { capture: true },
+  );
 
   function endDrag() {
     if (!isDragging) return;
-
-    const dragEndTime = Date.now();
-    const isDragEvent = dragEndTime - dragStartTime > 200;
 
     isDragging = false;
     button.style.cursor = 'grab';
@@ -197,31 +289,10 @@ function createFloatingButtonWithIframe({
       right: button.style.right,
       bottom: button.style.bottom,
     });
-
-    if (!isDragEvent) {
-      handleButtonClick();
-    }
   }
 
-  const handleButtonClick = () => {
-    const isCurrentlyVisible = iframe.style.display === 'block';
-    button.style.transform = 'scale(0.8)';
-    setTimeout(() => {
-      button.style.transform = 'scale(1)';
-    }, 150);
-
-    const newVisibleState = !isCurrentlyVisible;
-    iframe.style.display = newVisibleState ? 'block' : 'none';
-    button.src = newVisibleState ? closeImageUrl : openImageUrl;
-
-    storage?.set('visible', newVisibleState);
-
-    setTimeout(() => {
-      if (newVisibleState) {
-        iframe.focus();
-      }
-    }, 0);
-  };
+  // Remove old click handler
+  const handleButtonClick = () => {};
 
   button.onclick = null;
 
