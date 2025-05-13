@@ -7,6 +7,7 @@ import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
 import { nearServices } from '@/services/near';
 import { transactionServices } from '@/services/tranction';
 import { useTokenStore } from '@/stores/token';
+import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
 import { rpcToWallet } from '@/utils/request';
 import { Icon } from '@iconify/react';
@@ -27,6 +28,7 @@ interface SendForm {
 export default function Send() {
   const query = useSearchParams();
   const { displayableTokens, tokenMeta, balances, refreshBalance } = useTokenStore();
+  const { isNearWallet } = useWalletStore();
 
   const {
     watch,
@@ -40,7 +42,7 @@ export default function Send() {
     trigger,
   } = useForm<SendForm>({
     defaultValues: {
-      token: query.get('token') || BTC_TOKEN_CONTRACT,
+      token: query.get('token') || (isNearWallet ? NEAR_TOKEN_CONTRACT : BTC_TOKEN_CONTRACT),
       recipient: '',
       amount: '',
     },

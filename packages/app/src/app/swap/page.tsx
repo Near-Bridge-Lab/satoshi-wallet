@@ -2,7 +2,7 @@
 import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
 import { TokenSelector, TokenSelectorButton, useTokenSelector } from '@/components/wallet/Tokens';
-import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
+import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
 import { nearServices } from '@/services/near';
 import { nearSwapServices } from '@/services/swap';
 import { useTokenStore } from '@/stores/token';
@@ -23,8 +23,8 @@ import { useForm, Controller, useWatch } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import Big from 'big.js';
 import { useClient, useRequest } from '@/hooks/useHooks';
-import { transactionServices } from '@/services/tranction';
 import Slippage from '@/components/wallet/Slippage';
+import { useWalletStore } from '@/stores/wallet';
 
 interface SwapForm {
   tokenIn: string;
@@ -38,7 +38,7 @@ export default function Swap() {
   const { isClient } = useClient();
   const query = useSearchParams();
   const { displayableTokens, tokenMeta, balances, refreshBalance, prices } = useTokenStore();
-
+  const { isNearWallet } = useWalletStore();
   const defaultSlippage = 0.1;
 
   const {
@@ -52,8 +52,8 @@ export default function Swap() {
     trigger,
   } = useForm<SwapForm>({
     defaultValues: {
-      tokenIn: query.get('tokenIn') || BTC_TOKEN_CONTRACT,
-      tokenOut: query.get('tokenOut') || NEAR_TOKEN_CONTRACT,
+      tokenIn: query.get('tokenIn') || (isNearWallet ? TOKEN_WHITE_LIST[1] : TOKEN_WHITE_LIST[0]),
+      tokenOut: query.get('tokenOut') || (isNearWallet ? TOKEN_WHITE_LIST[2] : TOKEN_WHITE_LIST[1]),
       amountIn: '',
       acceptPriceImpact: false,
       slippage: defaultSlippage,
