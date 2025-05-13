@@ -1,11 +1,13 @@
 'use client';
 import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
+import TokenIcon from '@/components/wallet/TokenIcon';
 import { useTokenSelector } from '@/components/wallet/Tokens';
 import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
 import { nearServices } from '@/services/near';
 import { transactionServices } from '@/services/tranction';
 import { useTokenStore } from '@/stores/token';
+import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
 import { rpcToWallet } from '@/utils/request';
 import { Icon } from '@iconify/react';
@@ -26,6 +28,7 @@ interface SendForm {
 export default function Send() {
   const query = useSearchParams();
   const { displayableTokens, tokenMeta, balances, refreshBalance } = useTokenStore();
+  const { isNearWallet } = useWalletStore();
 
   const {
     watch,
@@ -39,7 +42,7 @@ export default function Send() {
     trigger,
   } = useForm<SendForm>({
     defaultValues: {
-      token: query.get('token') || BTC_TOKEN_CONTRACT,
+      token: query.get('token') || (isNearWallet ? NEAR_TOKEN_CONTRACT : BTC_TOKEN_CONTRACT),
       recipient: '',
       amount: '',
     },
@@ -144,7 +147,7 @@ export default function Send() {
           <div>
             <div className="card cursor-pointer" onClick={handleSelectToken}>
               <div className="flex items-center gap-3">
-                <Image src={tokenMeta[getValues('token')]?.icon} width={24} height={24} />
+                <TokenIcon address={getValues('token')} width={24} height={24} />
                 <span className="text-base">
                   {formatToken(tokenMeta[getValues('token')]?.symbol)}
                 </span>
@@ -205,7 +208,8 @@ export default function Send() {
               )}
             ></Controller>
             <div className="text-default-500 text-right text-xs mt-3">
-              Balance: {formatNumber(balance)} {formatToken(tokenMeta[getValues('token')]?.symbol)}
+              Balance: {formatNumber(balance, { rm: Big.roundDown })}{' '}
+              {formatToken(tokenMeta[getValues('token')]?.symbol)}
               <Button
                 size="sm"
                 color="primary"

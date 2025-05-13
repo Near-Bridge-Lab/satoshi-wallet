@@ -12,7 +12,7 @@ export class MobileWalletConnect {
       case 'okx':
         return `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(url)}`;
       case 'bitget':
-        return `https://bkcode.vip?action=dapp&url=${encodeURIComponent(url)}`;
+        return `bitkeep://bkconnect?action=dapp&url=${encodeURIComponent(url)}`;
       case 'xverse':
         return `xverse://browser?url=${encodeURIComponent(url)}`;
       default:

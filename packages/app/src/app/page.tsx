@@ -3,7 +3,6 @@ import Loading from '@/components/basic/Loading';
 import ChainSelector from '@/components/wallet/Chains';
 import DepositPrompt from '@/components/wallet/DepositPrompt';
 import Tools from '@/components/wallet/Tools';
-import { BTC_TOKEN_CONTRACT } from '@/config';
 import { useClient } from '@/hooks/useHooks';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
@@ -26,6 +25,7 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  Link,
 } from '@nextui-org/react';
 import Big from 'big.js';
 import dynamic from 'next/dynamic';
@@ -33,13 +33,22 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 export default function Home() {
+  const { isNearWallet } = useWalletStore();
   return (
-    <main className="s-container">
-      <DepositPrompt />
-      <Header className="mb-10" />
-      <Balance className="mb-10" />
-      <Tools className="mb-10" />
-      <Portfolio />
+    <main className="s-container flex flex-col min-h-screen">
+      <div className="flex-1">
+        {!isNearWallet && <DepositPrompt />}
+        <Header className="mb-10" />
+        <Balance className="mb-10" />
+        <Tools className="mb-10" />
+        <Portfolio />
+      </div>
+      <footer className="text-center text-xs text-default-500 pt-6 mt-auto">
+        Powered By{' '}
+        <Link href="https://satos.network/" isExternal className="text-xs">
+          SatoshiProtocol
+        </Link>
+      </footer>
     </main>
   );
 }
@@ -90,16 +99,18 @@ function Account() {
                   {formatSortAddress(accountId)}
                 </Snippet>
               </div>
-              <div className="flex items-center justify-between gap-5">
-                <Image src={formatFileUrl('/assets/chain/btc.svg')} width={24} height={24} />
-                <Snippet
-                  classNames={{ base: 'bg-transparent p-0' }}
-                  codeString={originalAccountId}
-                  hideSymbol
-                >
-                  {formatSortAddress(originalAccountId)}
-                </Snippet>
-              </div>
+              {originalAccountId && (
+                <div className="flex items-center justify-between gap-5">
+                  <Image src={formatFileUrl('/assets/chain/btc.svg')} width={24} height={24} />
+                  <Snippet
+                    classNames={{ base: 'bg-transparent p-0' }}
+                    codeString={originalAccountId}
+                    hideSymbol
+                  >
+                    {formatSortAddress(originalAccountId)}
+                  </Snippet>
+                </div>
+              )}
             </div>
           </PopoverContent>
         </Popover>
@@ -145,7 +156,7 @@ const Tokens = dynamic(() => import('@/components/wallet/Tokens').then((module) 
   loading: () => <Loading className="flex items-center justify-center min-h-[200px]" />,
   ssr: false,
 });
-const NFTs = dynamic(() => import('@/components/wallet/NTFs').then((module) => module.NFTs), {
+const NFTs = dynamic(() => import('@/components/wallet/NFTs').then((module) => module.NFTs), {
   loading: () => <Loading className="flex items-center justify-center min-h-[200px]" />,
   ssr: false,
 });
@@ -189,7 +200,7 @@ function Portfolio({ className }: { className?: string }) {
       </div>
 
       <div>
-        {current === 'tokens' && <Tokens onClick={(v) => router.push(`/tokens/${v}`)} />}
+        {current === 'tokens' && <Tokens onClick={(v) => router.push(`/send?token=${v}`)} />}
         {current === 'nfts' && <NFTs />}
         {current === 'activity' && <Activity />}
       </div>

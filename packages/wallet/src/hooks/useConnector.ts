@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useConnectProvider } from '../context';
+import { storageStore } from '../utils';
 
 export const useConnector = () => {
   const { connectors, setConnectorId } = useConnectProvider();
@@ -12,7 +13,7 @@ export const useConnector = () => {
       }
       const accounts = await connector.requestAccounts();
       if (accounts.length > 0) {
-        localStorage.setItem('current-connector-id', connector.metadata.id);
+        storageStore()?.set('current-connector-id', connector.metadata.id);
         setConnectorId(connector.metadata.id);
       }
     },

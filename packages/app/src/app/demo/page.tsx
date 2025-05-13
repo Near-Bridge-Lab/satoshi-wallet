@@ -8,7 +8,7 @@ import {
   WalletSelector,
 } from '@near-wallet-selector/core';
 import { SignMessageMethod } from '@near-wallet-selector/core/src/lib/wallet';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Button, Card, CardBody, CardHeader, Input, Snippet } from '@nextui-org/react';
 import {
@@ -27,13 +27,13 @@ import Loading from '@/components/basic/Loading';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { formatAmount, formatFileUrl, formatNumber, parseAmount } from '@/utils/format';
 import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, NEAR_TOKEN_CONTRACT, RUNTIME_NETWORK } from '@/config';
-import '@near-wallet-selector/modal-ui/styles.css';
 import { btcBridgeServices } from '@/services/bridge';
 import { useTokenStore } from '@/stores/token';
-import Big from 'big.js';
 import { Image } from '@nextui-org/react';
 import { TokenSelectorButton } from '@/components/wallet/Tokens';
 import { nearSwapServices } from '@/services/swap';
+import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet';
+import '@near-wallet-selector/modal-ui/styles.css';
 
 type NearWallet = Wallet &
   SignMessageMethod & {
@@ -75,7 +75,7 @@ function WalletPage() {
   async function handleSignIn(accounts: AccountState[]) {
     try {
       const account = accounts.find((account) => account.active);
-      console.log('handleSignIn', account);
+
       const isSignedIn = !!account;
       setIsSignedIn(isSignedIn);
       setAccountId(process.env.NEXT_PUBLIC_TEST_NEAR_ACCOUNT || account?.accountId);
@@ -98,7 +98,7 @@ function WalletPage() {
           env: RUNTIME_NETWORK,
           walletUrl: location.origin,
         }),
-        // setupHotWallet(),
+        setupMeteorWallet() as any,
       ],
     });
     walletSelectorRef.current = selector;
@@ -106,6 +106,7 @@ function WalletPage() {
     const modal = setupWalletSelectorModal(selector as any, {
       contractId: '',
       theme: 'dark',
+      walletUrl: location.origin,
     });
     setWalletSelectorModal(modal);
     if (!walletSelectorRef.current) return;
@@ -115,7 +116,6 @@ function WalletPage() {
 
     handleSignIn(accounts);
     subscriptionRef.current = store.observable.subscribe((state) => {
-      console.log('subscribe accounts', state.accounts);
       handleSignIn(state.accounts);
     });
   }
@@ -136,6 +136,113 @@ function WalletPage() {
     }
   }
 
+  return (
+    <div className="w-screen h-screen bg-black">
+      <div className="s-container  flex flex-col gap-5">
+        <Card>
+          <CardHeader className="font-bold text-lg">Wallet Connect</CardHeader>
+          <CardBody className="gap-3">
+            {isSignedIn ? (
+              <>
+                <Snippet
+                  symbol={
+                    <span className="text-xs text-default-500 inline-block pl-3 w-16">NEAR</span>
+                  }
+                  size="sm"
+                >
+                  {accountId}
+                </Snippet>
+                {wallet?.id === 'btc-wallet' && (
+                  <Snippet
+                    symbol={
+                      <span className="text-xs text-default-500 inline-block pl-3 w-16">BTC</span>
+                    }
+                    size="sm"
+                  >
+                    {btcProvider.account}
+                  </Snippet>
+                )}
+                <Button onClick={disconnect} size="sm">
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button color="primary" onClick={selectWallet}>
+                Connect Wallet
+              </Button>
+            )}
+          </CardBody>
+        </Card>
+
+        {wallet?.id === 'btc-wallet' && (
+          <>
+            <BTCBalance nearAccount={accountId!} btcAccount={btcProvider.account} />
+
+            <BTCDepositAndWithdraw
+              nearAccount={accountId!}
+              btcAccount={btcProvider.account}
+              wallet={wallet!}
+            />
+
+            <BTCSwapNEAR btcAccount={btcProvider.account} nearAccount={accountId!} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BTCBalance({ nearAccount, btcAccount }: { nearAccount: string; btcAccount: string }) {
+  const {
+    data: btcBalance,
+    run: runBtcBalance,
+    loading: btcBalanceLoading,
+  } = useRequest(() => getBtcBalance(btcAccount), {
+    refreshDeps: [nearAccount, btcAccount],
+  });
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <div className="font-bold text-lg">Native BTC Balance Info</div>
+        <Button
+          onClick={runBtcBalance}
+          isIconOnly
+          size="sm"
+          isDisabled={btcBalanceLoading}
+          variant="light"
+        >
+          <Icon
+            icon="mdi:refresh"
+            className={`text-base ${btcBalanceLoading ? 'animate-spin' : ''}`}
+          />
+        </Button>
+      </CardHeader>
+      <CardBody>
+        <div className="text-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-default-500">Balance:</span> {btcBalance?.balance || '0'}
+            <span className="text-xs text-default-500">BTC</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-default-500">Available Balance:</span>{' '}
+            {btcBalance?.availableBalance || '0'}
+            <span className="text-xs text-default-500">BTC</span>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function BTCDepositAndWithdraw({
+  btcAccount,
+  nearAccount,
+  wallet,
+}: {
+  btcAccount: string;
+  nearAccount: string;
+  wallet: NearWallet;
+}) {
   const [depositLoading, setDepositLoading] = useState(false);
   async function handleBurrowSupply() {
     if (!depositAmount) return;
@@ -159,20 +266,13 @@ function WalletPage() {
     }
   }
 
-  const {
-    data: btcBalance,
-    run: runBtcBalance,
-    loading: btcBalanceLoading,
-  } = useRequest(() => getBtcBalance(btcProvider.account), {
-    refreshDeps: [accountId],
-  });
   const [depositAmount, setDepositAmount] = useState<string>('0.0001');
 
   const { data: depositAmountRes, loading: depositAmountLoading } = useRequest(
     () => getDepositAmount(parseAmount(depositAmount, 8), { env: RUNTIME_NETWORK }),
     {
-      refreshDeps: [depositAmount, accountId],
-      before: () => !!accountId,
+      refreshDeps: [depositAmount, nearAccount],
+      before: () => !!nearAccount,
       debounceOptions: 1000,
     },
   );
@@ -197,144 +297,73 @@ function WalletPage() {
       setWithdrawLoading(false);
     }
   }
-
   return (
-    <div className="w-screen h-screen bg-black">
-      <div className="s-container  flex flex-col gap-5">
-        <Card>
-          <CardHeader className="font-bold text-lg">Wallet Connect</CardHeader>
-          <CardBody className="gap-3">
-            {isSignedIn ? (
-              <>
-                <Snippet
-                  symbol={
-                    <span className="text-xs text-default-500 inline-block pl-3 w-16">NEAR</span>
-                  }
-                  size="sm"
-                >
-                  {accountId}
-                </Snippet>
-                <Snippet
-                  symbol={
-                    <span className="text-xs text-default-500 inline-block pl-3 w-16">BTC</span>
-                  }
-                  size="sm"
-                >
-                  {btcProvider.account}
-                </Snippet>
-                <Button onClick={disconnect} size="sm">
-                  Disconnect
-                </Button>
-              </>
-            ) : (
-              <Button color="primary" onClick={selectWallet}>
-                Connect BTC Wallet
-              </Button>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex items-center justify-between">
-            <div className="font-bold text-lg">Native BTC Balance Info</div>
-            <Button
-              onClick={runBtcBalance}
-              isIconOnly
-              size="sm"
-              isDisabled={btcBalanceLoading}
-              variant="light"
-            >
-              <Icon
-                icon="mdi:refresh"
-                className={`text-base ${btcBalanceLoading ? 'animate-spin' : ''}`}
-              />
-            </Button>
-          </CardHeader>
-          <CardBody>
-            <div className="text-xs">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-default-500">Balance:</span> {btcBalance?.balance || '0'}
+    <Card>
+      <CardHeader className="font-bold text-lg">BTC Deposit and Withdraw</CardHeader>
+      <CardBody className="gap-5">
+        <div className="flex items-center gap-3">
+          <Input
+            type="number"
+            placeholder="Deposit BTC Amount"
+            validationBehavior="aria"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            endContent={<span className="text-xs text-default-500">BTC</span>}
+          />{' '}
+        </div>
+        <Loading loading={depositAmountLoading}>
+          <div className="flex flex-col gap-2 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-default-500">Receive Amount:</span>{' '}
+              <span>
+                {formatAmount(depositAmountRes?.receiveAmount, 8) || '0'}{' '}
                 <span className="text-xs text-default-500">BTC</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-default-500">Available Balance:</span>{' '}
-                {btcBalance?.availableBalance || '0'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-default-500">Protocol Fee:</span>{' '}
+              <span>
+                {formatAmount(depositAmountRes?.protocolFee, 8) || '0'}{' '}
                 <span className="text-xs text-default-500">BTC</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-default-500">Repay Amount:</span>{' '}
+              <span>
+                {formatAmount(depositAmountRes?.repayAmount, 8) || '0'}{' '}
+                <span className="text-xs text-default-500">BTC</span>
+              </span>
+            </div>
+            {depositAmountRes?.newAccountMinDepositAmount ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-default-500">New Account Min Deposit Amount:</span>{' '}
+                <span>
+                  {formatAmount(depositAmountRes?.newAccountMinDepositAmount, 8) || '0'}{' '}
+                  <span className="text-xs text-default-500">BTC</span>
+                </span>
               </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader className="font-bold text-lg">BTC Deposit and Withdraw</CardHeader>
-          <CardBody className="gap-5">
-            <div className="flex items-center gap-3">
-              <Input
-                type="number"
-                placeholder="Deposit BTC Amount"
-                validationBehavior="aria"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                endContent={<span className="text-xs text-default-500">BTC</span>}
-              />{' '}
-            </div>
-            <Loading loading={depositAmountLoading}>
-              <div className="flex flex-col gap-2 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-default-500">Receive Amount:</span>{' '}
-                  <span>
-                    {formatAmount(depositAmountRes?.receiveAmount, 8) || '0'}{' '}
-                    <span className="text-xs text-default-500">BTC</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-default-500">Protocol Fee:</span>{' '}
-                  <span>
-                    {formatAmount(depositAmountRes?.protocolFee, 8) || '0'}{' '}
-                    <span className="text-xs text-default-500">BTC</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-default-500">Repay Amount:</span>{' '}
-                  <span>
-                    {formatAmount(depositAmountRes?.repayAmount, 8) || '0'}{' '}
-                    <span className="text-xs text-default-500">BTC</span>
-                  </span>
-                </div>
-                {depositAmountRes?.newAccountMinDepositAmount ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-default-500">New Account Min Deposit Amount:</span>{' '}
-                    <span>
-                      {formatAmount(depositAmountRes?.newAccountMinDepositAmount, 8) || '0'}{' '}
-                      <span className="text-xs text-default-500">BTC</span>
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            </Loading>
-            <div className="flex items-center gap-5">
-              <Button
-                isLoading={depositLoading}
-                color="primary"
-                className="flex-shrink-0 flex-1"
-                onClick={handleBurrowSupply}
-              >
-                Deposit {depositAmount} BTC
-              </Button>
-              <Button
-                isLoading={withdrawLoading}
-                onClick={handleWithdraw}
-                className="flex-shrink-0 flex-1"
-              >
-                Withdraw {depositAmount} BTC
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-
-        <BTCSwapNEAR btcAccount={btcProvider.account} nearAccount={accountId!} />
-      </div>
-    </div>
+            ) : null}
+          </div>
+        </Loading>
+        <div className="flex items-center gap-5">
+          <Button
+            isLoading={depositLoading}
+            color="primary"
+            className="flex-shrink-0 flex-1"
+            onClick={handleBurrowSupply}
+          >
+            Deposit {depositAmount} BTC
+          </Button>
+          <Button
+            isLoading={withdrawLoading}
+            onClick={handleWithdraw}
+            className="flex-shrink-0 flex-1"
+          >
+            Withdraw {depositAmount} BTC
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 

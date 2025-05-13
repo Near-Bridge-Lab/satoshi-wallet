@@ -4,12 +4,14 @@ export type WalletState = {
   accountId?: string;
   originalAccountId?: string;
   originalPublicKey?: string;
+  isNearWallet?: boolean;
 };
 
 export const useWalletStore = create<WalletState>((set, get) => ({
   accountId: '',
   originalAccountId: '',
   originalPublicKey: '',
+  isNearWallet: false,
 }));
 
 function pollUpdateDataFromUrl() {
@@ -21,6 +23,9 @@ function pollUpdateDataFromUrl() {
   if (accountId) useWalletStore.setState({ accountId });
   if (originalAccountId) useWalletStore.setState({ originalAccountId });
   if (originalPublicKey) useWalletStore.setState({ originalPublicKey });
+  if (accountId && !(originalAccountId && originalPublicKey)) {
+    useWalletStore.setState({ isNearWallet: true });
+  }
 }
 
 pollUpdateDataFromUrl();

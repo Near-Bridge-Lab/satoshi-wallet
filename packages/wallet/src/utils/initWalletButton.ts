@@ -1,18 +1,28 @@
 import type { Wallet } from '@near-wallet-selector/core';
 import { walletConfig, type ENV } from '../config';
 import { executeBTCDepositAndAction, getWithdrawTransaction } from '../core/btcUtils';
+import { isMobile, storageStore } from '.';
+
+interface setupWalletButtonOptions {
+  env: ENV;
+  nearWallet: Wallet;
+  btcWallet?: OriginalWallet;
+  walletUrl?: string;
+}
 
 interface OriginalWallet {
   account: string | undefined;
   getPublicKey: () => Promise<string | undefined>;
 }
 
-export function setupWalletButton(
-  env: ENV,
-  wallet: Wallet,
-  originalWallet: OriginalWallet,
-  walletUrl?: string,
-) {
+const storage = storageStore('SATOSHI_WALLET_BUTTON');
+
+export function setupWalletButton({
+  env,
+  nearWallet,
+  btcWallet,
+  walletUrl,
+}: setupWalletButtonOptions) {
   console.log(`setupWalletButton ${walletUrl || ''}`);
   if (document.getElementById('satoshi-wallet-button')) {
     return;
@@ -20,7 +30,9 @@ export function setupWalletButton(
 
   const iframe = createIframe({
     iframeUrl: walletUrl || walletConfig[env].walletUrl,
-    iframeStyle: { width: '400px', height: '650px' },
+    iframeStyle: isMobile()
+      ? { width: 'calc(100% - 40px)', height: '80%' }
+      : { width: '400px', height: '650px' },
   });
 
   iframe.addEventListener('mouseenter', () => {
@@ -32,13 +44,21 @@ export function setupWalletButton(
     }
   });
 
+  const isNearWallet = !btcWallet;
+  const openImageUrl = `https://assets.deltatrade.ai/wallet-assets/wallet${
+    isNearWallet ? '-near' : ''
+  }-btn.png`;
+  const closeImageUrl = `https://assets.deltatrade.ai/wallet-assets/wallet${
+    isNearWallet ? '-near' : ''
+  }-btn-active.png`;
+
   const button = createFloatingButtonWithIframe({
-    openImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn.png',
-    closeImageUrl: 'https://assets.deltatrade.ai/wallet-assets/wallet-btn-active.png',
+    openImageUrl,
+    closeImageUrl,
     iframe,
   });
 
-  setupButtonClickHandler(button, iframe, wallet, originalWallet);
+  setupButtonClickHandler(button, iframe, nearWallet, btcWallet);
 }
 
 function createFloatingButtonWithIframe({
@@ -53,7 +73,7 @@ function createFloatingButtonWithIframe({
   const button = document.createElement('img');
   button.id = 'satoshi-wallet-button';
 
-  const isIframeVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+  const isIframeVisible = storage?.get<boolean>('visible') ?? true;
 
   button.src = isIframeVisible ? closeImageUrl : openImageUrl;
   iframe.style.display = isIframeVisible ? 'block' : 'none';
@@ -61,9 +81,10 @@ function createFloatingButtonWithIframe({
   const windowWidth = window.innerWidth;
   const windowHeight = window.innerHeight;
 
-  const savedPosition = JSON.parse(
-    localStorage.getItem('btc-wallet-button-position') || '{"right": "20px", "bottom": "20px"}',
-  );
+  const savedPosition = storage?.get<{ right: string; bottom: string }>('position') || {
+    right: '20px',
+    bottom: '20px',
+  };
 
   const right = Math.min(Math.max(20, parseInt(savedPosition.right)), windowWidth - 80);
   const bottom = Math.min(Math.max(20, parseInt(savedPosition.bottom)), windowHeight - 80);
@@ -81,6 +102,13 @@ function createFloatingButtonWithIframe({
     touchAction: 'none',
   });
 
+  if (isMobile()) {
+    Object.assign(button.style, {
+      width: '40px',
+      height: '40px',
+    });
+  }
+
   document.body.appendChild(button);
 
   updateIframePosition(iframe, right, bottom, windowWidth, windowHeight);
@@ -91,19 +119,6 @@ function createFloatingButtonWithIframe({
   let initialRight = 0;
   let initialBottom = 0;
   let dragStartTime = 0;
-
-  button.addEventListener('mousedown', (e) => {
-    startDrag(e.clientX, e.clientY);
-    e.preventDefault();
-  });
-
-  button.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      startDrag(touch.clientX, touch.clientY);
-      e.preventDefault();
-    }
-  });
 
   function startDrag(clientX: number, clientY: number) {
     isDragging = true;
@@ -117,17 +132,83 @@ function createFloatingButtonWithIframe({
     button.style.transition = 'none';
   }
 
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    moveButton(e.clientX, e.clientY);
-  });
+  // Primary click handler for opening/closing the wallet
+  function toggleWallet() {
+    const isCurrentlyVisible = iframe.style.display === 'block';
+    button.style.transform = 'scale(0.8)';
+    setTimeout(() => {
+      button.style.transform = 'scale(1)';
+    }, 150);
 
-  document.addEventListener('touchmove', (e) => {
-    if (!isDragging || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    moveButton(touch.clientX, touch.clientY);
-    e.preventDefault();
-  });
+    const newVisibleState = !isCurrentlyVisible;
+    iframe.style.display = newVisibleState ? 'block' : 'none';
+    button.src = newVisibleState ? closeImageUrl : openImageUrl;
+
+    storage?.set('visible', newVisibleState);
+
+    setTimeout(() => {
+      if (newVisibleState) {
+        iframe.focus();
+      }
+    }, 0);
+  }
+
+  button.addEventListener(
+    'click',
+    (e) => {
+      if (!isDragging) {
+        toggleWallet();
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
+
+  // Drag functionality
+  button.addEventListener(
+    'mousedown',
+    (e) => {
+      startDrag(e.clientX, e.clientY);
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
+
+  button.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        startDrag(touch.clientX, touch.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'mousemove',
+    (e) => {
+      if (!isDragging) return;
+      moveButton(e.clientX, e.clientY);
+      e.preventDefault();
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      moveButton(touch.clientX, touch.clientY);
+      e.preventDefault();
+    },
+    { capture: true },
+  );
 
   function moveButton(clientX: number, clientY: number) {
     const deltaX = startX - clientX;
@@ -160,60 +241,66 @@ function createFloatingButtonWithIframe({
     updateIframePosition(iframe, newRight, newBottom, windowWidth, windowHeight);
   }
 
-  document.addEventListener('mouseup', () => {
-    endDrag();
-  });
+  document.addEventListener(
+    'mouseup',
+    (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      endDrag();
+    },
+    { capture: true },
+  );
 
-  document.addEventListener('touchend', () => {
-    endDrag();
-  });
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      endDrag();
 
-  document.addEventListener('touchcancel', () => {
-    endDrag();
-  });
+      // For mobile: check if this was just a tap (not a drag)
+      const dragEndTime = Date.now();
+      const dragDuration = dragEndTime - dragStartTime;
+
+      // If it was a short touch without much movement, handle as tap
+      if (
+        dragDuration < 200 &&
+        Math.abs(parseInt(button.style.right) - initialRight) < 5 &&
+        Math.abs(parseInt(button.style.bottom) - initialBottom) < 5
+      ) {
+        toggleWallet();
+      }
+    },
+    { capture: true },
+  );
+
+  document.addEventListener(
+    'touchcancel',
+    () => {
+      endDrag();
+    },
+    { capture: true },
+  );
 
   function endDrag() {
     if (!isDragging) return;
-
-    const dragEndTime = Date.now();
-    const isDragEvent = dragEndTime - dragStartTime > 200;
 
     isDragging = false;
     button.style.cursor = 'grab';
     button.style.transition = 'transform 0.15s ease';
 
-    localStorage.setItem(
-      'btc-wallet-button-position',
-      JSON.stringify({
-        right: button.style.right,
-        bottom: button.style.bottom,
-      }),
-    );
-
-    if (!isDragEvent) {
-      handleButtonClick();
-    }
+    storage?.set('position', {
+      right: button.style.right,
+      bottom: button.style.bottom,
+    });
   }
 
-  const handleButtonClick = () => {
-    const isCurrentlyVisible = iframe.style.display === 'block';
-    button.style.transform = 'scale(0.8)';
-    setTimeout(() => {
-      button.style.transform = 'scale(1)';
-    }, 150);
-
-    const newVisibleState = !isCurrentlyVisible;
-    iframe.style.display = newVisibleState ? 'block' : 'none';
-    button.src = newVisibleState ? closeImageUrl : openImageUrl;
-
-    localStorage.setItem('btc-wallet-iframe-visible', String(newVisibleState));
-
-    setTimeout(() => {
-      if (newVisibleState) {
-        iframe.focus();
-      }
-    }, 0);
-  };
+  // Remove old click handler
+  const handleButtonClick = () => {};
 
   button.onclick = null;
 
@@ -232,7 +319,7 @@ function createIframe({
   iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
-  const isVisible = localStorage.getItem('btc-wallet-iframe-visible') === 'true';
+  const isVisible = storage?.get<boolean>('visible') ?? true;
 
   Object.assign(iframe.style, {
     position: 'fixed',
@@ -256,12 +343,12 @@ let currentMessageHandler: ((event: MessageEvent) => void) | null = null;
 async function setupButtonClickHandler(
   button: HTMLImageElement,
   iframe: HTMLIFrameElement,
-  wallet: Wallet,
-  originalWallet: OriginalWallet,
+  nearWallet: Wallet,
+  btcWallet?: OriginalWallet,
 ) {
-  const accountId = (await wallet?.getAccounts())?.[0].accountId;
-  const originalAccountId = originalWallet.account;
-  const originalPublicKey = await originalWallet.getPublicKey();
+  const accountId = (await nearWallet?.getAccounts())?.[0].accountId;
+  const originalAccountId = btcWallet?.account;
+  const originalPublicKey = await btcWallet?.getPublicKey();
   console.log({ accountId, originalAccountId, originalPublicKey });
   const iframeSrc = new URL(iframe.src);
   iframeSrc.searchParams.set('origin', window.location.origin);
@@ -272,8 +359,8 @@ async function setupButtonClickHandler(
   iframe.src = iframeSrc.toString();
 
   const actions = {
-    signAndSendTransaction: wallet.signAndSendTransaction,
-    signAndSendTransactions: wallet.signAndSendTransactions,
+    signAndSendTransaction: nearWallet.signAndSendTransaction,
+    signAndSendTransactions: nearWallet.signAndSendTransactions,
     executeBTCDepositAndAction,
     getWithdrawTransaction,
   };
@@ -319,6 +406,7 @@ async function setupButtonClickHandler(
 }
 
 export function removeWalletButton() {
+  console.log('removeWalletButton');
   const button = document.getElementById('satoshi-wallet-button');
   button?.remove();
   const iframe = document.getElementById('satoshi-wallet-iframe');

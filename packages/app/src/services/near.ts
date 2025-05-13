@@ -106,9 +106,9 @@ export const nearServices = {
       ? TokenMetadata | undefined
       : Record<string, TokenMetadata> | undefined;
   },
+
   getNearAccountId() {
     const accountId = useWalletStore.getState().accountId;
-    console.log('current near accountId', accountId);
     return accountId;
   },
   /** get balance, if tokenAddress is undefined, get NEAR balance */
@@ -164,7 +164,6 @@ export const nearServices = {
       method: 'storage_balance_of',
       args: { account_id: recipient || accountId },
     });
-    console.log('checkFTStorageBalance', token, res);
     if (!res?.available) {
       return {
         receiverId: token,

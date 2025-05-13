@@ -3,7 +3,7 @@ import { BTC_TOKEN_CONTRACT } from '@/config';
 import { useDebouncedMemo, useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
 import { useTokenStore } from '@/stores/token';
-import { formatNumber, formatPrice, formatToken } from '@/utils/format';
+import { formatNumber, formatPrice, formatSortAddress, formatToken } from '@/utils/format';
 import { isValidNearAddress } from '@/utils/validate';
 import { Button, Image, Input } from '@nextui-org/react';
 import Big from 'big.js';
@@ -11,6 +11,8 @@ import { useMemo, useState, useEffect } from 'react';
 import Loading from '../basic/Loading';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
+import { useWalletStore } from '@/stores/wallet';
+import TokenIcon from './TokenIcon';
 
 export function useTokenSelector() {
   const { openModal } = useMessageBoxContext();
@@ -44,14 +46,17 @@ export function Tokens({
   search?: string;
   onClick?: (token: string) => void;
 }) {
+  const { isNearWallet } = useWalletStore();
   const { displayableTokens = [], tokenMeta, prices, balances } = useTokenStore();
 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (displayableTokens.every((token) => tokenMeta[token]?.icon)) {
+    if (displayableTokens.every((token) => tokenMeta[token]?.icon || tokenMeta[token]?.symbol)) {
       setIsLoading(false);
     }
+    const timer = setTimeout(() => setIsLoading(false), 3000);
+    return () => clearTimeout(timer);
   }, [tokenMeta, displayableTokens]);
 
   const filteredTokens = useDebouncedMemo(
@@ -81,8 +86,10 @@ export function Tokens({
   const sortedTokens = useMemo(() => {
     return filteredTokens?.sort((a, b) => {
       // if near is the first token
-      if (a === BTC_TOKEN_CONTRACT) return -1;
-      if (b === BTC_TOKEN_CONTRACT) return 1;
+      if (!isNearWallet) {
+        if (a === BTC_TOKEN_CONTRACT) return -1;
+        if (b === BTC_TOKEN_CONTRACT) return 1;
+      }
       return new Big(balancesUSD?.[b] || 0).minus(balancesUSD?.[a] || 0).toNumber();
     });
   }, [balancesUSD, filteredTokens]);
@@ -95,28 +102,25 @@ export function Tokens({
     <div className={`flex flex-col ${mode === 'select' ? 'gap-1' : 'gap-4'}`}>
       {sortedTokens?.map((token, index) => (
         <div
-          key={index}
+          key={token}
           className={`card cursor-pointer text-sm ${mode === 'select' ? 'bg-transparent' : ''}`}
           onClick={() => onClick?.(token)}
         >
           <div className="flex items-center gap-2">
-            {tokenMeta[token]?.icon && (
-              <Image
-                src={tokenMeta[token]?.icon}
-                width={30}
-                height={30}
-                alt={tokenMeta[token]?.symbol || 'token'}
-              />
-            )}
+            <TokenIcon address={token} width={30} height={30} />
             <div>
-              <div className="text-base font-bold">{formatToken(tokenMeta[token]?.symbol)}</div>
+              <div className="text-base font-bold">
+                {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
+              </div>
               <div className="text-xs text-default-500">
                 {tokenMeta[token]?.symbol ? `$${formatPrice(prices?.[token]?.price)}` : '-'}
               </div>
             </div>
           </div>
           <div>
-            <div className="text-base font-bold text-right">{formatNumber(balances?.[token])}</div>
+            <div className="text-base font-bold text-right">
+              {formatNumber(balances?.[token], { rm: Big.roundDown })}
+            </div>
             <div className="text-xs text-default-500 text-right">
               ≈ ${formatPrice(balancesUSD?.[token])}
             </div>
@@ -184,7 +188,7 @@ export function ImportToken({ onSuccess }: { onSuccess?: () => void }) {
         <>
           {tokenMeta ? (
             <div className="card gap-2">
-              <Image src={tokenMeta.icon} width={30} height={30} />
+              <TokenIcon url={tokenMeta.icon} width={30} height={30} />
               <div className="flex-1 ml-1">
                 <div className="text-base font-bold">{formatToken(tokenMeta.symbol)}</div>
                 <div className="text-xs text-default-500">{tokenMeta.name}</div>
@@ -224,6 +228,7 @@ export function TokenSelector({
       <div>
         <Input
           placeholder="Search Tokens"
+          startContent={<Icon icon="eva:search-fill" className="text-default-500 text-lg" />}
           size="lg"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -256,13 +261,7 @@ export function TokenSelectorButton({
       radius="full"
       onClick={handleSelect}
     >
-      <Image
-        src={tokenMeta[token]?.icon}
-        width={20}
-        height={20}
-        alt={tokenMeta[token]?.symbol || 'token'}
-        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
-      />
+      <TokenIcon address={token} width={20} height={20} />
       <span>{formatToken(tokenMeta[token]?.symbol)}</span>
       <Icon icon="solar:alt-arrow-down-bold" className="text-xs text-default-500 flex-shrink-0" />
     </Button>

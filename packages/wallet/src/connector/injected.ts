@@ -33,9 +33,13 @@ export abstract class InjectedConnector extends BaseConnector {
   }
 
   async requestAccounts(): Promise<string[]> {
-    if (isMobile() && !this.getProvider()) {
-      MobileWalletConnect.redirectToWallet(this.metadata.id);
-      return [];
+    if (isMobile()) {
+      try {
+        this.getProvider();
+      } catch (error) {
+        await MobileWalletConnect.redirectToWallet(this.metadata.id);
+        return [];
+      }
     }
 
     const accounts = await this.getProviderOrThrow().requestAccounts();

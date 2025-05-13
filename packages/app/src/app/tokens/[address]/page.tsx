@@ -11,6 +11,7 @@ import { Image } from '@nextui-org/react';
 import Tools from '@/components/wallet/Tools';
 import Empty from '@/components/basic/Empty';
 import Activity from '@/components/wallet/Activity';
+import TokenIcon from '@/components/wallet/TokenIcon';
 
 export const runtime = 'edge';
 
@@ -33,14 +34,14 @@ export default function TokenDetailPage() {
       <div className="s-container">
         <Navbar className="mb-2"></Navbar>
         <div className="flex flex-col items-center justify-center mb-10">
-          <Image
-            src={tm?.icon}
+          <TokenIcon
+            url={tm?.icon}
             width={60}
             height={60}
             classNames={{ wrapper: 'rounded-full overflow-hidden w-15 h-15 mb-5' }}
           />
           <div className="text-lg font-bold">
-            {formatNumber(balance)} {formatToken(tm?.symbol)}
+            {formatNumber(balance, { rm: Big.roundDown })} {formatToken(tm?.symbol)}
           </div>
           <div className="text-default-500">${formatPrice(balancesUSD)}</div>
         </div>

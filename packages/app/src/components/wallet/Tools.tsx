@@ -3,6 +3,7 @@ import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
 import { formatFileUrl } from '@/utils/format';
 import { useRouter } from 'next/navigation';
 import { Image } from '@nextui-org/react';
+import { useWalletStore } from '@/stores/wallet';
 
 type Action = 'send' | 'receive' | 'swap' | 'bridge';
 
@@ -15,6 +16,8 @@ export default function Tools({
   actions?: Action[];
   address?: string;
 }) {
+  const { isNearWallet } = useWalletStore();
+
   const tools = [
     { label: 'Send', icon: formatFileUrl('/wallet-assets/send.svg'), action: handleSend },
     { label: 'Receive', icon: formatFileUrl('/wallet-assets/receive.svg'), action: handleReceive },
@@ -51,7 +54,11 @@ export default function Tools({
   }
 
   function handleBridge() {
-    router.push('/bridge');
+    if (isNearWallet) {
+      window.open('https://dex.rhea.finance/bridge', '_blank');
+    } else {
+      router.push('/bridge');
+    }
   }
 
   return (

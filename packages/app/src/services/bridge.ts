@@ -56,6 +56,7 @@ export const btcBridgeServices = {
     if (chain === 'btc') {
       const res = await getDepositAmount(rawAmount, {
         csna: nearAccount,
+        env: RUNTIME_NETWORK,
         newAccountMinDepositAmount: false,
       });
       const protocolFee = formatAmount(res.protocolFee, btcDecimals);

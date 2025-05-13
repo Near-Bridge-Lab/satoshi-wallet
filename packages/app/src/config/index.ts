@@ -9,8 +9,9 @@ export const TOKEN_WHITE_LIST = [
   NEAR_TOKEN_CONTRACT,
   ...(IS_MAINNET
     ? [
-        '31761a152f1e96f966c041291644129144233b0b.factory.bridge.near','17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
+        '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
         'usdt.tether-token.near',
+        '31761a152f1e96f966c041291644129144233b0b.factory.bridge.near',
         'token.v2.ref-finance.near',
       ]
     : ['deltausdc.testnet', 'usdtt.fakes.testnet']),

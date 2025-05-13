@@ -18,7 +18,7 @@ export function safeJSONStringify(obj: any): string | undefined {
 
 export function storageStore(namespace?: string, options?: { storage?: Storage }) {
   if (typeof window === 'undefined') return;
-  const _namespace = namespace || 'default';
+  const _namespace = namespace || 'SATOSHI_WALLET_UI_DEFAULT';
   const storage = options?.storage || window?.localStorage;
   const namespaceKey = (key: string) => {
     return _namespace + ':' + key;
@@ -129,10 +129,8 @@ export const getUrlHash = (
 
 export function isMobileDevice() {
   const userAgent = navigator.userAgent;
-  return (
-    /android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|mobi|palm|phone|pie|tablet|up\.browser|up\.link|webos|wos/i.test(
-      userAgent,
-    ) || window.innerWidth < 640
+  return /android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|mobi|palm|phone|pie|tablet|up\.browser|up\.link|webos|wos/i.test(
+    userAgent,
   );
 }
 

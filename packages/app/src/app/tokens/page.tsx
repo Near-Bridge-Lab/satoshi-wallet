@@ -1,5 +1,6 @@
 'use client';
 import Navbar from '@/components/basic/Navbar';
+import TokenIcon from '@/components/wallet/TokenIcon';
 import { ImportToken } from '@/components/wallet/Tokens';
 import { useClient } from '@/hooks/useHooks';
 import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
@@ -54,7 +55,7 @@ export default function Tokens() {
           size="lg"
           isClearable
           placeholder="Search tokens"
-          startContent={<Icon icon="eva:search-fill" className="text-default-500" />}
+          startContent={<Icon icon="eva:search-fill" className="text-default-500 text-lg" />}
           onChange={(e) => setSearch(e.target.value)}
           onClear={() => setSearch('')}
         />
@@ -97,7 +98,7 @@ export default function Tokens() {
                   tabIndex={-1}
                 >
                   <div className="flex items-center gap-3">
-                    <Image src={item?.icon} width={30} height={30} />
+                    <TokenIcon url={item?.icon} width={30} height={30} />
                     <span className="text-base">{formatToken(item?.symbol)}</span>
                   </div>
                 </ListboxItem>

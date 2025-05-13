@@ -27,6 +27,7 @@ import { getBtcBalance, getWithdrawTransaction } from 'btc-wallet';
 import { btcBridgeServices } from '@/services/bridge';
 import { rpcToWallet } from '@/utils/request';
 import { nearServices } from '@/services/near';
+import TokenIcon from '@/components/wallet/TokenIcon';
 
 interface BridgeForm {
   fromChain: string;
@@ -91,9 +92,10 @@ export default function Bridge() {
       if (chain === 'btc') {
         return btcBalanceRes || {};
       }
-      const balance = balances?.[BTC_TOKEN_CONTRACT] || 0;
+      const balance = balances?.[BTC_TOKEN_CONTRACT] || '0';
+      const availableBalance = nearServices.getAvailableBalance(BTC_TOKEN_CONTRACT, balance);
 
-      return { balance, availableBalance: balance };
+      return { balance, availableBalance };
     },
     [btcBalanceRes, balances],
   );
@@ -266,6 +268,7 @@ export default function Bridge() {
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: fromChain })?.balance || 0, {
                       displayDecimals: 8,
+                      rm: Big.roundDown,
                     })}
                     <Button
                       size="sm"
@@ -319,6 +322,7 @@ export default function Bridge() {
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: toChain })?.balance || 0, {
                       displayDecimals: 8,
+                      rm: Big.roundDown,
                     })}
                   </div>
                 </div>
@@ -408,17 +412,16 @@ function TokenSelector({
       onClick={() => onSelect?.(token)}
       disableAnimation
     >
-      <Image
-        src={
+      <TokenIcon
+        url={
           chain === 'btc'
             ? formatFileUrl('/assets/crypto/btc.svg')
             : tokenMeta[BTC_TOKEN_CONTRACT]?.icon
         }
         width={20}
         height={20}
-        alt={token}
-        classNames={{ wrapper: 'rounded-full flex-shrink-0' }}
       />
+
       <div className="flex items-center">
         {chain === 'btc' ? 'BTC' : tokenMeta[BTC_TOKEN_CONTRACT]?.symbol}
       </div>
