@@ -81,9 +81,9 @@ export function setupWalletSelectorModal(
 }
 
 const CHAINS = [
-  { id: 'btc', name: 'Bitcoin' },
-  { id: 'eth', name: 'Ethereum' },
-  { id: 'near', name: 'Near' },
+  { id: 'btc', name: 'Bitcoin', description: 'MPC Mapping' },
+  { id: 'eth', name: 'Ethereum', description: 'EVM address as Near Account' },
+  { id: 'near', name: 'Near', description: 'Near Account' },
 ];
 
 async function openChainModal(group: string[]): Promise<string> {
@@ -93,8 +93,11 @@ async function openChainModal(group: string[]): Promise<string> {
       <div class="option-list">${chains
         .map(
           (chain) => `<button class="chain-button option-item" data-chain="${chain.id}">
-        <img src="https://assets.deltatrade.ai/assets/chain/${chain.id}.svg" alt="${chain.id}" style="width:32px; height: 32px;" />
-        ${chain.name}
+          <img src="https://assets.deltatrade.ai/assets/chain/${chain.id}.svg" alt="${chain.id}" style="width:32px; height: 32px;" />
+          <div style="display: flex; flex-direction: column; text-align: left;">
+            <div style="font-size: 16px; font-weight: bold;">${chain.name}</div>
+            <div style="font-size: 12px; opacity:0.5;">${chain.description}</div>
+          </div>
         </button>`,
         )
         .join('')}
