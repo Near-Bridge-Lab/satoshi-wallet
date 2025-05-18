@@ -23,7 +23,6 @@ export function setupWalletButton({
   btcWallet,
   walletUrl,
 }: setupWalletButtonOptions) {
-  console.log(`setupWalletButton ${walletUrl || ''}`);
   if (document.getElementById('satoshi-wallet-button')) {
     return;
   }
@@ -73,7 +72,7 @@ function createFloatingButtonWithIframe({
   const button = document.createElement('img');
   button.id = 'satoshi-wallet-button';
 
-  const isIframeVisible = storage?.get<boolean>('visible') ?? true;
+  const isIframeVisible = storage?.get<boolean>('visible') ?? !isMobile();
 
   button.src = isIframeVisible ? closeImageUrl : openImageUrl;
   iframe.style.display = isIframeVisible ? 'block' : 'none';
@@ -319,7 +318,7 @@ function createIframe({
   iframe.allow = 'clipboard-read; clipboard-write';
   iframe.src = iframeUrl;
 
-  const isVisible = storage?.get<boolean>('visible') ?? true;
+  const isVisible = storage?.get<boolean>('visible') ?? !isMobile();
 
   Object.assign(iframe.style, {
     position: 'fixed',
