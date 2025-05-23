@@ -13,6 +13,10 @@ export interface WalletSelectorModalOptions extends _ModalOptions {
   showWalletUIForNearAccount?: boolean;
   walletUrl?: string;
   env?: ENV;
+  draggable?: boolean;
+  initialPosition?: { right: string; bottom: string };
+  buttonSize?: string;
+  mobileButtonSize?: string;
 }
 export type WalletSelectorModal = _WalletSelectorModal;
 
@@ -29,6 +33,10 @@ export function setupWalletSelectorModal(
     showWalletUIForNearAccount = true,
     env = 'mainnet',
     walletUrl,
+    draggable = true,
+    initialPosition = { right: '20px', bottom: '20px' },
+    buttonSize = '60px',
+    mobileButtonSize = '40px',
   } = options;
 
   subscription?.unsubscribe();
@@ -40,7 +48,15 @@ export function setupWalletSelectorModal(
     if (!walletId) removeWalletButton();
     if (showWalletUIForNearAccount && walletId !== 'btc-wallet') {
       selector.wallet().then((wallet) => {
-        setupWalletButton({ env, nearWallet: wallet, walletUrl });
+        setupWalletButton({
+          env,
+          nearWallet: wallet,
+          walletUrl,
+          draggable,
+          initialPosition,
+          buttonSize,
+          mobileButtonSize,
+        });
       });
     }
   });

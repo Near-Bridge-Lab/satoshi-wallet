@@ -31,7 +31,7 @@ const selector = await setupWalletSelector({
       autoConnect?: boolean,    // optional: enable auto-connect, defaults to true
       syncLogOut?: boolean,     // optional: sync logout across tabs, defaults to true
       env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
-      gasStrategy?: 'auto' | 'near' | 'btc' // optional: specify gas payment strategy, defaults to 'auto'
+      gasStrategy?: 'auto' | 'near' | 'btc', // optional: specify gas payment strategy, defaults to 'auto'
                                            // 'auto': use NEAR if balance > 0.5, otherwise use BTC token
                                            // 'near': force use NEAR for gas payment
                                            // 'btc': force use BTC token for gas payment
@@ -48,6 +48,10 @@ setupWalletSelectorModal(selector, {
   showChainGroups?: boolean,    // optional: show chain group selection, defaults to true
   showWalletUIForNearAccount?: boolean, // optional: show wallet UI for regular NEAR accounts, defaults to true
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+  draggable?: boolean,          // optional: enable button dragging, defaults to true
+  initialPosition?: { right: string; bottom: string }, // optional: initial button position, defaults to { right: '20px', bottom: '20px' }
+  buttonSize?: string,          // optional: button size, defaults to '60px'
+  mobileButtonSize?: string,    // optional: mobile button size, defaults to '40px'
 });
 
 // 3. Wrap your app with BtcWalletSelectorContextProvider
