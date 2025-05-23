@@ -1,0 +1,104 @@
+.connectModal {
+  gap: 12px;
+
+  .title {
+    font-size: 18px;
+    margin-bottom: 16px;
+    font-weight: bold;
+  }
+
+  .closeBtn {
+    cursor: pointer;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  .backBtn {
+    cursor: pointer;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+  }
+
+  .walletItem {
+    display: flex;
+    border-radius: 8px;
+    background-color: hsla(0, 0%, 100%, 0.05);
+    width: 100%;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    color: #fff;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 14px;
+    font-weight: bold;
+    gap: 12px;
+    &:hover {
+      border-color: #ff7a00;
+      color: #ff7a00;
+      background: hsla(0, 0%, 100%, 0.08);
+    }
+
+    .walletIcon {
+      height: 32px;
+      width: 32px;
+      border-radius: 8px;
+    }
+
+    .walletName {
+      flex-grow: 1;
+      line-height: 32px;
+    }
+  }
+
+  .connecting {
+    height: 204px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    .connectingIconContainer {
+      position: relative;
+
+      .retryContainer {
+        background: #4b5563;
+        border-radius: 50%;
+        padding: 4px;
+        cursor: pointer;
+        position: absolute;
+        bottom: -12px;
+        right: -12px;
+
+        .retryIcon {
+          width: 24px;
+          height: 24px;
+        }
+      }
+    }
+
+    .connectingIcon {
+      width: 60px;
+      height: 60px;
+      border-radius: 4px;
+    }
+
+    .connection {
+      font-size: 18px;
+      margin-top: 20px;
+    }
+    .acceptRequest {
+      font-size: 14px;
+      margin-top: 6px;
+      text-align: center;
+      white-space: pre-wrap;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .btnDownload {
+      margin-top: 20px;
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "editor.formatOnSave": true,
+  "eslint.format.enable": false,
+  "eslint.runtime": "node",
+  "files.autoSave": "off",
+  "eslint.run": "onSave",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}
