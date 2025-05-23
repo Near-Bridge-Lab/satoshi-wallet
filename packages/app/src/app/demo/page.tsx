@@ -107,6 +107,9 @@ function WalletPage() {
       contractId: '',
       theme: 'dark',
       walletUrl: location.origin,
+      initialPosition: { right: '10px', bottom: '40px' },
+      buttonSize: '40px',
+      mobileButtonSize: '30px',
     });
     setWalletSelectorModal(modal);
     if (!walletSelectorRef.current) return;
