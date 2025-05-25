@@ -23,6 +23,7 @@ const BLACKLIST_CONTRACTS = [
   'nearrewards.near',
   'nearreward.near',
   'meteor-points.near',
+  'aurora',
 ];
 
 // Transaction types
