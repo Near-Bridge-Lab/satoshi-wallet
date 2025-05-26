@@ -163,9 +163,8 @@ export function useBtcWalletSelector() {
     // Common connect method with two connection modes
     const connectWallet = async (useModal = false) => {
       if (connectModalOpen) return null;
-
-      const account = accounts?.[0];
-      if (account) return account;
+      // const account = accounts?.[0];
+      // if (account) return account;
 
       try {
         if (useModal) {
