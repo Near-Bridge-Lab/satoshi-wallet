@@ -249,6 +249,7 @@ export const ConnectProvider = ({
 
   useEffect(() => {
     const onAccountChange = (accounts: string[]) => {
+      if (!accounts.length) return;
       setAccounts(accounts);
     };
     connector?.on('accountsChanged', onAccountChange);
