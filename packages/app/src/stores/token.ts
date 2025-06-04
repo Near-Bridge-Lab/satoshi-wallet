@@ -191,7 +191,7 @@ async function pollingQueryBalance(store: StoreApi<State>) {
     }
   }
 
-  setTimeout(() => pollingQueryBalance(store), 30000);
+  setTimeout(() => pollingQueryBalance(store), 120000);
 }
 
 async function pollingQueryNFTs(store: StoreApi<NFTState>) {

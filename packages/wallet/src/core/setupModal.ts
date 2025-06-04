@@ -97,9 +97,9 @@ export function setupWalletSelectorModal(
 }
 
 const CHAINS = [
-  { id: 'btc', name: 'Bitcoin', description: 'MPC Mapping' },
-  { id: 'eth', name: 'Ethereum', description: 'EVM address as Near Account' },
   { id: 'near', name: 'Near', description: 'Near Account' },
+  { id: 'eth', name: 'Ethereum', description: 'EVM address as Near Account' },
+  { id: 'btc', name: 'Bitcoin', description: 'MPC Mapping' },
 ];
 
 async function openChainModal(group: string[]): Promise<string> {
