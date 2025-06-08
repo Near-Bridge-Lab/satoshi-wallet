@@ -546,10 +546,11 @@ function BTCSwapNEAR({ btcAccount, nearAccount }: { btcAccount: string; nearAcco
 function SignMessage() {
   const [message, setMessage] = useState('');
   const [signature, setSignature] = useState('');
-
+  const [publicKey, setPublicKey] = useState('');
   async function handleSignMessage() {
-    const signature = await signMessage(message);
+    const { signature, publicKey } = await signMessage(message);
     setSignature(signature);
+    setPublicKey(publicKey);
   }
   return (
     <Card>
@@ -570,6 +571,13 @@ function SignMessage() {
           className="text-xs"
         >
           {signature}
+        </Snippet>
+        <Snippet
+          symbol={<span className="text-xs text-default-500">Public Key: </span>}
+          size="sm"
+          className="text-xs"
+        >
+          {publicKey}
         </Snippet>
       </CardBody>
     </Card>

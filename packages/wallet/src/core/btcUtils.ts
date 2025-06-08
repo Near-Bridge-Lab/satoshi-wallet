@@ -202,9 +202,10 @@ export async function sendBitcoin(address: string, amount: number, feeRate: numb
 }
 
 export async function signMessage(message: string) {
-  const { signMessage } = getBtcProvider();
+  const { signMessage, getPublicKey } = getBtcProvider();
+  const publicKey = await getPublicKey();
   const signature = await signMessage(message);
-  return signature;
+  return { signature, publicKey };
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */
