@@ -195,14 +195,16 @@ export async function getBtcBalance(account?: string) {
   };
 }
 
-export async function sendBitcoin(
-  address: string,
-  amount: number,
-  feeRate: number,
-): Promise<string> {
+export async function sendBitcoin(address: string, amount: number, feeRate: number) {
   const { sendBitcoin } = getBtcProvider();
   const txHash = await sendBitcoin(address, amount, { feeRate });
   return txHash;
+}
+
+export async function signMessage(message: string) {
+  const { signMessage } = getBtcProvider();
+  const signature = await signMessage(message);
+  return signature;
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */

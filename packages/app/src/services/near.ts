@@ -1,8 +1,8 @@
-import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, NEAR_TOKEN_CONTRACT } from '@/config';
+import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES } from '@/config';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatAmount, formatFileUrl, parseAmount } from '@/utils/format';
-import { Action, Transaction } from '@near-wallet-selector/core';
+import { Transaction } from '@near-wallet-selector/core';
 import Big from 'big.js';
 import { connect, keyStores, Near, providers } from 'near-api-js';
 import { FinalExecutionOutcome, QueryResponseKind } from 'near-api-js/lib/providers/provider';
@@ -81,17 +81,23 @@ export const nearServices = {
     if (!token?.length) return;
     const tokenArr = Array.isArray(token) ? token : [token];
     const res = await Promise.allSettled(
-      tokenArr.map((token) =>
-        this.query<TokenMetadata>({ contractId: token, method: 'ft_metadata' }),
-      ),
+      tokenArr.map((token) => {
+        if (token === 'near') {
+          return {
+            symbol: 'NEAR',
+            icon: formatFileUrl('/assets/crypto/near.svg'),
+            decimals: 24,
+          } as TokenMetadata;
+        }
+        return this.query<TokenMetadata>({ contractId: token, method: 'ft_metadata' });
+      }),
     );
     const tokenMeta = res.reduce(
       (acc, token, index) => {
         if (token.status === 'fulfilled' && token.value) {
           const tokenMeta = token.value;
           if (tokenMeta.symbol === 'wNEAR') {
-            tokenMeta.symbol = 'NEAR';
-            tokenMeta.icon = formatFileUrl('/assets/crypto/near.svg');
+            tokenMeta.icon = formatFileUrl('/assets/crypto/wnear.png');
           }
           acc[tokenArr[index]] = tokenMeta;
         }
@@ -120,7 +126,7 @@ export const nearServices = {
       const near = await this.nearConnect();
       const account = await near.account(accountId);
       let balance = '0';
-      if (address === NEAR_TOKEN_CONTRACT) {
+      if (address === 'near') {
         balance = (await account.getAccountBalance()).available;
       } else {
         balance =
@@ -149,12 +155,13 @@ export const nearServices = {
       availableBalance = new Big(balance).minus('0.000008').toString();
     }
     // if token is NEAR, need to reserve 0.5 NEAR as gas fee
-    else if (token === NEAR_TOKEN_CONTRACT) {
+    else if (token === 'near') {
       availableBalance = new Big(balance).minus('0.5').toString();
     }
     return new Big(availableBalance).gt(0) ? availableBalance : '0';
   },
   async registerToken(token: string, recipient?: string) {
+    if (token === 'near') return;
     const accountId = useWalletStore.getState().accountId;
     const res = await this.query<{
       available: string;

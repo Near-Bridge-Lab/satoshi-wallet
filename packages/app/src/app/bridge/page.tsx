@@ -1,13 +1,11 @@
 'use client';
 import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
-import { useTokenSelector } from '@/components/wallet/Tokens';
-import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT, RUNTIME_NETWORK } from '@/config';
+import { BTC_TOKEN_CONTRACT, RUNTIME_NETWORK } from '@/config';
 import { useClient, useDebouncedEffect, useRequest } from '@/hooks/useHooks';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import {
-  formatAmount,
   formatFileUrl,
   formatNumber,
   formatPrice,
@@ -183,7 +181,10 @@ export default function Bridge() {
       }
     } catch (error: any) {
       console.error(error);
-      if (error?.message && !error?.message?.includes(`User rejected the request`))
+      if (
+        error?.message &&
+        !error?.message?.match(/User rejected the request|User cancelled the action/)
+      )
         toast.error(`Bridge failed: ${error.message}`);
     } finally {
       setBridgeLoading(false);
