@@ -135,8 +135,8 @@ export const nearSwapServices = {
       result_data: { methodName, args, gas },
     } = await request<{ result_data: FunctionCallAction['params'] }>(
       generateUrl(`${process.env.NEXT_PUBLIC_NEAR_SWAP_API}/swapPath`, {
-        tokenIn,
-        tokenOut,
+        tokenIn: tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn,
+        tokenOut: tokenOut === 'near' ? NEAR_TOKEN_CONTRACT : tokenOut,
         amountIn: parsedAmountIn,
         pathDeep,
         slippage,
@@ -144,7 +144,7 @@ export const nearSwapServices = {
     );
     const parsedMsg = safeJSONParse<any>((args as any).msg);
     if (!parsedMsg?.actions.length) throw new Error('No swap path found');
-    if (tokenOut === NEAR_TOKEN_CONTRACT) {
+    if (tokenOut === 'near') {
       parsedMsg.skip_unwrap_near = false;
     }
     const newArgs = { ...args, msg: JSON.stringify(parsedMsg) };
@@ -207,24 +207,21 @@ export const nearSwapServices = {
       ] as Transaction[];
     }
 
-    const _tokenIn = tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn;
-    const _tokenOut = tokenOut === 'near' ? NEAR_TOKEN_CONTRACT : tokenOut;
-
     const swapAction = await this.generateAction({
-      tokenIn: _tokenIn,
-      tokenOut: _tokenOut,
+      tokenIn,
+      tokenOut,
       amountIn,
       pathDeep,
       slippage,
     });
 
-    const baseRegisterTransaction = await nearServices.registerToken(_tokenIn);
-    const quoteRegisterTransaction = await nearServices.registerToken(_tokenOut);
+    const baseRegisterTransaction = await nearServices.registerToken(tokenIn);
+    const quoteRegisterTransaction = await nearServices.registerToken(tokenOut);
 
     const transactions: Transaction[] = [
       {
         signerId: accountId,
-        receiverId: _tokenIn,
+        receiverId: tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn,
         actions: [
           {
             type: 'FunctionCall',

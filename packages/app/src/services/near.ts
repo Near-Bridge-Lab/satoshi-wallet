@@ -1,4 +1,4 @@
-import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES } from '@/config';
+import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, NEAR_TOKEN_CONTRACT } from '@/config';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatAmount, formatFileUrl, parseAmount } from '@/utils/format';
@@ -161,19 +161,19 @@ export const nearServices = {
     return new Big(availableBalance).gt(0) ? availableBalance : '0';
   },
   async registerToken(token: string, recipient?: string) {
-    if (token === 'near') return;
+    const _token = token === 'near' ? NEAR_TOKEN_CONTRACT : token;
     const accountId = useWalletStore.getState().accountId;
     const res = await this.query<{
       available: string;
       total: string;
     }>({
-      contractId: token,
+      contractId: _token,
       method: 'storage_balance_of',
       args: { account_id: recipient || accountId },
     });
     if (!res?.available) {
       return {
-        receiverId: token,
+        receiverId: _token,
         actions: [
           {
             type: 'FunctionCall',
