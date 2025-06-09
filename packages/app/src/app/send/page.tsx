@@ -3,9 +3,8 @@ import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
 import TokenIcon from '@/components/wallet/TokenIcon';
 import { useTokenSelector } from '@/components/wallet/Tokens';
-import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
+import { BTC_TOKEN_CONTRACT } from '@/config';
 import { nearServices } from '@/services/near';
-import { transactionServices } from '@/services/tranction';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
@@ -42,7 +41,7 @@ export default function Send() {
     trigger,
   } = useForm<SendForm>({
     defaultValues: {
-      token: query.get('token') || (isNearWallet ? NEAR_TOKEN_CONTRACT : BTC_TOKEN_CONTRACT),
+      token: query.get('token') || (isNearWallet ? 'near' : BTC_TOKEN_CONTRACT),
       recipient: '',
       amount: '',
     },
@@ -95,7 +94,7 @@ export default function Send() {
       const registerTokenTrans = await nearServices.registerToken(data.token, data.recipient);
       const res = await rpcToWallet(
         'signAndSendTransaction',
-        data.token !== NEAR_TOKEN_CONTRACT
+        data.token !== 'near'
           ? {
               receiverId: data.token,
               actions: [
@@ -130,7 +129,10 @@ export default function Send() {
       toast.success('Send success');
     } catch (error: any) {
       console.error(error);
-      if (error?.message && !error?.message?.includes(`User rejected the request`))
+      if (
+        error?.message &&
+        !error?.message?.match(/User rejected the request|User cancelled the action/)
+      )
         toast.error(`Send failed: ${error.message}`);
     } finally {
       setLoading(false);

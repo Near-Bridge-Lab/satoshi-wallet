@@ -1,25 +1,18 @@
 'use client';
 import Loading from '@/components/basic/Loading';
 import Navbar from '@/components/basic/Navbar';
-import { TokenSelector, TokenSelectorButton, useTokenSelector } from '@/components/wallet/Tokens';
-import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
+import { TokenSelectorButton } from '@/components/wallet/Tokens';
+import { TOKEN_WHITE_LIST } from '@/config';
 import { nearServices } from '@/services/near';
 import { nearSwapServices } from '@/services/swap';
 import { useTokenStore } from '@/stores/token';
-import {
-  formatAmount,
-  formatNumber,
-  formatPrice,
-  formatToken,
-  formatValidNumber,
-  parseAmount,
-} from '@/utils/format';
+import { formatNumber, formatPrice, formatValidNumber } from '@/utils/format';
 import { Icon } from '@iconify/react';
-import { Button, Image, Input, Checkbox } from '@nextui-org/react';
+import { Button, Input, Checkbox } from '@nextui-org/react';
 import { get } from 'lodash-es';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm, Controller, useWatch } from 'react-hook-form';
+import { Suspense, useCallback, useMemo, useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import Big from 'big.js';
 import { useClient, useRequest } from '@/hooks/useHooks';
@@ -37,7 +30,7 @@ interface SwapForm {
 export default function Swap() {
   const { isClient } = useClient();
   const query = useSearchParams();
-  const { displayableTokens, tokenMeta, balances, refreshBalance, prices } = useTokenStore();
+  const { tokenMeta, balances, refreshBalance, prices } = useTokenStore();
   const { isNearWallet } = useWalletStore();
   const defaultSlippage = 0.1;
 
@@ -115,7 +108,10 @@ export default function Swap() {
       manual: true,
       onError: (error) => {
         console.error(error);
-        if (error?.message && !error?.message?.includes(`User rejected the request`))
+        if (
+          error?.message &&
+          !error?.message?.match(/User rejected the request|User cancelled the action/)
+        )
           toast.error(`Swap failed: ${error.message}`);
       },
     },

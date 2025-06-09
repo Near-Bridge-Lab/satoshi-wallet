@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useInfiniteScroll, useRequest } from '@/hooks/useHooks';
 import Empty from '../basic/Empty';
-import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/tranction';
+import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/transaction';
 import Loading from '../basic/Loading';
 import dayjs from '@/utils/dayjs';
 import { formatAmount, formatExplorerUrl, formatFileUrl, formatSortAddress } from '@/utils/format';

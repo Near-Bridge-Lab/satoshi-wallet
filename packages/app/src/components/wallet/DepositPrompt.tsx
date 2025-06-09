@@ -2,7 +2,7 @@
 import { RUNTIME_NETWORK } from '@/config';
 import { useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
-import { transactionServices } from '@/services/tranction';
+import { transactionServices } from '@/services/transaction';
 import { useWalletStore } from '@/stores/wallet';
 import { rpcToWallet } from '@/utils/request';
 import { Icon } from '@iconify/react/dist/iconify.js';

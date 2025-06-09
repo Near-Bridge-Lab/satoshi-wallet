@@ -128,6 +128,7 @@ async function subscribeTokensChange(store: StoreApi<State>) {
 
       if (data && Array.isArray(data)) {
         const heldTokens = data.map((t: any) => t.contract_id);
+        heldTokens.unshift('near');
 
         const newTokens = heldTokens.filter((token: string) => !existingTokens.includes(token));
 
