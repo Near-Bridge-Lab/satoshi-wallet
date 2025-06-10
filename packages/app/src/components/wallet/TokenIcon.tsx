@@ -2,6 +2,8 @@
 import { useMemo } from 'react';
 import { cn, ImageProps, Image } from '@nextui-org/react';
 import { useTokenStore } from '@/stores/token';
+import { NEAR_TOKEN_CONTRACT } from '@/config';
+import { formatFileUrl } from '@/utils/format';
 
 interface TokenIconProps extends ImageProps {
   url?: string;
@@ -23,6 +25,8 @@ export default function TokenIcon({
 }: TokenIconProps) {
   const { tokenMeta: tokenMetaList } = useTokenStore();
   const tokenMeta = useMemo(() => {
+    if (address === NEAR_TOKEN_CONTRACT && tokenMetaList[address]?.icon)
+      tokenMetaList[address].icon = formatFileUrl('/assets/crypto/wnear.png');
     return address ? tokenMetaList[address] : undefined;
   }, [address, tokenMetaList]);
 
