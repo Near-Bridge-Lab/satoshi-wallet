@@ -31,14 +31,15 @@ export function BtcWalletSelectorContextProvider({
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
+  //OKX，Bitget，bybit，Xverse，Unisat
   const connectors = [
-    new UnisatConnector(),
-    new XverseConnector(),
     new OKXConnector(),
     new BitgetConnector(),
-    // new BinanceConnector(),
-    new MagicEdenConnector(),
     new BybitConnector(),
+    new XverseConnector(),
+    new UnisatConnector(),
+    new MagicEdenConnector(),
+    // new BinanceConnector(),
   ];
 
   const walletSelectorContextValue = useMemo(() => {
