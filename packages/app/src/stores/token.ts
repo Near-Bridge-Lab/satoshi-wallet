@@ -98,7 +98,7 @@ export const useTokenStore = create<State>((set, get) => ({
         ...mergedTokenMeta[NEAR_TOKEN_CONTRACT],
         icon: formatFileUrl('/assets/crypto/wnear.png'),
         name: 'Wrapped NEAR',
-        symbol: 'WNEAR',
+        symbol: 'wNEAR',
         decimals: 24,
       };
     }
