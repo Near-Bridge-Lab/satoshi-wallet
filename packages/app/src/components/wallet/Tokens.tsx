@@ -47,21 +47,21 @@ export function Tokens({
   onClick?: (token: string) => void;
 }) {
   const { isNearWallet } = useWalletStore();
-  const { displayableTokens = [], tokenMeta, prices, balances } = useTokenStore();
+  const { displayTokens = [], tokenMeta, prices, balances } = useTokenStore();
 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (displayableTokens.every((token) => tokenMeta[token]?.icon || tokenMeta[token]?.symbol)) {
+    if (displayTokens.every((token) => tokenMeta[token]?.icon || tokenMeta[token]?.symbol)) {
       setIsLoading(false);
     }
     const timer = setTimeout(() => setIsLoading(false), 3000);
     return () => clearTimeout(timer);
-  }, [tokenMeta, displayableTokens]);
+  }, [tokenMeta, displayTokens]);
 
   const filteredTokens = useDebouncedMemo(
     async () =>
-      displayableTokens.filter((token) => {
+      displayTokens.filter((token) => {
         if (!search) return true;
         const meta = tokenMeta[token];
         return (
@@ -69,19 +69,19 @@ export function Tokens({
           meta?.symbol.toLowerCase().includes(search.toLowerCase())
         );
       }),
-    [displayableTokens, search, tokenMeta],
+    [displayTokens, search, tokenMeta],
     search ? 500 : 0,
   );
 
   const balancesUSD = useMemo(() => {
-    return displayableTokens.reduce(
+    return displayTokens.reduce(
       (acc, token) => {
         acc[token] = new Big(prices?.[token]?.price || 0).times(balances?.[token] || 0).toNumber();
         return acc;
       },
       {} as Record<string, number>,
     );
-  }, [balances, prices, displayableTokens]);
+  }, [balances, prices, displayTokens]);
 
   const sortedTokens = useMemo(() => {
     return filteredTokens?.sort((a, b) => {

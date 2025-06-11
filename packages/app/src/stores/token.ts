@@ -1,19 +1,28 @@
 import { create, StoreApi } from 'zustand';
 import { priceServices } from '@/services/price';
-import { TOKEN_WHITE_LIST } from '@/config';
+import { NEAR_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
 import { storageStore } from '@/utils/common';
 import { isEqual } from 'lodash-es';
 import { nearServices } from '@/services/near';
 import { fastNearServices } from '@/services/fastnear';
+import { formatFileUrl } from '@/utils/format';
+import { useWalletStore } from '@/stores/wallet';
 
-const storage = storageStore('SATOSHI_WALLET_UI_TOKENS');
+const tokensStorage = storageStore('SATOSHI_WALLET_UI_TOKENS');
+
+function getAccountStorage(accountId: string) {
+  return storageStore(`SATOSHI_WALLET_UI_TOKENS_${accountId}`);
+}
+
+function getCurrentAccountId(): string | undefined {
+  return useWalletStore.getState().accountId;
+}
 
 type State = {
   tokens?: string[];
   addToken: (token: string) => void;
-  hiddenTokens?: string[];
-  setHiddenTokens?: (hiddenTokens: string[]) => void;
-  displayableTokens?: string[];
+  displayTokens?: string[];
+  setDisplayTokens?: (displayTokens: string[]) => void;
   tokenMeta: Record<string, TokenMetadata | undefined>;
   setTokenMeta: (tokenMeta?: Record<string, TokenMetadata | undefined>) => void;
   prices: Record<string, { price: string; symbol: string; decimal: number }>;
@@ -21,38 +30,30 @@ type State = {
   refreshBalance: (token: string) => void;
 };
 
-// NFT Store
 type NFTState = {
-  nfts: Record<string, NFTMetadata[]>;
-  setNFTs: (accountId: string, nfts: NFTMetadata[]) => void;
+  nfts: NFTMetadata[];
+  setNFTs: (nfts: NFTMetadata[]) => void;
   refreshNFTs: () => void;
-  getNFTsByAccount: (accountId: string) => NFTMetadata[];
 };
 
 export const useNFTStore = create<NFTState>((set, get) => ({
-  nfts: storage?.get('nfts') || {},
-  setNFTs: (accountId, nfts) => {
+  nfts: [],
+  setNFTs: (nfts) => {
+    const accountId = getCurrentAccountId();
     if (!accountId) return;
-    const currentNfts = get().nfts;
-    const updatedNfts = {
-      ...currentNfts,
-      [accountId]: nfts,
-    };
-    set({ nfts: updatedNfts });
-    storage?.set('nfts', updatedNfts);
-  },
-  getNFTsByAccount: (accountId) => {
-    if (!accountId) return [];
-    return get().nfts[accountId] || [];
+
+    set({ nfts });
+    const storage = getAccountStorage(accountId);
+    storage?.set('nfts', nfts);
   },
   refreshNFTs: async () => {
-    const accountId = nearServices.getNearAccountId();
+    const accountId = getCurrentAccountId();
     if (!accountId) return;
 
     try {
       const data = await fastNearServices.getAccountNFTs(accountId);
       if (data?.length && Array.isArray(data)) {
-        get().setNFTs(accountId, data);
+        get().setNFTs(data);
       }
     } catch (error) {
       console.error('Failed to fetch NFTs from FastNear:', error);
@@ -61,29 +62,47 @@ export const useNFTStore = create<NFTState>((set, get) => ({
 }));
 
 export const useTokenStore = create<State>((set, get) => ({
-  tokens: storage?.get('tokens') || TOKEN_WHITE_LIST,
-  hiddenTokens: storage?.get('hiddenTokens') || [],
-  tokenMeta: storage?.get('tokenMeta') || {},
+  tokens: TOKEN_WHITE_LIST,
+  displayTokens: TOKEN_WHITE_LIST,
+  tokenMeta: tokensStorage?.get('tokenMeta') || {},
   addToken: (token) => {
+    const accountId = getCurrentAccountId();
+    if (!accountId) return;
+
     const tokens = get().tokens;
+    const displayTokens = get().displayTokens;
+
     if (!tokens?.includes(token)) {
       const updatedTokens = [...(tokens || []), token];
-      set({ tokens: updatedTokens });
+      const updatedDisplayTokens = [...(displayTokens || []), token];
+
+      set({ tokens: updatedTokens, displayTokens: updatedDisplayTokens });
+
+      const storage = getAccountStorage(accountId);
       storage?.set('tokens', updatedTokens);
-      setDisplayableTokens();
+      storage?.set('displayTokens', updatedDisplayTokens);
     }
   },
-  setHiddenTokens: (hiddenTokens) => {
-    storage?.set('hiddenTokens', hiddenTokens);
-    set({ hiddenTokens });
-    setDisplayableTokens();
+  setDisplayTokens: (displayTokens) => {
+    const accountId = getCurrentAccountId();
+    if (!accountId) return;
+
+    const storage = getAccountStorage(accountId);
+    storage?.set('displayTokens', displayTokens);
+    set({ displayTokens });
   },
-  displayableTokens: (storage?.get<string[]>('tokens') || TOKEN_WHITE_LIST).filter(
-    (token) => !storage?.get<string[]>('hiddenTokens')?.includes(token),
-  ),
   setTokenMeta: (tokenMeta) => {
     const mergedTokenMeta = { ...get().tokenMeta, ...(tokenMeta || {}) };
-    storage?.set('tokenMeta', mergedTokenMeta);
+    if (mergedTokenMeta?.[NEAR_TOKEN_CONTRACT]) {
+      mergedTokenMeta[NEAR_TOKEN_CONTRACT] = {
+        ...mergedTokenMeta[NEAR_TOKEN_CONTRACT],
+        icon: formatFileUrl('/assets/crypto/wnear.png'),
+        name: 'Wrapped NEAR',
+        symbol: 'WNEAR',
+        decimals: 24,
+      };
+    }
+    tokensStorage?.set('tokenMeta', mergedTokenMeta);
     set({ tokenMeta: mergedTokenMeta });
   },
   prices: {},
@@ -100,10 +119,38 @@ export const useTokenStore = create<State>((set, get) => ({
   },
 }));
 
-function setDisplayableTokens() {
-  const { tokens, hiddenTokens } = useTokenStore.getState();
-  const displayableTokens = (tokens || []).filter((token) => !hiddenTokens?.includes(token));
-  useTokenStore.setState({ displayableTokens });
+function loadAccountData(accountId: string) {
+  const storage = getAccountStorage(accountId);
+  const tokens = (storage?.get('tokens') as string[]) || TOKEN_WHITE_LIST;
+  const displayTokens = (storage?.get('displayTokens') as string[]) || TOKEN_WHITE_LIST;
+
+  useTokenStore.setState({
+    tokens,
+    displayTokens,
+  });
+}
+
+function subscribeWalletChange() {
+  let currentAccountId = getCurrentAccountId();
+
+  if (currentAccountId) {
+    loadAccountData(currentAccountId);
+  }
+
+  useWalletStore.subscribe((state, prevState) => {
+    if (state.accountId !== prevState.accountId) {
+      if (state.accountId) {
+        loadAccountData(state.accountId);
+        currentAccountId = state.accountId;
+      } else {
+        useTokenStore.setState({
+          tokens: TOKEN_WHITE_LIST,
+          displayTokens: TOKEN_WHITE_LIST,
+        });
+        currentAccountId = undefined;
+      }
+    }
+  });
 }
 
 async function queryTokenMetadata(tokens: string[]) {
@@ -119,26 +166,30 @@ async function queryTokenMetadata(tokens: string[]) {
 }
 
 async function subscribeTokensChange(store: StoreApi<State>) {
+  const accountId = getCurrentAccountId();
+  if (!accountId) return;
+
+  const storage = getAccountStorage(accountId);
   let existingTokens = store.getState().tokens || [];
-  const accountId = nearServices.getNearAccountId();
 
   try {
-    if (accountId) {
-      const data = await fastNearServices.getAccountTokens(accountId);
+    const data = await fastNearServices.getAccountTokens(accountId);
 
-      if (data && Array.isArray(data)) {
-        const heldTokens = data.map((t: any) => t.contract_id);
-        heldTokens.unshift('near');
+    if (data && Array.isArray(data)) {
+      const heldTokens = data.map((t: any) => t.contract_id);
+      heldTokens.unshift('near');
 
-        const newTokens = heldTokens.filter((token: string) => !existingTokens.includes(token));
+      const newTokens = heldTokens.filter((token: string) => !existingTokens.includes(token));
 
-        if (newTokens.length > 0) {
-          const updatedTokens = [...existingTokens, ...newTokens];
-          store.setState({ tokens: updatedTokens });
-          storage?.set('tokens', updatedTokens);
-          existingTokens = updatedTokens;
-          setDisplayableTokens();
-        }
+      if (newTokens.length > 0) {
+        const updatedTokens = [...existingTokens, ...newTokens];
+        const currentDisplayTokens = store.getState().displayTokens || [];
+        const updatedDisplayTokens = [...currentDisplayTokens, ...newTokens];
+
+        store.setState({ tokens: updatedTokens, displayTokens: updatedDisplayTokens });
+        storage?.set('tokens', updatedTokens);
+        storage?.set('displayTokens', updatedDisplayTokens);
+        existingTokens = updatedTokens;
       }
     }
   } catch (error) {
@@ -155,7 +206,6 @@ async function subscribeTokensChange(store: StoreApi<State>) {
     if (state.tokens && !isEqual(state.tokens, prevState.tokens)) {
       const tokenMeta = await queryTokenMetadata(state.tokens);
       state.setTokenMeta(tokenMeta);
-      setDisplayableTokens();
     }
   });
 }
@@ -163,7 +213,6 @@ async function subscribeTokensChange(store: StoreApi<State>) {
 async function pollingQueryPrice(store: StoreApi<State>) {
   const { tokenMeta } = store.getState();
   if (tokenMeta) {
-    // const symbols = Object.values(tokenMeta).map((meta) => meta?.symbol || '');
     const prices = await priceServices.queryPrices();
     store.setState({ prices });
   }
@@ -171,16 +220,16 @@ async function pollingQueryPrice(store: StoreApi<State>) {
 }
 
 async function pollingQueryBalance(store: StoreApi<State>) {
-  const { displayableTokens } = store.getState();
-  const accountId = nearServices.getNearAccountId();
+  const { displayTokens } = store.getState();
+  const accountId = getCurrentAccountId();
 
-  if (displayableTokens?.length && accountId) {
+  if (displayTokens?.length && accountId) {
     try {
       const balanceRes = await Promise.all(
-        displayableTokens.map((token) => nearServices.getBalance(token)),
+        displayTokens.map((token: string) => nearServices.getBalance(token)),
       );
-      const balances = displayableTokens.reduce(
-        (acc, token, index) => {
+      const balances = displayTokens.reduce(
+        (acc: Record<string, string>, token: string, index: number) => {
           acc[token] = balanceRes[index];
           return acc;
         },
@@ -196,7 +245,7 @@ async function pollingQueryBalance(store: StoreApi<State>) {
 }
 
 async function pollingQueryNFTs(store: StoreApi<NFTState>) {
-  const accountId = nearServices.getNearAccountId();
+  const accountId = getCurrentAccountId();
   if (accountId) {
     store.getState().refreshNFTs();
   }
@@ -205,6 +254,7 @@ async function pollingQueryNFTs(store: StoreApi<NFTState>) {
 
 async function initializeStore() {
   try {
+    subscribeWalletChange();
     await subscribeTokensChange(useTokenStore);
     pollingQueryBalance(useTokenStore);
     pollingQueryPrice(useTokenStore);

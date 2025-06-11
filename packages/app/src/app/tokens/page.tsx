@@ -5,23 +5,15 @@ import { ImportToken } from '@/components/wallet/Tokens';
 import { useClient } from '@/hooks/useHooks';
 import { useMessageBoxContext } from '@/providers/MessageBoxProvider';
 import { useTokenStore } from '@/stores/token';
-import { formatFileUrl, formatToken } from '@/utils/format';
+import { formatToken } from '@/utils/format';
 import { Icon } from '@iconify/react';
-import {
-  Button,
-  Image,
-  Input,
-  Listbox,
-  ListboxItem,
-  ListboxSection,
-  Switch,
-} from '@nextui-org/react';
+import { Input, Listbox, ListboxItem, ListboxSection, Switch } from '@nextui-org/react';
 import { useMemo, useState } from 'react';
 
 export default function Tokens() {
   const { isClient } = useClient();
 
-  const { hiddenTokens, setHiddenTokens, tokenMeta } = useTokenStore();
+  const { displayTokens, setDisplayTokens, tokenMeta } = useTokenStore();
 
   const [search, setSearch] = useState('');
 
@@ -30,11 +22,16 @@ export default function Tokens() {
       .filter(([token, meta]) => {
         return (
           token.toLowerCase().includes(search.toLowerCase()) ||
-          meta?.symbol.toLowerCase().includes(search.toLowerCase())
+          meta?.symbol?.toLowerCase().includes(search.toLowerCase())
         );
       })
+      .sort(([a], [b]) => {
+        const aInDisplay = displayTokens?.includes(a) ? 1 : 0;
+        const bInDisplay = displayTokens?.includes(b) ? 1 : 0;
+        return bInDisplay - aInDisplay;
+      })
       .map(([address, meta]) => ({ address, ...meta }));
-  }, [search, tokenMeta]);
+  }, [search, displayTokens, tokenMeta]);
 
   const { openModal } = useMessageBoxContext();
   async function handleAddToken() {
@@ -85,12 +82,12 @@ export default function Tokens() {
                       color="primary"
                       size="sm"
                       className="transform scale-90"
-                      isSelected={!hiddenTokens?.includes(item.address)}
+                      isSelected={displayTokens?.includes(item.address)}
                       onChange={() =>
-                        setHiddenTokens?.(
-                          hiddenTokens?.includes(item.address)
-                            ? [...hiddenTokens.filter((t) => t !== item.address)]
-                            : [...(hiddenTokens || []), item.address],
+                        setDisplayTokens?.(
+                          displayTokens?.includes(item.address)
+                            ? [...displayTokens.filter((t) => t !== item.address)]
+                            : [...(displayTokens || []), item.address],
                         )
                       }
                     />
