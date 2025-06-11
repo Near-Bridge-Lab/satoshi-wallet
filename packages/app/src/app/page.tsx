@@ -121,10 +121,10 @@ function Account() {
 
 function Balance({ className }: { className?: string }) {
   const { isClient } = useClient();
-  const { balances, prices, tokenMeta, displayableTokens } = useTokenStore();
+  const { balances, prices, tokenMeta, displayTokens } = useTokenStore();
   const totalBalanceUSD = useMemo(() => {
     return Object.entries(balances ?? {}).reduce((acc, [token, balance]) => {
-      if (!displayableTokens?.includes(token)) {
+      if (!displayTokens?.includes(token)) {
         return acc;
       }
       return acc.plus(

@@ -26,7 +26,7 @@ interface SendForm {
 
 export default function Send() {
   const query = useSearchParams();
-  const { displayableTokens, tokenMeta, balances, refreshBalance } = useTokenStore();
+  const { displayTokens, tokenMeta, balances, refreshBalance } = useTokenStore();
   const { isNearWallet } = useWalletStore();
 
   const {
@@ -49,8 +49,8 @@ export default function Send() {
   });
 
   useEffect(() => {
-    if (!getValues('token') && displayableTokens?.length) setValue('token', displayableTokens[0]);
-  }, [displayableTokens]);
+    if (!getValues('token') && displayTokens?.length) setValue('token', displayTokens[0]);
+  }, [displayTokens]);
 
   const balance = useMemo(() => balances?.[getValues('token')], [balances, getValues('token')]);
   const availableBalance = useMemo(

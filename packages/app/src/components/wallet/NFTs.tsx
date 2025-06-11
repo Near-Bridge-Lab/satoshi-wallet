@@ -1,15 +1,12 @@
 import { useNFTStore } from '@/stores/token';
 import { useEffect, useState } from 'react';
-import { Card, CardBody, CardFooter, Image } from '@nextui-org/react';
+import { Image } from '@nextui-org/react';
 import Empty from '../basic/Empty';
 import Loading from '../basic/Loading';
-import { nearServices } from '@/services/near';
 
 export function NFTs() {
-  const { getNFTsByAccount, refreshNFTs } = useNFTStore();
+  const { nfts, refreshNFTs } = useNFTStore();
   const [isLoading, setIsLoading] = useState(true);
-  const accountId = nearServices.getNearAccountId();
-  const nfts = getNFTsByAccount(accountId || '');
 
   useEffect(() => {
     refreshNFTs();
