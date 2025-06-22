@@ -220,6 +220,7 @@ export async function getAccountInfo({ csna, env }: { csna: string; env: ENV }) 
     console.log(`get_account error, please try again later`, error);
     throw error;
   });
+  console.log('getAccountInfo resp:', accountInfo);
   return accountInfo;
 }
 

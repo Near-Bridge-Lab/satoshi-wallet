@@ -20,6 +20,12 @@ export interface WalletSelectorModalOptions extends _ModalOptions {
 }
 export type WalletSelectorModal = _WalletSelectorModal;
 
+declare global {
+  interface Window {
+    enableCustomWalletSelectorModal: boolean;
+  }
+}
+
 let subscription: any;
 
 export function setupWalletSelectorModal(
@@ -44,13 +50,15 @@ export function setupWalletSelectorModal(
   const group = getGroup(state);
   subscription = selector.store.observable.subscribe((state: WalletSelectorState) => {
     const walletId = state.selectedWalletId;
+    window.enableCustomWalletSelectorModal = true;
     console.log('setupWalletSelectorModal walletId', walletId);
-    if (!walletId) removeWalletButton();
-    if (showWalletUIForNearAccount && walletId !== 'btc-wallet') {
+    removeWalletButton();
+    if (walletId === 'btc-wallet' || showWalletUIForNearAccount) {
       selector.wallet().then((wallet) => {
         setupWalletButton({
           env,
           nearWallet: wallet,
+          btcWallet: walletId === 'btc-wallet' ? window.btcContext : undefined,
           walletUrl,
           draggable,
           initialPosition,
