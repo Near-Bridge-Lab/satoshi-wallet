@@ -80,35 +80,58 @@ export const nearServices = {
   async queryTokenMetadata<T extends string | string[]>(token: T) {
     if (!token?.length) return;
     const tokenArr = Array.isArray(token) ? token : [token];
-    const res = await Promise.allSettled(
-      tokenArr.map((token) => {
-        if (token === 'near') {
-          return {
-            symbol: 'NEAR',
-            icon: formatFileUrl('/assets/crypto/near.svg'),
-            decimals: 24,
-          } as TokenMetadata;
-        }
-        return this.query<TokenMetadata>({ contractId: token, method: 'ft_metadata' });
-      }),
-    );
-    const tokenMeta = res.reduce(
-      (acc, token, index) => {
-        if (token.status === 'fulfilled' && token.value) {
-          const tokenMeta = token.value;
-          if (tokenMeta.symbol === 'wNEAR') {
-            tokenMeta.icon = formatFileUrl('/assets/crypto/wnear.png');
+    const { tokenMeta: cachedTokenMeta } = useTokenStore.getState();
+
+    const cachedTokens: Record<string, TokenMetadata> = {};
+    const uncachedTokens: string[] = [];
+
+    tokenArr.forEach((tokenAddress) => {
+      if (tokenAddress === 'near') {
+        cachedTokens[tokenAddress] = {
+          symbol: 'NEAR',
+          icon: formatFileUrl('/assets/crypto/near.svg'),
+          decimals: 24,
+        } as TokenMetadata;
+      } else if (cachedTokenMeta[tokenAddress]) {
+        cachedTokens[tokenAddress] = cachedTokenMeta[tokenAddress]!;
+      } else {
+        uncachedTokens.push(tokenAddress);
+      }
+    });
+
+    let newTokenMeta: Record<string, TokenMetadata> = {};
+    if (uncachedTokens.length > 0) {
+      const res = await Promise.allSettled(
+        uncachedTokens.map((token) =>
+          this.query<TokenMetadata>({ contractId: token, method: 'ft_metadata' }),
+        ),
+      );
+
+      newTokenMeta = res.reduce(
+        (acc, token, index) => {
+          if (token.status === 'fulfilled' && token.value) {
+            const tokenMeta = token.value;
+            if (tokenMeta.symbol === 'wNEAR') {
+              tokenMeta.icon = formatFileUrl('/assets/crypto/wnear.png');
+            }
+            acc[uncachedTokens[index]] = tokenMeta;
           }
-          acc[tokenArr[index]] = tokenMeta;
-        }
-        return acc;
-      },
-      {} as Record<string, TokenMetadata>,
-    );
-    if (typeof token === 'string') {
-      return tokenMeta[token] as T extends string ? TokenMetadata | undefined : never;
+          return acc;
+        },
+        {} as Record<string, TokenMetadata>,
+      );
+
+      if (Object.keys(newTokenMeta).length > 0) {
+        useTokenStore.getState().setTokenMeta(newTokenMeta);
+      }
     }
-    return (Object.keys(tokenMeta).length ? tokenMeta : undefined) as T extends string
+
+    const allTokenMeta = { ...cachedTokens, ...newTokenMeta };
+
+    if (typeof token === 'string') {
+      return allTokenMeta[token] as T extends string ? TokenMetadata | undefined : never;
+    }
+    return (Object.keys(allTokenMeta).length ? allTokenMeta : undefined) as T extends string
       ? TokenMetadata | undefined
       : Record<string, TokenMetadata> | undefined;
   },

@@ -108,12 +108,20 @@ export const useTokenStore = create<State>((set, get) => ({
   prices: {},
   balances: {},
   refreshBalance: async (token) => {
+    const accountId = getCurrentAccountId();
+    if (!accountId) return;
+
     nearServices.getBalance(token).then((balance) => {
       set((state) => {
-        return (state.balances = {
+        const updatedBalances = {
           ...state.balances,
           [token]: balance,
-        });
+        };
+
+        const storage = getAccountStorage(accountId);
+        storage?.set('balances', updatedBalances);
+
+        return { balances: updatedBalances };
       });
     });
   },
@@ -123,10 +131,12 @@ function loadAccountData(accountId: string) {
   const storage = getAccountStorage(accountId);
   const tokens = (storage?.get('tokens') as string[]) || TOKEN_WHITE_LIST;
   const displayTokens = (storage?.get('displayTokens') as string[]) || TOKEN_WHITE_LIST;
+  const balances = (storage?.get('balances') as Record<string, string>) || {};
 
   useTokenStore.setState({
     tokens,
     displayTokens,
+    balances,
   });
 }
 
@@ -146,6 +156,7 @@ function subscribeWalletChange() {
         useTokenStore.setState({
           tokens: TOKEN_WHITE_LIST,
           displayTokens: TOKEN_WHITE_LIST,
+          balances: {},
         });
         currentAccountId = undefined;
       }
@@ -236,6 +247,9 @@ async function pollingQueryBalance(store: StoreApi<State>) {
         {} as Record<string, string>,
       );
       store.setState({ balances });
+
+      const storage = getAccountStorage(accountId);
+      storage?.set('balances', balances);
     } catch (error) {
       console.error('Failed to fetch token balances:', error);
     }
