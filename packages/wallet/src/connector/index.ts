@@ -9,3 +9,4 @@ export { WizzConnector } from './wizz';
 export { XverseConnector } from './xverse';
 export { MagicEdenConnector } from './magicEden';
 export { BinanceConnector } from './binance';
+export { GateConnector } from './gate';
