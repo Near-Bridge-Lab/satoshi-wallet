@@ -1,6 +1,7 @@
 import request from '@/utils/request';
 import { nearServices } from './near';
 import { safeBig } from '@/utils/big';
+import { formatAmount } from '@/utils/format';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_NETWORK === 'testnet'
@@ -114,7 +115,11 @@ export const fastNearServices = {
           )
           .map(async (token) => {
             const metadata = await nearServices.queryTokenMetadata(token.contract_id);
-            return { contract_id: token.contract_id, metadata };
+            return {
+              contract_id: token.contract_id,
+              metadata,
+              balance: formatAmount(token.balance, metadata?.decimals),
+            };
           }),
       );
 
