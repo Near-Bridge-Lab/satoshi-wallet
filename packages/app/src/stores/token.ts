@@ -202,6 +202,21 @@ async function subscribeTokensChange(store: StoreApi<State>) {
         storage?.set('displayTokens', updatedDisplayTokens);
         existingTokens = updatedTokens;
       }
+
+      const currentBalances = store.getState().balances || {};
+      const fastNearBalances: Record<string, string> = {};
+
+      data.forEach((t: any) => {
+        if (t.balance && !currentBalances[t.contract_id]) {
+          fastNearBalances[t.contract_id] = t.balance;
+        }
+      });
+
+      if (Object.keys(fastNearBalances).length > 0) {
+        const updatedBalances = { ...currentBalances, ...fastNearBalances };
+        store.setState({ balances: updatedBalances });
+        storage?.set('balances', updatedBalances);
+      }
     }
   } catch (error) {
     console.error('Failed to fetch tokens from FastNear:', error);
@@ -236,20 +251,38 @@ async function pollingQueryBalance(store: StoreApi<State>) {
 
   if (displayTokens?.length && accountId) {
     try {
-      const balanceRes = await Promise.all(
-        displayTokens.map((token: string) => nearServices.getBalance(token)),
-      );
-      const balances = displayTokens.reduce(
-        (acc: Record<string, string>, token: string, index: number) => {
-          acc[token] = balanceRes[index];
-          return acc;
-        },
-        {} as Record<string, string>,
-      );
-      store.setState({ balances });
+      const batchSize = 5;
+      const delay = 5000;
 
-      const storage = getAccountStorage(accountId);
-      storage?.set('balances', balances);
+      for (let i = 0; i < displayTokens.length; i += batchSize) {
+        const batch = displayTokens.slice(i, i + batchSize);
+
+        try {
+          const balanceRes = await Promise.all(
+            batch.map((token: string) => nearServices.getBalance(token)),
+          );
+
+          const batchBalances = batch.reduce(
+            (acc: Record<string, string>, token: string, index: number) => {
+              acc[token] = balanceRes[index];
+              return acc;
+            },
+            {} as Record<string, string>,
+          );
+
+          const updatedBalances = { ...store.getState().balances, ...batchBalances };
+          store.setState({ balances: updatedBalances });
+
+          const storage = getAccountStorage(accountId);
+          storage?.set('balances', updatedBalances);
+
+          if (i + batchSize < displayTokens.length) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        } catch (error) {
+          console.error(`Failed to fetch batch ${i / batchSize + 1} token balances:`, error);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch token balances:', error);
     }
