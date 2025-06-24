@@ -8,6 +8,7 @@ import {
   BitgetConnector,
   MagicEdenConnector,
   BybitConnector,
+  GateConnector,
   // BinanceConnector,
 } from '../connector';
 import { useBTCProvider, useConnectModal } from '../hooks';
@@ -39,6 +40,7 @@ export function BtcWalletSelectorContextProvider({
     new XverseConnector(),
     new UnisatConnector(),
     new MagicEdenConnector(),
+    new GateConnector(),
     // new BinanceConnector(),
   ];
 
