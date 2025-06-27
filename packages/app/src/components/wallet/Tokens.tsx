@@ -76,10 +76,10 @@ export function Tokens({
   const balancesUSD = useMemo(() => {
     return displayTokens.reduce(
       (acc, token) => {
-        acc[token] = new Big(prices?.[token]?.price || 0).times(balances?.[token] || 0).toNumber();
+        acc[token] = new Big(prices?.[token]?.price || 0).times(balances?.[token] || 0).toFixed();
         return acc;
       },
-      {} as Record<string, number>,
+      {} as Record<string, string>,
     );
   }, [balances, prices, displayTokens]);
 
