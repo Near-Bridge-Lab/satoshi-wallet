@@ -138,8 +138,8 @@ export async function getBtcGasPrice(): Promise<number> {
   try {
     const btcRpcUrl = await getBtcRpcUrl();
     const res = await fetch(`${btcRpcUrl}/v1/fees/recommended`).then((res) => res.json());
-    const feeRate = res.fastestFee;
-    return feeRate || defaultFeeRate;
+    const feeRate = res.fastestFee ? Number(res.fastestFee) + 1 : defaultFeeRate;
+    return feeRate;
   } catch (error) {
     return defaultFeeRate;
   }

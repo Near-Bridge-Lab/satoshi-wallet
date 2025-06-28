@@ -11,6 +11,7 @@ import { ENV } from '../config';
 export interface WalletSelectorModalOptions extends _ModalOptions {
   showChainGroups?: boolean;
   showWalletUIForNearAccount?: boolean;
+  hideWalletUIForNearWallets?: string[];
   walletUrl?: string;
   env?: ENV;
   draggable?: boolean;
@@ -37,6 +38,7 @@ export function setupWalletSelectorModal(
   const {
     showChainGroups = true,
     showWalletUIForNearAccount = true,
+    hideWalletUIForNearWallets = ['meteor-wallet-app'],
     env = 'mainnet',
     walletUrl,
     draggable = true,
@@ -52,8 +54,12 @@ export function setupWalletSelectorModal(
     const walletId = state.selectedWalletId;
     window.enableCustomWalletSelectorModal = true;
     console.log('setupWalletSelectorModal walletId', walletId);
+    const showWalletUI =
+      walletId &&
+      (walletId === 'btc-wallet' ||
+        (showWalletUIForNearAccount && !hideWalletUIForNearWallets.includes(walletId)));
     removeWalletButton();
-    if (walletId === 'btc-wallet' || showWalletUIForNearAccount) {
+    if (showWalletUI) {
       selector.wallet().then((wallet) => {
         setupWalletButton({
           env,
