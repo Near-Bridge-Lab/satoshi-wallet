@@ -138,8 +138,8 @@ export async function getBtcGasPrice(): Promise<number> {
   try {
     const btcRpcUrl = await getBtcRpcUrl();
     const res = await fetch(`${btcRpcUrl}/v1/fees/recommended`).then((res) => res.json());
-    const feeRate = res.fastestFee;
-    return feeRate || defaultFeeRate;
+    const feeRate = res.fastestFee ? Number(res.fastestFee) + 1 : defaultFeeRate;
+    return feeRate;
   } catch (error) {
     return defaultFeeRate;
   }
@@ -723,16 +723,38 @@ export async function calculateWithdraw({
 
     const brgConfig = await getBridgeConfig({ env });
 
-    const allUTXO = await nearCallFunction<
-      Record<
-        string,
-        {
-          vout: number;
-          balance: string;
-          script: string;
-        }
-      >
-    >(config.bridgeContractId, 'get_utxos_paged', {}, { network: config.network });
+    const { current_utxos_num } = await nearCallFunction<{ current_utxos_num: number }>(
+      config.bridgeContractId,
+      'get_metadata',
+      {},
+      { network: config.network },
+    );
+
+    const pageSize = 300;
+    const totalPages = Math.ceil(current_utxos_num / pageSize);
+
+    const utxoRequests = Array.from({ length: totalPages }, (_, index) => {
+      const fromIndex = index * pageSize;
+      const limit = Math.min(pageSize, current_utxos_num - fromIndex);
+      return nearCallFunction<
+        Record<
+          string,
+          {
+            vout: number;
+            balance: string;
+            script: string;
+          }
+        >
+      >(
+        config.bridgeContractId,
+        'get_utxos_paged',
+        { from_index: fromIndex, limit },
+        { network: config.network },
+      );
+    });
+
+    const utxoResults = await Promise.all(utxoRequests);
+    const allUTXO = utxoResults.reduce((acc, result) => ({ ...acc, ...result }), {});
 
     if (brgConfig.min_withdraw_amount) {
       if (Number(satoshis) < Number(brgConfig.min_withdraw_amount)) {
