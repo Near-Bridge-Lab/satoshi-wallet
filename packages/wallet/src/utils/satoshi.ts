@@ -113,6 +113,32 @@ export async function receiveDepositMsg({
   return result_data;
 }
 
+export async function getBridgeTransactions({
+  env,
+  fromChainId = 0,
+  fromAddress,
+  page = 1,
+  pageSize = 10,
+}: {
+  env: ENV;
+  /** 0:ALL 1: BTC, 2: NEAR */
+  fromChainId?: number;
+  fromAddress?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  try {
+    const config = getWalletConfig(env);
+    const { result_data = [] } = await request<RequestResult<any[]>>(
+      `${config.base_url}/v1/history?fromChainId=${fromChainId}&fromAddress=${fromAddress}&page=${page}&pageSize=${pageSize}`,
+    );
+    return result_data;
+  } catch (error) {
+    console.error('getBridgeTransactions error:', error);
+    return [];
+  }
+}
+
 export async function checkBridgeTransactionStatus({
   txHash,
   fromChain,
