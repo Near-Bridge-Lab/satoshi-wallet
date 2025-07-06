@@ -66,6 +66,7 @@ interface ReceiveDepositMsgParams {
   depositType?: number;
   postActions?: string;
   extraMsg?: string;
+  userDepositAddress?: string;
 }
 
 export async function preReceiveDepositMsg({
@@ -74,13 +75,14 @@ export async function preReceiveDepositMsg({
   depositType = 1,
   postActions,
   extraMsg,
+  userDepositAddress,
 }: Omit<ReceiveDepositMsgParams, 'txHash'>) {
   const config = getWalletConfig(env);
   const { result_code, result_message, result_data } = await request<RequestResult<any>>(
     `${config.base_url}/v1/preReceiveDepositMsg`,
     {
       method: 'POST',
-      body: { btcPublicKey, depositType, postActions, extraMsg },
+      body: { btcPublicKey, depositType, postActions, extraMsg, userDepositAddress },
     },
   );
   console.log('preReceiveDepositMsg resp:', { result_code, result_message, result_data });
