@@ -477,6 +477,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       depositType: postActionsStr || depositMsg.extra_msg ? 1 : 0,
       postActions: postActionsStr,
       extraMsg: depositMsg.extra_msg,
+      userDepositAddress,
     });
 
     const txHash = await sendBitcoin(userDepositAddress, depositAmount, _feeRate);
