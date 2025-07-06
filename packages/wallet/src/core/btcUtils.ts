@@ -11,6 +11,7 @@ import {
   preReceiveDepositMsg,
   receiveDepositMsg,
   calculateGasLimit,
+  getBridgeTransactions,
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
@@ -28,15 +29,15 @@ bitcoin.initEccLib(ecc);
 /** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
 /** NBTC Storage Deposit Amount */
-const NBTC_STORAGE_DEPOSIT_AMOUNT = '800';
+const NBTC_STORAGE_DEPOSIT_AMOUNT = 800;
 /** New account min deposit amount */
-const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
+const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = 1000;
 
 function getBtcProvider() {
-  if (typeof window === 'undefined' || !window.btcContext) {
+  if (typeof window === 'undefined' || !(window.btcContext || parent?.btcContext)) {
     throw new Error('BTC Provider is not initialized.');
   }
-  return window.btcContext;
+  return window.btcContext || parent.btcContext;
 }
 
 async function getNetwork() {
@@ -73,10 +74,18 @@ export async function checkGasTokenDebt<T extends boolean>(
   autoDeposit?: T,
 ): Promise<CheckGasTokenDebtReturnType<T>> {
   const accountInfo = await getAccountInfo({ csna, env });
+  const { account } = getBtcProvider();
+  const bridgeTransactions = await getBridgeTransactions({
+    env,
+    fromAddress: account,
+    page: 1,
+    pageSize: 1,
+  });
+  const isNewAccount = !accountInfo?.nonce && bridgeTransactions.length === 0;
   const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
     .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
     .toString();
-  const relayerFeeAmount = !accountInfo?.nonce
+  const relayerFeeAmount = isNewAccount
     ? NBTC_STORAGE_DEPOSIT_AMOUNT
     : accountInfo?.relayer_fee?.amount || 0;
   const hasDebtArrears = new Big(debtAmount).gt(0);
