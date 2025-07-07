@@ -115,10 +115,9 @@ export async function receiveDepositMsg({
   return result_data;
 }
 
-export async function hasBridgeTransaction({ env }: { env: ENV }) {
+export async function hasBridgeTransaction({ env, btcAccount }: { env: ENV; btcAccount: string }) {
   try {
     const config = getWalletConfig(env);
-    const btcAccount = window.btcContext?.account || getUrlQuery()?.originalAccountId;
     const { result_data = [] } = await request<RequestResult<any[]>>(
       `${config.base_url}/v1/history?fromChainId=0&fromAddress=${btcAccount}&page=1&pageSize=1`,
     );

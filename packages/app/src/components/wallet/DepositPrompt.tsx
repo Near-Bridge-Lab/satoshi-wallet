@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { toast } from 'react-toastify';
 
 export default function DepositPrompt() {
-  const { accountId } = useWalletStore();
+  const { accountId, originalAccountId } = useWalletStore();
 
   const [isNewAccount, setIsNewAccount] = useState(false);
 
@@ -60,6 +60,7 @@ export default function DepositPrompt() {
       setActivateLoading(true);
       const { minDepositAmount } = await getDepositAmount('10000', {
         csna: accountId,
+        btcAccount: originalAccountId,
         env: RUNTIME_NETWORK,
         newAccountMinDepositAmount: true,
       });

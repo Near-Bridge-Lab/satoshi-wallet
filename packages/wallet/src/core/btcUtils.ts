@@ -68,14 +68,21 @@ type CheckGasTokenDebtReturnType<T extends boolean> = T extends true
   ? void
   : { receiver_id: string; amount: string; msg: string } | undefined;
 
-export async function checkGasTokenDebt<T extends boolean>(
-  csna: string,
-  env: ENV,
-  autoDeposit?: T,
-): Promise<CheckGasTokenDebtReturnType<T>> {
+export async function checkGasTokenDebt<T extends boolean>({
+  csna,
+  btcAccount,
+  env,
+  autoDeposit,
+}: {
+  csna: string;
+  btcAccount: string;
+  env: ENV;
+  autoDeposit?: T;
+}): Promise<CheckGasTokenDebtReturnType<T>> {
   const accountInfo = await getAccountInfo({ csna, env });
   const bridgeTransactions = await hasBridgeTransaction({
     env,
+    btcAccount,
   });
   const isNewAccount = !accountInfo?.nonce && !bridgeTransactions;
   const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
@@ -227,6 +234,7 @@ export async function getDepositAmount(
   amount: string,
   option?: {
     csna?: string;
+    btcAccount?: string;
     env?: ENV;
     /** default is true, if true, new account minimum deposit amount 1000sat, otherwise 0 */
     newAccountMinDepositAmount?: boolean;
@@ -235,8 +243,9 @@ export async function getDepositAmount(
   const env = option?.env || 'mainnet';
   const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
   const csna = option?.csna || (await getCsnaAccountId(env));
+  const btcAccount = option?.btcAccount || getBtcProvider().account;
   const accountInfo = await getAccountInfo({ csna, env });
-  const debtAction = await checkGasTokenDebt(csna, env, false);
+  const debtAction = await checkGasTokenDebt({ csna, btcAccount, env, autoDeposit: false });
   const repayAmount = debtAction?.amount || 0;
   const depositAmount = Number(amount);
   const {
@@ -349,7 +358,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       registerContractId,
     });
     checkDepositDisabledAddress();
-    const { getPublicKey } = getBtcProvider();
+    const { getPublicKey, account: btcAccount } = getBtcProvider();
 
     const config = getWalletConfig(env);
 
@@ -390,7 +399,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const newActions = [];
 
-    const debtAction = await checkGasTokenDebt(csna, env, false);
+    const debtAction = await checkGasTokenDebt({ csna, btcAccount, env, autoDeposit: false });
 
     if (debtAction) {
       newActions.push({
