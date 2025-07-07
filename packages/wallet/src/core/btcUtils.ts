@@ -11,7 +11,7 @@ import {
   preReceiveDepositMsg,
   receiveDepositMsg,
   calculateGasLimit,
-  getBridgeTransactions,
+  hasBridgeTransaction,
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
@@ -34,10 +34,10 @@ const NBTC_STORAGE_DEPOSIT_AMOUNT = 800;
 const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = 1000;
 
 function getBtcProvider() {
-  if (typeof window === 'undefined' || !(window.btcContext || parent?.btcContext)) {
+  if (typeof window === 'undefined' || !window.btcContext) {
     throw new Error('BTC Provider is not initialized.');
   }
-  return window.btcContext || parent.btcContext;
+  return window.btcContext;
 }
 
 async function getNetwork() {
@@ -74,14 +74,10 @@ export async function checkGasTokenDebt<T extends boolean>(
   autoDeposit?: T,
 ): Promise<CheckGasTokenDebtReturnType<T>> {
   const accountInfo = await getAccountInfo({ csna, env });
-  const { account } = getBtcProvider();
-  const bridgeTransactions = await getBridgeTransactions({
+  const bridgeTransactions = await hasBridgeTransaction({
     env,
-    fromAddress: account,
-    page: 1,
-    pageSize: 1,
   });
-  const isNewAccount = !accountInfo?.nonce && bridgeTransactions.length === 0;
+  const isNewAccount = !accountInfo?.nonce && !bridgeTransactions;
   const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
     .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
     .toString();
@@ -462,11 +458,11 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     // deposit amount detail
     console.table({
       'User Deposit Address': userDepositAddress,
-      'Deposit Amount': depositAmount,
-      'Protocol Fee': protocolFee,
-      'Repay Amount': repayAmount,
-      'Receive Amount': receiveAmount,
-      'Fee Rate': _feeRate,
+      'Deposit Amount': Number(depositAmount),
+      'Protocol Fee': Number(protocolFee),
+      'Repay Amount': Number(repayAmount),
+      'Receive Amount': Number(receiveAmount),
+      'Fee Rate': Number(_feeRate),
     });
 
     const postActionsStr = newActions.length > 0 ? JSON.stringify(newActions) : undefined;
