@@ -1,4 +1,4 @@
-import { toHex } from '.';
+import { getUrlQuery, toHex } from '.';
 import request from './request';
 import type { AccessKeyViewRaw } from 'near-api-js/lib/providers/provider';
 import { actionCreators } from '@near-js/transactions';
@@ -115,29 +115,17 @@ export async function receiveDepositMsg({
   return result_data;
 }
 
-export async function getBridgeTransactions({
-  env,
-  fromChainId = 0,
-  fromAddress,
-  page = 1,
-  pageSize = 10,
-}: {
-  env: ENV;
-  /** 0:ALL 1: BTC, 2: NEAR */
-  fromChainId?: number;
-  fromAddress?: string;
-  page?: number;
-  pageSize?: number;
-}) {
+export async function hasBridgeTransaction({ env }: { env: ENV }) {
   try {
     const config = getWalletConfig(env);
+    const btcAccount = window.btcContext?.account || getUrlQuery()?.originalAccountId;
     const { result_data = [] } = await request<RequestResult<any[]>>(
-      `${config.base_url}/v1/history?fromChainId=${fromChainId}&fromAddress=${fromAddress}&page=${page}&pageSize=${pageSize}`,
+      `${config.base_url}/v1/history?fromChainId=0&fromAddress=${btcAccount}&page=1&pageSize=1`,
     );
-    return result_data;
+    return result_data?.length > 0;
   } catch (error) {
-    console.error('getBridgeTransactions error:', error);
-    return [];
+    console.error('hasBridgeTransaction error:', error);
+    return false;
   }
 }
 
