@@ -29,7 +29,7 @@ bitcoin.initEccLib(ecc);
 /** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
 /** NBTC Storage Deposit Amount */
-const NBTC_STORAGE_DEPOSIT_AMOUNT = 2000;
+const NBTC_STORAGE_DEPOSIT_AMOUNT = 800;
 /** New account min deposit amount */
 const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = 1000;
 
