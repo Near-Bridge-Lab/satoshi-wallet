@@ -55,7 +55,7 @@ export const walletConfig: Record<
     nearTokenDecimals: 24,
     accountContractId: 'acc.ref-labs.near',
     bridgeContractId: 'btc-connector.bridge.near',
-    walletUrl: 'https://wallet.satoshibridge.top',
+    walletUrl: 'https://wallet.satos.network',
     bridgeUrl: 'https://ramp.satos.network',
   },
 };

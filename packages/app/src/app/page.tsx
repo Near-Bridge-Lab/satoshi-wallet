@@ -115,7 +115,7 @@ function Account() {
               )}
               {originalPublicKey && (
                 <div className="flex items-center justify-between gap-5">
-                  <Icon icon="pepicons-pencil:key-circle-filled" className="text-2xl" />
+                  <Icon icon="tabler:code-circle-filled" className="w-6 h-6" />
                   <Snippet
                     classNames={{ base: 'bg-transparent p-0' }}
                     codeString={originalPublicKey}
