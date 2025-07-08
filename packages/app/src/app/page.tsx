@@ -74,7 +74,7 @@ function Header({ className }: { className?: string }) {
 }
 
 function Account() {
-  const { accountId, originalAccountId } = useWalletStore();
+  const { accountId, originalAccountId, originalPublicKey } = useWalletStore();
   const { isClient } = useClient();
   return (
     isClient && (
@@ -95,6 +95,7 @@ function Account() {
                   classNames={{ base: 'bg-transparent p-0' }}
                   codeString={accountId}
                   hideSymbol
+                  tooltipProps={{ content: 'Copy Near Account' }}
                 >
                   {formatSortAddress(accountId)}
                 </Snippet>
@@ -106,8 +107,22 @@ function Account() {
                     classNames={{ base: 'bg-transparent p-0' }}
                     codeString={originalAccountId}
                     hideSymbol
+                    tooltipProps={{ content: 'Copy BTC Account' }}
                   >
                     {formatSortAddress(originalAccountId)}
+                  </Snippet>
+                </div>
+              )}
+              {originalPublicKey && (
+                <div className="flex items-center justify-between gap-5">
+                  <Icon icon="pepicons-pencil:key-circle-filled" className="text-2xl" />
+                  <Snippet
+                    classNames={{ base: 'bg-transparent p-0' }}
+                    codeString={originalPublicKey}
+                    hideSymbol
+                    tooltipProps={{ content: 'Copy BTC Public Key' }}
+                  >
+                    {formatSortAddress(originalPublicKey)}
                   </Snippet>
                 </div>
               )}
