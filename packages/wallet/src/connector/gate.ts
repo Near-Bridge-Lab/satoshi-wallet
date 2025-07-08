@@ -30,7 +30,7 @@ export class GateConnector extends InjectedConnector {
       options,
     });
     console.log('🚀 ~ GateConnector ~ sendBitcoin ~ result:', result);
-    return result.txhash;
+    return result;
   }
 
   async signMessage(signStr: string, type?: 'ecdsa' | 'bip322-simple'): Promise<string> {
