@@ -9,6 +9,7 @@ import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
 import { rpcToWallet } from '@/utils/request';
+import { isValidNearAddress } from '@/utils/validate';
 import { Icon } from '@iconify/react';
 import { Button, Image, Input, InputProps } from '@nextui-org/react';
 import Big from 'big.js';
@@ -87,6 +88,20 @@ export default function Send() {
     token && setValue('token', token);
   }
 
+  async function validNearAccount(value: string) {
+    try {
+      const near = await nearServices.nearConnect();
+      const account = await near.connection.provider.query({
+        request_type: 'view_account',
+        finality: 'final',
+        account_id: value,
+      });
+      return !!account;
+    } catch (error) {
+      return 'Account does not exist';
+    }
+  }
+
   const [loading, setLoading] = useState(false);
   async function handleSend(data: SendForm) {
     try {
@@ -160,7 +175,7 @@ export default function Send() {
           <Controller
             name="recipient"
             control={control}
-            rules={{ required: true }}
+            rules={{ required: true, validate: validNearAccount }}
             render={({ field }) => (
               <Input
                 label="To"
