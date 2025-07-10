@@ -20,8 +20,8 @@ export const TOKEN_WHITE_LIST = [
 
 export const NEAR_RPC_NODES = IS_MAINNET
   ? {
-      Lava: 'https://near.lava.build',
       Fastnear: 'https://free.rpc.fastnear.com',
+      Lava: 'https://near.lava.build',
     }
   : {
       Official: 'https://rpc.testnet.near.org',
