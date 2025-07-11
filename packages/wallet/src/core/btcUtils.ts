@@ -79,12 +79,8 @@ export async function checkGasTokenDebt<T extends boolean>({
   env: ENV;
   autoDeposit?: T;
 }): Promise<CheckGasTokenDebtReturnType<T>> {
+  const isNewAccount = await checkNewAccount({ csna, btcAccount, env });
   const accountInfo = await getAccountInfo({ csna, env });
-  const bridgeTransactions = await hasBridgeTransaction({
-    env,
-    btcAccount,
-  });
-  const isNewAccount = !accountInfo?.nonce && !bridgeTransactions;
   const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
     .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
     .toString();
@@ -299,6 +295,32 @@ export async function getCsnaAccountId(env: ENV) {
     },
   );
   return csna;
+}
+
+export async function checkNewAccount({
+  csna,
+  btcAccount,
+  env = 'mainnet',
+}: {
+  csna?: string;
+  btcAccount?: string;
+  env?: ENV;
+}) {
+  try {
+    const _csna = csna || (await getCsnaAccountId(env));
+    const _btcAccount = btcAccount || getBtcProvider().account;
+    if (!_csna || !_btcAccount) return false;
+    const accountInfo = await getAccountInfo({ csna: _csna, env });
+    const bridgeTransactions = await hasBridgeTransaction({
+      env,
+      btcAccount: _btcAccount,
+    });
+    const isNewAccount = !accountInfo?.nonce && !bridgeTransactions;
+    return isNewAccount;
+  } catch (error) {
+    console.error('checkNewAccount error:', error);
+    return false;
+  }
 }
 
 function checkDepositDisabledAddress() {

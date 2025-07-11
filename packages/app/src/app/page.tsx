@@ -3,7 +3,8 @@ import Loading from '@/components/basic/Loading';
 import ChainSelector from '@/components/wallet/Chains';
 import DepositPrompt from '@/components/wallet/DepositPrompt';
 import Tools from '@/components/wallet/Tools';
-import { useClient } from '@/hooks/useHooks';
+import { RUNTIME_NETWORK } from '@/config';
+import { useClient, useRequest } from '@/hooks/useHooks';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { safeBig } from '@/utils/big';
@@ -28,6 +29,7 @@ import {
   Link,
 } from '@nextui-org/react';
 import Big from 'big.js';
+import { checkNewAccount } from 'btc-wallet';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -75,7 +77,17 @@ function Header({ className }: { className?: string }) {
 
 function Account() {
   const { accountId, originalAccountId, originalPublicKey } = useWalletStore();
+
   const { isClient } = useClient();
+
+  const { data: isNewCsnaAccount } = useRequest(
+    () => checkNewAccount({ csna: accountId, btcAccount: originalAccountId, env: RUNTIME_NETWORK }),
+    {
+      refreshDeps: [accountId, originalAccountId],
+      before: () => !!accountId && !!originalAccountId,
+    },
+  );
+
   return (
     isClient && (
       <div className="flex flex-col gap-2 items-center">
@@ -96,6 +108,7 @@ function Account() {
                   codeString={accountId}
                   hideSymbol
                   tooltipProps={{ content: 'Copy Near Account' }}
+                  disableCopy={isNewCsnaAccount}
                 >
                   {formatSortAddress(accountId)}
                 </Snippet>
