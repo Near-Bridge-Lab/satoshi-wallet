@@ -70,7 +70,7 @@ export function getWalletConfig(env: ENV) {
 }
 
 export const nearRpcUrls = {
-  mainnet: ['https://near.lava.build', 'https://free.rpc.fastnear.com'],
+  mainnet: ['https://free.rpc.fastnear.com', 'https://near.lava.build'],
   testnet: ['https://rpc.testnet.near.org'],
 };
 
