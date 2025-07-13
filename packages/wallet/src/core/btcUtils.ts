@@ -140,13 +140,15 @@ interface DepositMsg {
   extra_msg?: string;
 }
 
-export async function getBtcGasPrice(): Promise<number> {
+export async function getBtcGasPrice(
+  type: 'fastest' | 'halfHour' | 'hour' | 'economy' | 'minimum' = 'halfHour',
+): Promise<number> {
   const network = await getNetwork();
   const defaultFeeRate = network === 'mainnet' ? 5 : 2500;
   try {
     const btcRpcUrl = await getBtcRpcUrl();
     const res = await fetch(`${btcRpcUrl}/v1/fees/recommended`).then((res) => res.json());
-    const feeRate = res.fastestFee ? Number(res.fastestFee) + 1 : defaultFeeRate;
+    const feeRate = res[type + 'Fee'] ? Number(res[type + 'Fee']) : defaultFeeRate;
     return feeRate;
   } catch (error) {
     return defaultFeeRate;
@@ -165,7 +167,7 @@ export async function calculateGasFee(account: string, amount: number, feeRate?:
   const _feeRate = feeRate || (await getBtcGasPrice());
   const utxos = await getBtcUtxos(account);
   const { fee } = coinselect(utxos, [{ address: account, value: amount }], Math.ceil(_feeRate));
-  console.log('calculateGasFee fee:', fee);
+  console.log('calculateGasFee fee:', fee, 'feeRate:', _feeRate);
   return fee;
 }
 
