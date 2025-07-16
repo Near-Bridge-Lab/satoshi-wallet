@@ -271,7 +271,7 @@ export function MPCTransactions({ address }: { address?: string }) {
       classNames: { base: 'h-5', content: 'text-xs' },
     } as ChipProps;
 
-    const status = data.Status === 3 ? 'success' : data.Status >= 100 ? 'failed' : 'pending';
+    const status = data.Status === 3 ? 'success' : data.Status >= 50 ? 'failed' : 'pending';
 
     return (
       <Chip color={StatusMap[status].color as ChipProps['color']} {...props}>
