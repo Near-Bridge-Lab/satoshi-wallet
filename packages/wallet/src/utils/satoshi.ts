@@ -458,6 +458,10 @@ export async function calculateGasStrategy({
 
   const nearAvailableBalance = new Big(nearBalance).minus(transferAmount.near).toNumber();
 
+  if (nearAvailableBalance < 0.3) {
+    throw new Error('NEAR balance is insufficient, please deposit more NEAR');
+  }
+
   console.log('available near balance:', nearAvailableBalance);
   console.log('available gas token balance:', gasTokenBalance);
   console.log('gas strategy:', gasStrategy);
