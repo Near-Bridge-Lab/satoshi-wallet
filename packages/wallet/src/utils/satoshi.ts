@@ -458,13 +458,13 @@ export async function calculateGasStrategy({
 
   const nearAvailableBalance = new Big(nearBalance).minus(transferAmount.near).toNumber();
 
-  if (nearAvailableBalance < 0.3) {
-    throw new Error('NEAR balance is insufficient, please deposit more NEAR');
-  }
-
   console.log('available near balance:', nearAvailableBalance);
   console.log('available gas token balance:', gasTokenBalance);
   console.log('gas strategy:', gasStrategy);
+
+  if (nearAvailableBalance < 0.25) {
+    throw new Error('NEAR balance is insufficient, please deposit more NEAR');
+  }
 
   const convertTx = await Promise.all(
     transactions.map((transaction, index) =>
@@ -641,7 +641,7 @@ async function getPredictedGasAmount({
     : '0';
 
   const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
-  const miniGasAmount = 200 * transactions.length;
+  const miniGasAmount = 100 * transactions.length;
   const gasAmount = Math.max(Number(predictedGasAmount), miniGasAmount);
   console.log('predictedGas:', predictedGasAmount);
   return gasAmount.toString();
