@@ -678,7 +678,7 @@ export async function getWithdrawTransaction({
             amount: fromAmount?.toString(),
             msg: JSON.stringify(msg),
           },
-          gas: '300000000000000', // 300 TGas
+          gas: '150000000000000', // 150 TGas
           deposit: '1', // 1 yoctoNEAR
         },
       },
@@ -745,7 +745,7 @@ export async function calculateWithdraw({
                   amount: '100',
                   msg: '',
                 },
-                gas: '300000000000000',
+                gas: '30000000000000', // 30 TGas
                 deposit: '1',
               },
             },

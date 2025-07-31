@@ -69,8 +69,20 @@ export default async function request<T>(url: string, options?: RequestOptions<T
       }, cacheTimeout);
     }
 
-    if (options?.shouldStopPolling && options.shouldStopPolling(data)) {
-      return data as T;
+    if (options?.shouldStopPolling && !options.shouldStopPolling(data)) {
+      if (
+        options?.pollingInterval &&
+        options?.maxPollingAttempts &&
+        options.maxPollingAttempts > 0
+      ) {
+        console.log(`Polling... attempts left: ${options.maxPollingAttempts}`);
+        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
+        return request(url, {
+          ...options,
+          maxPollingAttempts: options.maxPollingAttempts - 1,
+          retryCount: options?.retryCount ?? 1,
+        });
+      }
     }
 
     return data as T;
@@ -79,16 +91,6 @@ export default async function request<T>(url: string, options?: RequestOptions<T
     if (retryCount > 0) {
       console.log(`Retrying... attempts left: ${retryCount}`);
       return request(url, { ...options, retryCount: retryCount - 1 });
-    } else if (options?.pollingInterval && options?.maxPollingAttempts) {
-      if (options.maxPollingAttempts > 0) {
-        console.log(`Polling... attempts left: ${options.maxPollingAttempts}`);
-        await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
-        return request(url, {
-          ...options,
-          maxPollingAttempts: options.maxPollingAttempts - 1,
-          retryCount: retryCount,
-        });
-      }
     }
     return Promise.reject(err);
   }
@@ -107,11 +109,14 @@ export function rpcToWallet<T extends RpcToWalletAction>(
     const urlParams = new URLSearchParams(window.location.search);
     const origin = urlParams.get('origin') || '*';
 
-    const timeout = setTimeout(() => {
-      window.removeEventListener('message', handleMessage);
-      console.error('rpcToWallet timeout');
-      reject('');
-    }, 60000);
+    const timeout = setTimeout(
+      () => {
+        window.removeEventListener('message', handleMessage);
+        console.error('rpcToWallet timeout');
+        reject('');
+      },
+      20 * 60 * 1000,
+    );
 
     function handleMessage(event: {
       origin: string;

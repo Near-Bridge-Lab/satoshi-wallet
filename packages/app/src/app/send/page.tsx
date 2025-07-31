@@ -11,7 +11,7 @@ import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/uti
 import { rpcToWallet } from '@/utils/request';
 import { isValidNearAddress } from '@/utils/validate';
 import { Icon } from '@iconify/react';
-import { Button, Image, Input, InputProps } from '@nextui-org/react';
+import { Alert, Button, Image, Input, InputProps } from '@nextui-org/react';
 import Big from 'big.js';
 import { get } from 'lodash-es';
 import { useSearchParams } from 'next/navigation';
@@ -98,11 +98,56 @@ export default function Send() {
       });
       return !!account;
     } catch (error) {
-      return 'Account does not exist';
+      return true;
     }
   }
 
   const [loading, setLoading] = useState(false);
+  const [accountExists, setAccountExists] = useState<boolean | null>(null);
+
+  // check account exists
+  const checkAccountExists = useCallback(async (accountId: string) => {
+    if (!accountId) {
+      setAccountExists(null);
+      return;
+    }
+    try {
+      const near = await nearServices.nearConnect();
+      const account = await near.connection.provider.query({
+        request_type: 'view_account',
+        finality: 'final',
+        account_id: accountId,
+      });
+      console.log(account);
+      setAccountExists(true);
+    } catch (error) {
+      setAccountExists(false);
+    }
+  }, []);
+
+  const recipient = watch('recipient');
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      checkAccountExists(recipient);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [recipient, checkAccountExists]);
+
+  // check if the account is implicit account
+  const isImplicitAccount = useMemo(() => {
+    return recipient && recipient.length === 64 && /^[0-9a-f]+$/.test(recipient);
+  }, [recipient]);
+
+  const getAccountWarning = useMemo(() => {
+    if (!recipient || accountExists === null) return null;
+    if (accountExists) return null;
+
+    if (isImplicitAccount) {
+      return 'it will be created automatically on this deposit';
+    } else {
+      return 'Sending to a named account that does not exist yet will likely fail';
+    }
+  }, [recipient, accountExists, isImplicitAccount]);
   async function handleSend(data: SendForm) {
     try {
       setLoading(true);
@@ -241,6 +286,23 @@ export default function Send() {
             </div>
           </div>
         </div>
+
+        {getAccountWarning && (
+          <div>
+            <Alert
+              variant="faded"
+              color="warning"
+              icon={
+                <Icon
+                  icon={isImplicitAccount ? 'eva:info-outline' : 'eva:alert-triangle-outline'}
+                />
+              }
+              title="Account does not exist"
+              description={<div className="whitespace-pre-line text-xs">{getAccountWarning}</div>}
+            ></Alert>
+          </div>
+        )}
+
         <div>
           <Button
             color="primary"
