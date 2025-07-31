@@ -175,11 +175,11 @@ export const nearServices = {
     let availableBalance = balance;
     // if token is NBTC, need to reserve 800satoshi as gas fee
     if (token === BTC_TOKEN_CONTRACT) {
-      availableBalance = new Big(balance).minus('0.000008').toString();
+      availableBalance = new Big(balance).minus('0.000008').toFixed();
     }
     // if token is NEAR, need to reserve 0.5 NEAR as gas fee
     else if (token === 'near') {
-      availableBalance = new Big(balance).minus('0.5').toString();
+      availableBalance = new Big(balance).minus('0.5').toFixed();
     }
     return new Big(availableBalance).gt(0) ? availableBalance : '0';
   },
