@@ -221,7 +221,7 @@ export default function Send() {
         await near.connection.provider.query({
           request_type: 'view_account',
           finality: 'final',
-          account_id: accountId,
+          account_id: accountType === 'evm' ? accountId.toLowerCase() : accountId,
         });
         setAccountExists(true);
       } catch (error) {
@@ -283,7 +283,8 @@ export default function Send() {
   async function handleSend(data: SendForm) {
     try {
       setLoading(true);
-      const registerTokenTrans = await nearServices.registerToken(data.token, data.recipient);
+      const accountId = accountType === 'evm' ? data.recipient.toLowerCase() : data.recipient;
+      const registerTokenTrans = await nearServices.registerToken(data.token, accountId);
       const res = await rpcToWallet(
         'signAndSendTransaction',
         data.token !== 'near'
@@ -296,7 +297,7 @@ export default function Send() {
                   params: {
                     methodName: 'ft_transfer',
                     args: {
-                      receiver_id: data.recipient,
+                      receiver_id: accountId,
                       amount: parseAmount(data.amount, tokenMeta[data.token]?.decimals),
                       msg: '',
                     },
@@ -307,7 +308,7 @@ export default function Send() {
               ],
             }
           : {
-              receiverId: data.recipient,
+              receiverId: accountId,
               actions: [
                 {
                   type: 'Transfer',
