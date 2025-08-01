@@ -49,6 +49,8 @@ export default function Send() {
     mode: 'onTouched',
   });
 
+  const recipient = watch('recipient');
+
   useEffect(() => {
     if (!getValues('token') && displayTokens?.length) setValue('token', displayTokens[0]);
   }, [displayTokens]);
@@ -88,44 +90,149 @@ export default function Send() {
     token && setValue('token', token);
   }
 
-  async function validNearAccount(value: string) {
-    try {
-      const near = await nearServices.nearConnect();
-      const account = await near.connection.provider.query({
-        request_type: 'view_account',
-        finality: 'final',
-        account_id: value,
-      });
-      return !!account;
-    } catch (error) {
-      return true;
-    }
-  }
-
   const [loading, setLoading] = useState(false);
+
+  // Account validation states
   const [accountExists, setAccountExists] = useState<boolean | null>(null);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
 
-  // check account exists
-  const checkAccountExists = useCallback(async (accountId: string) => {
-    if (!accountId) {
-      setAccountExists(null);
-      return;
-    }
-    try {
-      const near = await nearServices.nearConnect();
-      const account = await near.connection.provider.query({
-        request_type: 'view_account',
-        finality: 'final',
-        account_id: accountId,
-      });
-      console.log(account);
-      setAccountExists(true);
-    } catch (error) {
-      setAccountExists(false);
-    }
-  }, []);
+  // Account type detection
+  const accountType = useMemo(() => {
+    if (!recipient) return null;
 
-  const recipient = watch('recipient');
+    // BTC address patterns
+    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(recipient)) {
+      return 'btc';
+    }
+
+    // EVM address pattern (0x + 40 hex chars)
+    if (/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+      return 'evm';
+    }
+
+    // NEAR implicit account (64 hex chars)
+    if (recipient.length === 64 && /^[0-9a-f]+$/.test(recipient)) {
+      return 'implicit';
+    }
+
+    // NEAR named account
+    if (
+      /^[a-z0-9_-]+(\.[a-z0-9_-]+)*$/.test(recipient) &&
+      recipient.length >= 2 &&
+      recipient.length <= 64
+    ) {
+      return 'named';
+    }
+
+    return 'invalid';
+  }, [recipient]);
+
+  // Account validation result
+  const accountValidation = useMemo(() => {
+    if (!recipient) return { status: 'neutral', message: null, allowSend: false };
+
+    // Block BTC addresses and invalid formats immediately
+    if (accountType === 'btc') {
+      return {
+        status: 'blocked' as const,
+        message: 'BTC addresses are not supported',
+        allowSend: false,
+      };
+    }
+
+    if (accountType === 'invalid') {
+      return {
+        status: 'blocked' as const,
+        message: 'Invalid account format',
+        allowSend: false,
+      };
+    }
+
+    // For EVM addresses, check if they exist on NEAR
+    if (accountType === 'evm') {
+      if (accountExists === null) {
+        return { status: 'checking' as const, message: 'Checking account...', allowSend: false };
+      }
+      if (accountExists) {
+        return { status: 'good' as const, message: null, allowSend: true };
+      }
+      // EVM addresses cannot be created automatically on NEAR
+      return {
+        status: 'blocked' as const,
+        message: 'EVM address not activated on NEAR Protocol',
+        allowSend: false,
+      };
+    }
+
+    // For NEAR implicit accounts
+    if (accountType === 'implicit') {
+      if (accountExists === null) {
+        return { status: 'checking' as const, message: 'Checking account...', allowSend: false };
+      }
+      if (accountExists) {
+        return { status: 'good' as const, message: null, allowSend: true };
+      }
+      // Implicit accounts can be created automatically
+      return {
+        status: 'warning' as const,
+        message: 'Account will be created automatically on this deposit',
+        allowSend: true,
+      };
+    }
+
+    // For NEAR named accounts
+    if (accountType === 'named') {
+      if (accountExists === null) {
+        return { status: 'checking' as const, message: 'Checking account...', allowSend: false };
+      }
+      if (accountExists) {
+        return { status: 'good' as const, message: null, allowSend: true };
+      }
+      // Named accounts cannot be created automatically - block them
+      return {
+        status: 'blocked' as const,
+        message: 'Named account does not exist and cannot be created automatically',
+        allowSend: false,
+      };
+    }
+
+    return { status: 'neutral' as const, message: null, allowSend: false };
+  }, [recipient, accountType, accountExists]);
+
+  // Check account exists for all address types except BTC
+  const checkAccountExists = useCallback(
+    async (accountId: string) => {
+      if (!accountId) {
+        setAccountExists(null);
+        setIsCheckingAccount(false);
+        return;
+      }
+
+      // Don't check BTC addresses or invalid formats
+      if (accountType === 'btc' || accountType === 'invalid') {
+        setAccountExists(null);
+        setIsCheckingAccount(false);
+        return;
+      }
+
+      setIsCheckingAccount(true);
+      try {
+        const near = await nearServices.nearConnect();
+        await near.connection.provider.query({
+          request_type: 'view_account',
+          finality: 'final',
+          account_id: accountType === 'evm' ? accountId.toLowerCase() : accountId,
+        });
+        setAccountExists(true);
+      } catch (error) {
+        setAccountExists(false);
+      } finally {
+        setIsCheckingAccount(false);
+      }
+    },
+    [accountType],
+  );
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       checkAccountExists(recipient);
@@ -133,25 +240,51 @@ export default function Send() {
     return () => clearTimeout(timeoutId);
   }, [recipient, checkAccountExists]);
 
-  // check if the account is implicit account
-  const isImplicitAccount = useMemo(() => {
-    return recipient && recipient.length === 64 && /^[0-9a-f]+$/.test(recipient);
-  }, [recipient]);
-
-  const getAccountWarning = useMemo(() => {
-    if (!recipient || accountExists === null) return null;
-    if (accountExists) return null;
-
-    if (isImplicitAccount) {
-      return 'it will be created automatically on this deposit';
-    } else {
-      return 'Sending to a named account that does not exist yet will likely fail';
+  // Get input field color based on validation status
+  const getInputVariant = useMemo(() => {
+    switch (accountValidation.status) {
+      case 'good':
+        return 'flat';
+      case 'warning':
+        return 'flat';
+      case 'blocked':
+        return 'bordered';
+      case 'checking':
+        return 'flat';
+      default:
+        return 'flat';
     }
-  }, [recipient, accountExists, isImplicitAccount]);
+  }, [accountValidation.status]);
+
+  const getInputClassNames = useMemo(() => {
+    switch (accountValidation.status) {
+      case 'good':
+        return {
+          inputWrapper:
+            'border-2 border-success-300 bg-success-50 hover:border-success-400 focus-within:!border-success-500',
+          input: 'text-success-700',
+        };
+      case 'warning':
+        return {
+          inputWrapper:
+            'border-2 border-warning-300 bg-warning-50 hover:border-warning-400 focus-within:!border-warning-500',
+          input: 'text-warning-700',
+        };
+      case 'blocked':
+        return {
+          inputWrapper:
+            'border-2 border-danger-300 bg-danger-50 hover:border-danger-400 focus-within:!border-danger-500',
+          input: 'text-danger-700',
+        };
+      default:
+        return {};
+    }
+  }, [accountValidation.status]);
   async function handleSend(data: SendForm) {
     try {
       setLoading(true);
-      const registerTokenTrans = await nearServices.registerToken(data.token, data.recipient);
+      const accountId = accountType === 'evm' ? data.recipient.toLowerCase() : data.recipient;
+      const registerTokenTrans = await nearServices.registerToken(data.token, accountId);
       const res = await rpcToWallet(
         'signAndSendTransaction',
         data.token !== 'near'
@@ -164,7 +297,7 @@ export default function Send() {
                   params: {
                     methodName: 'ft_transfer',
                     args: {
-                      receiver_id: data.recipient,
+                      receiver_id: accountId,
                       amount: parseAmount(data.amount, tokenMeta[data.token]?.decimals),
                       msg: '',
                     },
@@ -175,7 +308,7 @@ export default function Send() {
               ],
             }
           : {
-              receiverId: data.recipient,
+              receiverId: accountId,
               actions: [
                 {
                   type: 'Transfer',
@@ -220,15 +353,35 @@ export default function Send() {
           <Controller
             name="recipient"
             control={control}
-            rules={{ required: true, validate: validNearAccount }}
+            rules={{
+              required: 'Recipient address is required',
+              validate: () =>
+                accountValidation.allowSend || accountValidation.message || 'Invalid recipient',
+            }}
             render={({ field }) => (
               <Input
                 label="To"
                 {...field}
-                {...validator('recipient')}
-                {...inputCommonProps({ key: 'recipient' })}
-                placeholder="Recipient's address"
-                endContent={<Icon icon="hugeicons:contact-01" className="text-lg" />}
+                variant={getInputVariant}
+                classNames={getInputClassNames}
+                labelPlacement="outside"
+                size="lg"
+                placeholder="Enter NEAR account ID"
+                maxLength={64}
+                endContent={
+                  <div className="flex items-center gap-2">
+                    <Icon
+                      icon={
+                        isCheckingAccount
+                          ? 'eos-icons:loading'
+                          : accountValidation.status === 'good'
+                            ? 'tabler:check'
+                            : 'hugeicons:contact-01'
+                      }
+                      className={`text-lg ${accountValidation.status === 'good' ? 'text-success-500' : ''}`}
+                    />
+                  </div>
+                }
               />
             )}
           ></Controller>
@@ -287,19 +440,37 @@ export default function Send() {
           </div>
         </div>
 
-        {getAccountWarning && (
+        {accountValidation.message && (
           <div>
             <Alert
               variant="faded"
-              color="warning"
+              color={
+                accountValidation.status === 'blocked'
+                  ? 'danger'
+                  : accountValidation.status === 'warning'
+                    ? 'warning'
+                    : 'default'
+              }
               icon={
                 <Icon
-                  icon={isImplicitAccount ? 'eva:info-outline' : 'eva:alert-triangle-outline'}
+                  icon={
+                    accountValidation.status === 'blocked'
+                      ? 'eva:alert-triangle-outline'
+                      : accountValidation.status === 'warning'
+                        ? 'eva:info-outline'
+                        : 'eva:checkmark-circle-outline'
+                  }
                 />
               }
-              title="Account does not exist"
-              description={<div className="whitespace-pre-line text-xs">{getAccountWarning}</div>}
-            ></Alert>
+              title={
+                accountValidation.status === 'blocked'
+                  ? 'Cannot send to this address'
+                  : accountValidation.status === 'warning'
+                    ? 'Account does not exist yet'
+                    : 'Account validation'
+              }
+              description={<div className="text-xs">{accountValidation.message}</div>}
+            />
           </div>
         )}
 
@@ -310,7 +481,12 @@ export default function Send() {
             className="font-bold"
             fullWidth
             isLoading={loading}
-            isDisabled={!getValues('recipient') || new Big(getValues('amount') || 0).lte(0)}
+            isDisabled={
+              !getValues('recipient') ||
+              new Big(getValues('amount') || 0).lte(0) ||
+              !accountValidation.allowSend ||
+              isCheckingAccount
+            }
             onClick={handleSubmit(handleSend)}
           >
             Send
