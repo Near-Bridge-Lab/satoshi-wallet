@@ -836,11 +836,26 @@ export async function calculateWithdraw({
     const userSatoshis = Number(satoshis);
     const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
 
-    const { inputs, outputs, fee } = coinselect(
+    let { inputs, outputs, fee } = coinselect(
       utxos,
       [{ address: btcAddress, value: userSatoshis }],
       Math.ceil(feeRate),
     );
+
+    if (inputs && inputs.length > 10) {
+      const filteredUtxos = utxos.filter((utxo) => utxo.value >= userSatoshis);
+      console.log('filteredUtxos', filteredUtxos);
+      if (filteredUtxos.length > 0) {
+        const result = coinselect(
+          filteredUtxos,
+          [{ address: btcAddress, value: userSatoshis }],
+          Math.ceil(feeRate),
+        );
+        inputs = result.inputs;
+        outputs = result.outputs;
+        fee = result.fee;
+      }
+    }
 
     const newInputs = inputs;
     let newOutputs = outputs;
