@@ -11,6 +11,7 @@ import { formatNumber, formatPrice } from '@/utils/format';
 import { Icon } from '@iconify/react';
 import Tooltip from '../basic/Tooltip';
 import TokenIcon from './TokenIcon';
+import { cn } from '@nextui-org/react';
 
 interface SwapGasFeeProps {
   type: 'swap';
@@ -66,11 +67,7 @@ export default function GasFee(props: GasFeeProps) {
   return (
     <div className={`flex items-center justify-between gap-2 ${props.className || ''}`}>
       <span>Fee</span>
-      <FeeDisplay
-        gasFeeData={gasFeeData}
-        loading={gasFeeLoading}
-        className="underline hover:text-primary"
-      />
+      <FeeDisplay gasFeeData={gasFeeData} loading={gasFeeLoading} />
     </div>
   );
 }
@@ -119,6 +116,7 @@ function FeeDisplay({ gasFeeData, loading = false, className = '' }: FeeDisplayP
 
   return (
     <Tooltip
+      isDisabled={safeBig(totalUsdValue).eq(0)}
       content={
         <div className="text-xs text-default-500 space-y-3 p-1">
           <div className="flex items-center justify-between gap-5">
@@ -140,7 +138,7 @@ function FeeDisplay({ gasFeeData, loading = false, className = '' }: FeeDisplayP
           </div>
           {safeBig(gasFeeData?.registerFee).gt(0) && (
             <div className="flex items-center justify-between gap-5">
-              <div>Bridge Fee:</div>
+              <div>Register Fee:</div>
               <div className="flex items-center gap-1">
                 <TokenIcon address={'near'} width={16} height={16} />{' '}
                 {formatNumber(gasFeeData?.registerFee)}
@@ -150,7 +148,11 @@ function FeeDisplay({ gasFeeData, loading = false, className = '' }: FeeDisplayP
         </div>
       }
     >
-      <span className={className}>{formatPrice(totalUsdValue, { showSign: true })}</span>
+      <span
+        className={cn(safeBig(totalUsdValue).gt(0) && 'underline hover:text-primary', className)}
+      >
+        {formatPrice(totalUsdValue, { showSign: true })}
+      </span>
     </Tooltip>
   );
 }
