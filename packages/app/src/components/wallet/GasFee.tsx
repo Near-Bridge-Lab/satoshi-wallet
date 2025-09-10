@@ -55,7 +55,7 @@ export default function GasFee(props: GasFeeProps) {
       refreshDeps:
         props.type === 'swap' ? [props.tokenIn, props.tokenOut] : [props.token, props.recipient],
       before: () => !isNearWallet,
-      debounceOptions: { wait: 500 },
+      debounceOptions: { wait: 1000 },
     },
   );
 

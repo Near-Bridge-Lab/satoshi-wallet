@@ -311,6 +311,10 @@ export default function Send() {
                 size="lg"
                 placeholder="Enter NEAR account ID"
                 maxLength={64}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^a-zA-Z0-9._-]/g, '');
+                  field.onChange(value);
+                }}
                 endContent={
                   <div className="flex items-center gap-2">
                     <Icon
