@@ -113,7 +113,9 @@ export function Tokens({
                 {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
               </div>
               <div className="text-xs text-default-500">
-                {tokenMeta[token]?.symbol ? `$${formatPrice(prices?.[token]?.price)}` : '-'}
+                {tokenMeta[token]?.symbol
+                  ? `${formatPrice(prices?.[token]?.price, { showSign: true })}`
+                  : '-'}
               </div>
             </div>
           </div>
@@ -122,7 +124,7 @@ export function Tokens({
               {formatNumber(balances?.[token], { rm: Big.roundDown })}
             </div>
             <div className="text-xs text-default-500 text-right">
-              ≈ ${formatPrice(balancesUSD?.[token])}
+              ≈ {formatPrice(balancesUSD?.[token], { showSign: true })}
             </div>
           </div>
         </div>

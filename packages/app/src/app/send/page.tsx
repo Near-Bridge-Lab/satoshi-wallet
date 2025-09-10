@@ -8,16 +8,17 @@ import { nearServices } from '@/services/near';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
-import { rpcToWallet } from '@/utils/request';
-import { isValidNearAddress } from '@/utils/validate';
 import { Icon } from '@iconify/react';
-import { Alert, Button, Image, Input, InputProps } from '@nextui-org/react';
+import { Alert, Button, Divider, Image, Input, InputProps } from '@nextui-org/react';
 import Big from 'big.js';
 import { get } from 'lodash-es';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'react-toastify';
+import GasFee from '@/components/wallet/GasFee';
+import { sendServices } from '@/services/send';
+import { safeBig } from '@/utils/big';
 
 interface SendForm {
   token: string;
@@ -49,16 +50,18 @@ export default function Send() {
     mode: 'onTouched',
   });
 
+  const amount = watch('amount');
+  const token = watch('token');
   const recipient = watch('recipient');
 
   useEffect(() => {
-    if (!getValues('token') && displayTokens?.length) setValue('token', displayTokens[0]);
+    if (!token && displayTokens?.length) setValue('token', displayTokens[0]);
   }, [displayTokens]);
 
-  const balance = useMemo(() => balances?.[getValues('token')], [balances, getValues('token')]);
+  const balance = useMemo(() => balances?.[token], [balances, token]);
   const availableBalance = useMemo(
-    () => nearServices.getAvailableBalance(getValues('token'), balance),
-    [balance, getValues('token')],
+    () => nearServices.getAvailableBalance(token, balance),
+    [balance, token],
   );
 
   const validator = useCallback(
@@ -86,8 +89,8 @@ export default function Send() {
   const { open } = useTokenSelector();
 
   async function handleSelectToken() {
-    const token = await open({ value: getValues('token') });
-    token && setValue('token', token);
+    const res = await open({ value: token });
+    res && setValue('token', res);
   }
 
   const [loading, setLoading] = useState(false);
@@ -98,33 +101,7 @@ export default function Send() {
 
   // Account type detection
   const accountType = useMemo(() => {
-    if (!recipient) return null;
-
-    // BTC address patterns
-    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(recipient)) {
-      return 'btc';
-    }
-
-    // EVM address pattern (0x + 40 hex chars)
-    if (/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
-      return 'evm';
-    }
-
-    // NEAR implicit account (64 hex chars)
-    if (recipient.length === 64 && /^[0-9a-f]+$/.test(recipient)) {
-      return 'implicit';
-    }
-
-    // NEAR named account
-    if (
-      /^[a-z0-9_-]+(\.[a-z0-9_-]+)*$/.test(recipient) &&
-      recipient.length >= 2 &&
-      recipient.length <= 64
-    ) {
-      return 'named';
-    }
-
-    return 'invalid';
+    return sendServices.getAccountType(recipient);
   }, [recipient]);
 
   // Account validation result
@@ -280,43 +257,11 @@ export default function Send() {
         return {};
     }
   }, [accountValidation.status]);
+
   async function handleSend(data: SendForm) {
     try {
       setLoading(true);
-      const accountId = accountType === 'evm' ? data.recipient.toLowerCase() : data.recipient;
-      const registerTokenTrans = await nearServices.registerToken(data.token, accountId);
-      const res = await rpcToWallet(
-        'signAndSendTransaction',
-        data.token !== 'near'
-          ? {
-              receiverId: data.token,
-              actions: [
-                ...(registerTokenTrans?.actions || []),
-                {
-                  type: 'FunctionCall',
-                  params: {
-                    methodName: 'ft_transfer',
-                    args: {
-                      receiver_id: accountId,
-                      amount: parseAmount(data.amount, tokenMeta[data.token]?.decimals),
-                      msg: '',
-                    },
-                    deposit: '1',
-                    gas: parseAmount(100, 12),
-                  },
-                },
-              ],
-            }
-          : {
-              receiverId: accountId,
-              actions: [
-                {
-                  type: 'Transfer',
-                  params: { deposit: parseAmount(data.amount, tokenMeta[data.token]?.decimals) },
-                },
-              ],
-            },
-      );
+      const res = await sendServices.send(data);
       console.log(res);
       refreshBalance(data.token);
       toast.success('Send success');
@@ -342,10 +287,8 @@ export default function Send() {
           <div>
             <div className="card cursor-pointer" onClick={handleSelectToken}>
               <div className="flex items-center gap-3">
-                <TokenIcon address={getValues('token')} width={24} height={24} />
-                <span className="text-base">
-                  {formatToken(tokenMeta[getValues('token')]?.symbol)}
-                </span>
+                <TokenIcon address={token} width={24} height={24} />
+                <span className="text-base">{formatToken(tokenMeta[token]?.symbol)}</span>
               </div>
               <Icon icon="eva:chevron-right-fill" className="text-lg " />
             </div>
@@ -393,8 +336,8 @@ export default function Send() {
                 required: true,
                 min: 0,
                 validate: (value) => {
-                  if (new Big(value).gt(availableBalance)) {
-                    return new Big(availableBalance || 0).eq(0)
+                  if (safeBig(value).gt(availableBalance)) {
+                    return safeBig(availableBalance).eq(0)
                       ? 'Insufficient balance'
                       : `Amount is greater than available balance: ${availableBalance}`;
                   }
@@ -410,21 +353,17 @@ export default function Send() {
                   {...validator('amount')}
                   {...inputCommonProps({ key: 'amount' })}
                   endContent={
-                    <span className="font-bold">
-                      {formatToken(tokenMeta[getValues('token')]?.symbol)}
-                    </span>
+                    <span className="font-bold">{formatToken(tokenMeta[token]?.symbol)}</span>
                   }
                   onChange={(e) => {
-                    field.onChange(
-                      formatValidNumber(e.target.value, tokenMeta[getValues('token')]?.decimals),
-                    );
+                    field.onChange(formatValidNumber(e.target.value, tokenMeta[token]?.decimals));
                   }}
                 />
               )}
             ></Controller>
             <div className="text-default-500 text-right text-xs mt-3">
               Balance: {formatNumber(balance, { rm: Big.roundDown })}{' '}
-              {formatToken(tokenMeta[getValues('token')]?.symbol)}
+              {formatToken(tokenMeta[token]?.symbol)}
               <Button
                 size="sm"
                 color="primary"
@@ -438,6 +377,12 @@ export default function Send() {
               </Button>
             </div>
           </div>
+          {!isNearWallet && (
+            <div className="text-sm text-default-500 leading-8">
+              <Divider className="my-3" />
+              <GasFee type="send" token={token} recipient={recipient} amount={availableBalance} />
+            </div>
+          )}
         </div>
 
         {accountValidation.message && (
@@ -482,8 +427,8 @@ export default function Send() {
             fullWidth
             isLoading={loading}
             isDisabled={
-              !getValues('recipient') ||
-              new Big(getValues('amount') || 0).lte(0) ||
+              !recipient ||
+              safeBig(amount).lte(0) ||
               !accountValidation.allowSend ||
               isCheckingAccount
             }

@@ -6,6 +6,7 @@ import { formatAmount, parseAmount } from '@/utils/format';
 import { useTokenStore } from '@/stores/token';
 import Big from 'big.js';
 import { NEAR_TOKEN_CONTRACT } from '@/config';
+import { gasFeeService } from './gasFee';
 
 interface QuerySwapParams {
   tokenIn: string;
@@ -262,5 +263,10 @@ export const nearSwapServices = {
     console.log('sendTransactions outcomes', res);
     const transformedRes = nearServices.handleTransactionResult(res);
     return transformedRes;
+  },
+  async calculateGasFee(params: QuerySwapParams) {
+    const transactions = await this.generateTransaction(params);
+    const res = await gasFeeService.calculateGasFee(transactions);
+    return res;
   },
 };

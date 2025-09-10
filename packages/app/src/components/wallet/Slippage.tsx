@@ -10,9 +10,9 @@ import {
   DropdownMenu,
   DropdownItem,
   DropdownSection,
-  Tooltip,
 } from '@nextui-org/react';
 import { useState } from 'react';
+import Tooltip from '../basic/Tooltip';
 
 export default function Slippage({
   value,

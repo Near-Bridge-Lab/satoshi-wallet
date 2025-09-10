@@ -1,4 +1,5 @@
 import Big from 'big.js';
+import { safeBig } from './big';
 Big.DP = 24;
 
 export function formatValidNumber(val: string | number | undefined, maxDecimals = 8) {
@@ -32,33 +33,26 @@ export function formatSortAddress(address: string | undefined) {
 interface FormatNumberOptions {
   rm?: Big.RoundingMode;
   displayMinimum?: boolean;
-  displayDecimals?: number;
+  maxDigits?: number;
   useUnit?: boolean;
 }
+
 export function formatNumber(val: string | number | undefined, options?: FormatNumberOptions) {
   if (!val || !Number(val)) return '0';
-  const { rm = Big.roundHalfUp, displayMinimum = true, useUnit } = options || {};
+  const { rm = Big.roundHalfUp, displayMinimum = true, useUnit = false } = options || {};
 
   const bigVal = new Big(val);
 
-  let displayDecimals = options?.displayDecimals;
-  if (displayDecimals === undefined) {
+  // Use getPriceDecimals for consistent decimal calculation
+  let maxDigits = options?.maxDigits;
+  if (maxDigits === undefined) {
     const absVal = bigVal.abs();
     if (absVal.eq(0)) {
-      displayDecimals = 0;
-    } else if (absVal.gte(1)) {
-      displayDecimals = 2;
+      maxDigits = 0;
     } else {
-      const str = absVal.toFixed();
-      const match = str.match(/^0\.0*/);
-      if (match) {
-        displayDecimals = Math.min(match[0].length - 1 + 2, 16);
-      } else {
-        displayDecimals = 2;
-      }
+      maxDigits = getPriceDecimals(absVal.toFixed());
     }
   }
-  displayDecimals = Math.min(displayDecimals, 8);
 
   if (useUnit) {
     if (bigVal.gte(1e9)) {
@@ -72,13 +66,13 @@ export function formatNumber(val: string | number | undefined, options?: FormatN
     }
   }
 
-  const min = new Big(10).pow(-displayDecimals);
-  const roundedVal = bigVal.round(displayDecimals, rm);
+  const min = new Big(10).pow(-maxDigits);
+  const roundedVal = bigVal.round(maxDigits, rm);
 
   if (displayMinimum && roundedVal.abs().lt(min)) {
     const formattedMin = new Intl.NumberFormat('en-US', {
       style: 'decimal',
-      maximumFractionDigits: displayDecimals,
+      maximumFractionDigits: maxDigits,
     }).format(min.toNumber());
 
     return `< ${roundedVal.lt(0) ? '-' : ''}${formattedMin}`;
@@ -86,7 +80,7 @@ export function formatNumber(val: string | number | undefined, options?: FormatN
 
   const formattedValue = new Intl.NumberFormat('en-US', {
     style: 'decimal',
-    maximumFractionDigits: displayDecimals,
+    maximumFractionDigits: maxDigits,
   }).format(roundedVal.toNumber());
 
   return formattedValue;
@@ -122,33 +116,42 @@ export function formatNumberWithSubscript(value: string | number): string {
   if (parts.length <= 1) return strVal;
 
   const leadingZeros = parts[1].match(/^0+/)?.[0]?.length || 0;
+  const absVal = new Big(value).abs();
+
+  let maxDigits;
+  if (absVal.eq(0)) {
+    maxDigits = 0;
+  } else {
+    maxDigits = getPriceDecimals(absVal.toFixed());
+  }
 
   if (leadingZeros > 3 && leadingZeros <= 20) {
-    const remainingDigits = parts[1].slice(leadingZeros);
-
-    let significantDigits = 4;
-    if (leadingZeros > 15) {
-      significantDigits = 2;
-    } else if (leadingZeros > 10) {
-      significantDigits = 3;
-    }
-
-    const truncatedDigits = remainingDigits.slice(0, significantDigits);
+    const remainingDigits = parts[1]?.slice(leadingZeros);
+    // When using subscript, display a fixed 5 digits since subscript already compresses the length
+    const digitsToShow = maxDigits - leadingZeros;
+    const truncatedDigits = remainingDigits?.slice(0, digitsToShow).replace(/0+$/, '');
     const subscriptNumber = subscriptNumbers[leadingZeros];
     parts[1] = '0' + subscriptNumber + truncatedDigits;
   } else {
-    let significantDigits = 4;
-    if (parts[1].length > significantDigits) {
-      parts[1] = parts[1].slice(0, significantDigits);
-    }
+    parts[1] = parts[1]?.slice(0, maxDigits).replace(/0+$/, '');
   }
 
   return parts.join('.');
 }
 
-export function formatPrice(price: string | number | undefined, options?: FormatNumberOptions) {
-  if (!price) return '0';
-  return new Big(price).lt(1) ? formatNumberWithSubscript(price) : formatNumber(price, options);
+export function formatPrice(
+  price: string | number | undefined,
+  options?: FormatNumberOptions & { showSign?: boolean },
+) {
+  const bigPrice = safeBig(price);
+  const formattedPrice = bigPrice.eq(0)
+    ? '0'
+    : bigPrice.lt(1)
+      ? formatNumberWithSubscript(price || 0)
+      : formatNumber(price, options);
+  const prefix = options?.showSign ? '$' : '';
+  if (formattedPrice.startsWith('-')) return '-' + prefix + formattedPrice?.slice(1);
+  return prefix + formattedPrice;
 }
 
 export function formatAmount(amount: string | number | undefined, decimals = 24) {
@@ -201,4 +204,22 @@ export function formatExplorerUrl(
     case 'NEAR':
       return (explorerUrl[chain] ?? '') + `/${type === 'account' ? 'address' : 'txns'}/${val}`;
   }
+}
+
+export function getPriceDecimals(price?: string | number, maxDecimals?: number) {
+  if (!price || !Number(price)) return maxDecimals || 15;
+  const priceNum = Number(price);
+
+  let decimals: number;
+  if (priceNum >= 10) {
+    decimals = 2;
+  } else if (priceNum >= 1) {
+    decimals = 3;
+  } else {
+    const match = priceNum.toFixed(20).match(/^0\.0*/);
+    const leadingZeros = match ? match[0].length - 2 : 0;
+    decimals = leadingZeros + 4;
+  }
+
+  return maxDecimals ? Math.min(decimals, maxDecimals) : Math.min(decimals, 18);
 }

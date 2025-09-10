@@ -11,6 +11,7 @@ import {
   preReceiveDepositMsg,
   receiveDepositMsg,
   calculateGasLimit,
+  calculateGasStrategy,
   hasBridgeTransaction,
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
@@ -21,7 +22,7 @@ import coinselect from 'coinselect';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
 
-export { calculateGasLimit, checkBridgeTransactionStatus };
+export { calculateGasLimit, calculateGasStrategy, checkBridgeTransactionStatus };
 
 // init ecc lib
 bitcoin.initEccLib(ecc);

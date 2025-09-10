@@ -26,6 +26,7 @@ import { btcBridgeServices } from '@/services/bridge';
 import { rpcToWallet } from '@/utils/request';
 import { nearServices } from '@/services/near';
 import TokenIcon from '@/components/wallet/TokenIcon';
+import { safeBig } from '@/utils/big';
 
 interface BridgeForm {
   fromChain: string;
@@ -101,7 +102,12 @@ export default function Bridge() {
   const calculateUSD = useCallback(
     ({ amount }: { amount: string }) => {
       const btcPrice = prices?.[process.env.NEXT_PUBLIC_BTC_TOKEN_CONTRACT]?.price;
-      return '$ ' + formatPrice(new Big(amount).times(btcPrice || 0).toString());
+      return formatPrice(
+        safeBig(amount)
+          .times(btcPrice || 0)
+          .toString(),
+        { showSign: true, rm: Big.roundDown },
+      );
     },
     [prices],
   );
@@ -121,7 +127,7 @@ export default function Bridge() {
     const { availableBalance } = chainBalance({ chain: fromChain }) || 0;
     if (!Number(availableBalance)) return true;
     try {
-      return new Big(amountIn).gt(availableBalance || 0);
+      return safeBig(amountIn).gt(availableBalance || 0);
     } catch {
       return false;
     }
@@ -268,7 +274,7 @@ export default function Bridge() {
                   <div className="text-default-500 text-sm">
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: fromChain })?.balance || 0, {
-                      displayDecimals: 8,
+                      maxDigits: 8,
                       rm: Big.roundDown,
                     })}
                     <Button
@@ -311,7 +317,7 @@ export default function Bridge() {
                 </div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-2xl font-medium">
-                    {formatNumber(estimated?.receiveAmount || '0', { displayDecimals: 8 })}
+                    {formatNumber(estimated?.receiveAmount || '0', { maxDigits: 8 })}
                   </div>
                   <TokenSelector chain={toChain} />
                 </div>
@@ -322,7 +328,7 @@ export default function Bridge() {
                   <div className="text-default-500 text-sm">
                     Balance:{' '}
                     {formatNumber(chainBalance({ chain: toChain })?.balance || 0, {
-                      displayDecimals: 8,
+                      maxDigits: 8,
                       rm: Big.roundDown,
                     })}
                   </div>
