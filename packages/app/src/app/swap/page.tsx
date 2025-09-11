@@ -4,9 +4,8 @@ import Navbar from '@/components/basic/Navbar';
 import { TokenSelectorButton } from '@/components/wallet/Tokens';
 import { TOKEN_WHITE_LIST } from '@/config';
 import { nearServices } from '@/services/near';
-import { nearSwapServices } from '@/services/swap';
 import { useTokenStore } from '@/stores/token';
-import { formatNumber, formatPrice, formatValidNumber } from '@/utils/format';
+import { formatNumber, formatPrice, formatValidNumber, parseAmount } from '@/utils/format';
 import { Icon } from '@iconify/react';
 import { Button, Input, Checkbox } from '@nextui-org/react';
 import { get } from 'lodash-es';
@@ -18,6 +17,8 @@ import Big from 'big.js';
 import { useClient, useRequest } from '@/hooks/useHooks';
 import Slippage from '@/components/wallet/Slippage';
 import { useWalletStore } from '@/stores/wallet';
+import GasFee from '@/components/wallet/GasFee';
+import { nearSwapServices } from '@/services/swap';
 
 interface SwapForm {
   tokenIn: string;
@@ -415,12 +416,19 @@ export default function Swap() {
                       isIconOnly
                       size="sm"
                       variant="light"
+                      className="p-0 w-6 h-6 min-w-6 rounded-sm"
                       onClick={() => setPriceReverse(!priceReverse)}
                     >
                       <Icon icon="ic:twotone-swap-horiz" className="text-xl text-default-500" />
                     </Button>
                   </span>
                 </div>
+                <GasFee
+                  type="swap"
+                  tokenIn={tokenIn}
+                  tokenOut={tokenOut}
+                  amountIn={availableBalance}
+                />
                 <div className="flex justify-between gap-2">
                   <span>Price impact</span>
                   <span

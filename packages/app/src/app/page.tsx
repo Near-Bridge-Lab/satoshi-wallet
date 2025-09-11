@@ -158,7 +158,7 @@ function Balance({ className }: { className?: string }) {
       return acc.plus(
         safeBig(balance)
           .times(safeBig(prices?.[token]?.price || 0))
-          .toNumber(),
+          .toFixed(),
       );
     }, safeBig(0));
   }, [balances, prices, tokenMeta]);
@@ -167,7 +167,11 @@ function Balance({ className }: { className?: string }) {
     isClient && (
       <div className={`flex flex-col items-center justify-center gap-2 ${className ?? ''}`}>
         <div className="text-4xl font-bold">
-          ${formatPrice(totalBalanceUSD.toFixed(2, Big.roundDown), { useUnit: false })}
+          {formatPrice(totalBalanceUSD.toFixed(), {
+            useUnit: false,
+            showSign: true,
+            rm: Big.roundDown,
+          })}
         </div>
       </div>
     )
