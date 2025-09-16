@@ -3,6 +3,7 @@ import Loading from '@/components/basic/Loading';
 import ChainSelector from '@/components/wallet/Chains';
 import DepositPrompt from '@/components/wallet/DepositPrompt';
 import Tools from '@/components/wallet/Tools';
+import OnboardingModal from '@/components/wallet/OnboardingModal';
 import { RUNTIME_NETWORK } from '@/config';
 import { useClient, useRequest } from '@/hooks/useHooks';
 import { useTokenStore } from '@/stores/token';
@@ -51,6 +52,7 @@ export default function Home() {
           SatoshiProtocol
         </Link>
       </footer>
+      <OnboardingModal />
     </main>
   );
 }
