@@ -6,12 +6,28 @@ import { storageStore } from '@/utils/common';
 
 const storage = storageStore('SATOSHI_WALLET_BUTTON');
 const ONBOARDING_MODAL_STORAGE_KEY = 'onboarding-seen';
+const ALLOWED_DOMAINS = ['satoshibridge.top', '*.satoshibridge.top', 'btc.rhea.finance'];
+
+const isAllowedDomain = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+  return ALLOWED_DOMAINS.some((domain) => {
+    if (domain.startsWith('*.')) {
+      const baseDomain = domain.substring(2);
+      return hostname === baseDomain || hostname.endsWith('.' + baseDomain);
+    }
+    return hostname === domain;
+  });
+};
 
 export default function OnboardingModal() {
   const [isOpen, setIsOpen] = useState(false);
   const { accountId, originalAccountId } = useWalletStore();
 
   useEffect(() => {
+    if (!isAllowedDomain()) {
+      return;
+    }
     if (accountId || originalAccountId) {
       const hasSeenOnboarding = storage?.get<boolean>(ONBOARDING_MODAL_STORAGE_KEY);
       if (!hasSeenOnboarding) {
