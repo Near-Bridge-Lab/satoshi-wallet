@@ -1,35 +1,33 @@
 'use client';
-import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
+import { Modal, ModalContent, ModalBody, Button } from '@nextui-org/react';
 import { useState, useEffect } from 'react';
 import { useWalletStore } from '@/stores/wallet';
-import { storageStore } from '@/utils/common';
+import { useStorageState } from '@/hooks/useHooks';
 
-const storage = storageStore('SATOSHI_WALLET_BUTTON');
 const ONBOARDING_MODAL_STORAGE_KEY = 'onboarding-seen';
-const ALLOWED_DOMAINS = ['satoshibridge.top', '*.satoshibridge.top', 'btc.rhea.finance'];
+const ALLOWED_DOMAINS = ['localhost', 'satoshibridge.top', 'btc.rhea.finance'];
 
 const isAllowedDomain = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const hostname = window.location.hostname;
-  return ALLOWED_DOMAINS.some((domain) => {
-    if (domain.startsWith('*.')) {
-      const baseDomain = domain.substring(2);
-      return hostname === baseDomain || hostname.endsWith('.' + baseDomain);
-    }
-    return hostname === domain;
-  });
+  const hostname = window.top?.location.hostname || window.location.hostname;
+  return ALLOWED_DOMAINS.some((domain) => hostname.includes(domain));
 };
 
 export default function OnboardingModal() {
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useStorageState(
+    ONBOARDING_MODAL_STORAGE_KEY,
+    false,
+  );
   const [isOpen, setIsOpen] = useState(false);
-  const { accountId, originalAccountId } = useWalletStore();
+  const { accountId, originalAccountId, isNearWallet } = useWalletStore();
 
   useEffect(() => {
     if (!isAllowedDomain()) {
       return;
     }
-    if (accountId || originalAccountId) {
-      const hasSeenOnboarding = storage?.get<boolean>(ONBOARDING_MODAL_STORAGE_KEY);
+    const shouldShowOnboarding = (accountId || originalAccountId) && !isNearWallet;
+
+    if (shouldShowOnboarding) {
       if (!hasSeenOnboarding) {
         const timer = setTimeout(() => {
           setIsOpen(true);
@@ -37,11 +35,11 @@ export default function OnboardingModal() {
         return () => clearTimeout(timer);
       }
     }
-  }, [accountId, originalAccountId]);
+  }, [accountId, originalAccountId, isNearWallet]);
 
   const handleClose = () => {
     setIsOpen(false);
-    storage?.set(ONBOARDING_MODAL_STORAGE_KEY, true);
+    setHasSeenOnboarding(true);
   };
 
   return (
@@ -52,7 +50,7 @@ export default function OnboardingModal() {
       hideCloseButton
       classNames={{
         backdrop: 'bg-black/80 backdrop-blur-sm',
-        wrapper: 'backdrop-blur-sm rounded-xl border-2 border-[#444444]',
+        wrapper: 'backdrop-blur-sm rounded-xl border-2 border-divider',
         base: 'border-none shadow-none bg-transparent',
         body: 'border-none bg-transparent',
       }}
@@ -62,25 +60,26 @@ export default function OnboardingModal() {
       <ModalContent className="bg-transparent border-none">
         <ModalBody className="px-[60px] bg-transparent">
           <div className="text-left space-y-4">
-            <p className="text-[#9D9D9D] text-base leading-relaxed mb-8">
+            <p className="text-default-500 text-base leading-relaxed mb-8">
               <span className="font-semibold text-[#FF4000]">Satoshi Wallet</span> is used to
               display assets in{' '}
-              <span className="font-semibold text-white">ChainSignature-mapped accounts</span>.
+              <span className="font-semibold text-foreground">ChainSignature-mapped accounts</span>.
               These assets are actually stored on the{' '}
-              <span className="font-semibold text-white">NEAR blockchain</span>, and you can use{' '}
-              <span className="font-semibold text-[#FF4000]">Satoshi Wallet</span> to{' '}
-              <span className="font-semibold text-white">transfer, swap, </span>and{' '}
-              <span className="font-semibold text-white">bridge</span> them.
+              <span className="font-semibold text-foreground">NEAR blockchain</span>, and you can
+              use <span className="font-semibold text-[#FF4000]">Satoshi Wallet</span> to{' '}
+              <span className="font-semibold text-foreground">transfer, swap, </span>and{' '}
+              <span className="font-semibold text-foreground">bridge</span> them.
             </p>
 
-            <button
-              onClick={handleClose}
-              className="flex items-center justify-center w-full bg-transparent border 
-              border-white border-opacity-50 h-[46px] rounded-md text-white hover:border-white 
-              hover:border-opacity-100 font-medium cursor-pointer text-base"
+            <Button
+              onPress={handleClose}
+              variant="bordered"
+              size="lg"
+              radius="sm"
+              className="border-1 border-foreground/50 hover:border-foreground w-full"
             >
               Got it
-            </button>
+            </Button>
           </div>
         </ModalBody>
       </ModalContent>
