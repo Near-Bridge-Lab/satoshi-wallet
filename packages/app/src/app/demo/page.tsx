@@ -547,10 +547,14 @@ function SignMessage() {
   const [message, setMessage] = useState('');
   const [signature, setSignature] = useState('');
   const [publicKey, setPublicKey] = useState('');
+  const [signatureBase58, setSignatureBase58] = useState('');
+  const [publicKeyBase58, setPublicKeyBase58] = useState('');
   async function handleSignMessage() {
-    const { signature, publicKey } = await signMessage(message);
+    const { signature, publicKey, signatureBase58, publicKeyBase58 } = await signMessage(message);
     setSignature(signature);
     setPublicKey(publicKey);
+    setSignatureBase58(signatureBase58);
+    setPublicKeyBase58(publicKeyBase58);
   }
   return (
     <Card>
@@ -578,6 +582,20 @@ function SignMessage() {
           className="text-xs"
         >
           {publicKey}
+        </Snippet>
+        <Snippet
+          symbol={<span className="text-xs text-default-500">Signature Base58: </span>}
+          size="sm"
+          className="text-xs"
+        >
+          {signatureBase58}
+        </Snippet>
+        <Snippet
+          symbol={<span className="text-xs text-default-500">Public Key Base58: </span>}
+          size="sm"
+          className="text-xs"
+        >
+          {publicKeyBase58}
         </Snippet>
       </CardBody>
     </Card>
