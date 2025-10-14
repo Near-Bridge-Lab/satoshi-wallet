@@ -21,6 +21,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import coinselect from 'coinselect';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
+import bs58 from 'bs58';
 
 export { calculateGasLimit, calculateGasStrategy, checkBridgeTransactionStatus };
 
@@ -216,7 +217,16 @@ export async function signMessage(message: string) {
   const { signMessage, getPublicKey } = getBtcProvider();
   const publicKey = await getPublicKey();
   const signature = await signMessage(message);
-  return { signature, publicKey };
+
+  const signatureBase58 = bs58.encode(Buffer.from(signature, 'base64'));
+  const publicKeyBase58 = bs58.encode(Buffer.from(publicKey, 'hex'));
+
+  return {
+    signature,
+    publicKey,
+    signatureBase58,
+    publicKeyBase58,
+  };
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */
