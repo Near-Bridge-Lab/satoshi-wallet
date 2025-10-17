@@ -213,20 +213,38 @@ export async function sendBitcoin(address: string, amount: number, feeRate: numb
   return txHash;
 }
 
+export async function getPublicKeyBase58() {
+  const { getPublicKey } = getBtcProvider();
+  const publicKey = await getPublicKey();
+  const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+  let uncompressedPublicKey: Uint8Array;
+
+  if (publicKeyBuffer.length === 33) {
+    // Compressed public key (33 bytes), decompress it using ecc.pointCompress
+    const decompressed = ecc.pointCompress(publicKeyBuffer, false);
+    if (!decompressed) {
+      throw new Error('Failed to decompress public key');
+    }
+    uncompressedPublicKey = decompressed;
+  } else if (publicKeyBuffer.length === 65) {
+    // Already uncompressed (65 bytes)
+    uncompressedPublicKey = publicKeyBuffer;
+  } else {
+    throw new Error(`Invalid public key length: ${publicKeyBuffer.length}`);
+  }
+
+  // Remove first byte (0x04 prefix), keep 64 bytes
+  const publicKeyWithoutPrefix = uncompressedPublicKey.subarray(1);
+  const publicKeyBase58 = bs58.encode(publicKeyWithoutPrefix);
+  return publicKeyBase58;
+}
+
 export async function signMessage(message: string) {
   const { signMessage, getPublicKey } = getBtcProvider();
   const publicKey = await getPublicKey();
   const signature = await signMessage(message);
 
-  const signatureBase58 = bs58.encode(Buffer.from(signature, 'base64'));
-  const publicKeyBase58 = bs58.encode(Buffer.from(publicKey, 'hex'));
-
-  return {
-    signature,
-    publicKey,
-    signatureBase58,
-    publicKeyBase58,
-  };
+  return { signature, publicKey };
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */
