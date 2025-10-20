@@ -5,13 +5,6 @@ import { useWalletStore } from '@/stores/wallet';
 import { useStorageState } from '@/hooks/useHooks';
 
 const ONBOARDING_MODAL_STORAGE_KEY = 'onboarding-seen';
-const ALLOWED_DOMAINS = ['localhost', 'satoshibridge.top', 'btc.rhea.finance'];
-
-const isAllowedDomain = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const hostname = window.top?.location.hostname || window.location.hostname;
-  return ALLOWED_DOMAINS.some((domain) => hostname.includes(domain));
-};
 
 export default function OnboardingModal() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useStorageState(
@@ -22,9 +15,6 @@ export default function OnboardingModal() {
   const { accountId, originalAccountId, isNearWallet } = useWalletStore();
 
   useEffect(() => {
-    if (!isAllowedDomain()) {
-      return;
-    }
     const shouldShowOnboarding = (accountId || originalAccountId) && !isNearWallet;
 
     if (shouldShowOnboarding) {
