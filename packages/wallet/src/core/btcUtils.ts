@@ -213,20 +213,56 @@ export async function sendBitcoin(address: string, amount: number, feeRate: numb
   return txHash;
 }
 
+export async function getPublicKeyBase58() {
+  const { getPublicKey } = getBtcProvider();
+  const publicKey = await getPublicKey();
+  const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+  let uncompressedPublicKey: Uint8Array;
+
+  if (publicKeyBuffer.length === 33) {
+    // Compressed public key (33 bytes), decompress it using ecc.pointCompress
+    const decompressed = ecc.pointCompress(publicKeyBuffer, false);
+    if (!decompressed) {
+      throw new Error('Failed to decompress public key');
+    }
+    uncompressedPublicKey = decompressed;
+  } else if (publicKeyBuffer.length === 65) {
+    // Already uncompressed (65 bytes)
+    uncompressedPublicKey = publicKeyBuffer;
+  } else {
+    throw new Error(`Invalid public key length: ${publicKeyBuffer.length}`);
+  }
+
+  // Remove first byte (0x04 prefix), keep 64 bytes
+  const publicKeyWithoutPrefix = uncompressedPublicKey.subarray(1);
+  const publicKeyBase58 = bs58.encode(publicKeyWithoutPrefix);
+  return publicKeyBase58;
+}
+
+export function getAddressByPublicKeyBase58(btcPublicKeyBase58: string) {
+  const publicKey = bs58.decode(btcPublicKeyBase58);
+  const uncompressedPublicKey = Buffer.concat([Buffer.from([0x04]), publicKey]);
+  // SegWit addresses (p2wpkh, p2wsh) require compressed public key
+  const compressedPublicKeyUint8 = ecc.pointCompress(uncompressedPublicKey, true);
+  const compressedPublicKey = Buffer.from(compressedPublicKeyUint8);
+
+  const p2pkh = bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }).address;
+  const p2sh = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }),
+  }).address;
+  const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: compressedPublicKey }).address;
+  const p2wsh = bitcoin.payments.p2wsh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: compressedPublicKey }),
+  }).address;
+  return { p2pkh, p2sh, p2wpkh, p2wsh };
+}
+
 export async function signMessage(message: string) {
   const { signMessage, getPublicKey } = getBtcProvider();
   const publicKey = await getPublicKey();
   const signature = await signMessage(message);
 
-  const signatureBase58 = bs58.encode(Buffer.from(signature, 'base64'));
-  const publicKeyBase58 = bs58.encode(Buffer.from(publicKey, 'hex'));
-
-  return {
-    signature,
-    publicKey,
-    signatureBase58,
-    publicKeyBase58,
-  };
+  return { signature, publicKey };
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */
