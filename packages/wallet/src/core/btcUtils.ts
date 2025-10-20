@@ -239,6 +239,24 @@ export async function getPublicKeyBase58() {
   return publicKeyBase58;
 }
 
+export function getAddressByPublicKeyBase58(btcPublicKeyBase58: string) {
+  const publicKey = bs58.decode(btcPublicKeyBase58);
+  const uncompressedPublicKey = Buffer.concat([Buffer.from([0x04]), publicKey]);
+  // SegWit addresses (p2wpkh, p2wsh) require compressed public key
+  const compressedPublicKeyUint8 = ecc.pointCompress(uncompressedPublicKey, true);
+  const compressedPublicKey = Buffer.from(compressedPublicKeyUint8);
+
+  const p2pkh = bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }).address;
+  const p2sh = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }),
+  }).address;
+  const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: compressedPublicKey }).address;
+  const p2wsh = bitcoin.payments.p2wsh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: compressedPublicKey }),
+  }).address;
+  return { p2pkh, p2sh, p2wpkh, p2wsh };
+}
+
 export async function signMessage(message: string) {
   const { signMessage, getPublicKey } = getBtcProvider();
   const publicKey = await getPublicKey();
