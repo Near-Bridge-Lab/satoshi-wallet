@@ -1,7 +1,7 @@
 import { NEAR_TOKEN_CONTRACT } from '@/config';
 import request from '@/utils/request';
 
-const refFinanceApi = 'https://api.ref.finance';
+const refFinanceApi = 'https://api.rhea.finance';
 
 export const priceServices = {
   async queryPrices() {
