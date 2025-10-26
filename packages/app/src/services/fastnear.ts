@@ -27,6 +27,14 @@ const BLACKLIST_CONTRACTS = [
   'aurora',
 ];
 
+const BLACKLIST_NFT_CONTRACTS = [
+  'event-drop.near',
+  'claim-rewards.near',
+  'near-rewards.near',
+  'nft-rewards.near',
+  'nearrewards.near',
+];
+
 // Transaction types
 export interface AccountTx {
   account_id: string;
@@ -138,17 +146,19 @@ export const fastNearServices = {
       );
 
       const nfts = await Promise.all(
-        res.tokens.map(async (token) => {
-          const items = await nearServices.query<NFTMetadata[]>({
-            contractId: token.contract_id,
-            method: 'nft_tokens_for_owner',
-            args: { account_id: accountId },
-          });
-          items?.forEach((item) => {
-            item.contract_id = token.contract_id;
-          });
-          return items || [];
-        }),
+        res.tokens
+          .filter((token) => !BLACKLIST_NFT_CONTRACTS.includes(token.contract_id))
+          .map(async (token) => {
+            const items = await nearServices.query<NFTMetadata[]>({
+              contractId: token.contract_id,
+              method: 'nft_tokens_for_owner',
+              args: { account_id: accountId },
+            });
+            items?.forEach((item) => {
+              item.contract_id = token.contract_id;
+            });
+            return items || [];
+          }),
       );
 
       return nfts.flat();
