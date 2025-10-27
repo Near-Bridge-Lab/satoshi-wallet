@@ -33,6 +33,7 @@ const BLACKLIST_NFT_CONTRACTS = [
   'near-rewards.near',
   'nft-rewards.near',
   'nearrewards.near',
+  'blackdragonforevernft.near',
 ];
 
 // Transaction types
