@@ -7,10 +7,11 @@ import Big from 'big.js';
 import { connect, keyStores, Near, providers } from 'near-api-js';
 import { FinalExecutionOutcome, QueryResponseKind } from 'near-api-js/lib/providers/provider';
 import { toast } from 'react-toastify';
+import { rpcManager } from './rpcManager';
 
 export const nearServices = {
   getNearConnectionConfig(network = process.env.NEXT_PUBLIC_NETWORK) {
-    const nodeUrl = Object.values(NEAR_RPC_NODES)[0];
+    const nodeUrl = rpcManager.getFastestNode();
     const jsonRpcProvider = Object.values(NEAR_RPC_NODES).map(
       (url) => new providers.JsonRpcProvider({ url }),
     );
