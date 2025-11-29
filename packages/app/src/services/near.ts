@@ -12,9 +12,8 @@ import { rpcManager } from './rpcManager';
 export const nearServices = {
   getNearConnectionConfig(network = process.env.NEXT_PUBLIC_NETWORK) {
     const nodeUrl = rpcManager.getFastestNode();
-    const jsonRpcProvider = Object.values(NEAR_RPC_NODES).map(
-      (url) => new providers.JsonRpcProvider({ url }),
-    );
+    const sortedNodes = rpcManager.getSortedNodes();
+    const jsonRpcProvider = sortedNodes.map((url) => new providers.JsonRpcProvider({ url }));
     const provider = new providers.FailoverRpcProvider(jsonRpcProvider);
     return network === 'testnet'
       ? {
@@ -39,6 +38,10 @@ export const nearServices = {
         };
   },
   near: {} as Record<NetworkId, Near>,
+  clearNearCache() {
+    this.near = {} as Record<NetworkId, Near>;
+    console.log('Near connection cache cleared');
+  },
   async nearConnect(network = process.env.NEXT_PUBLIC_NETWORK) {
     if (this.near[network]) return this.near[network];
     const near = await connect(this.getNearConnectionConfig(network));
@@ -238,3 +241,9 @@ export const nearServices = {
     }
   },
 };
+
+if (typeof window !== 'undefined') {
+  rpcManager.onNodeChange(() => {
+    nearServices.clearNearCache();
+  });
+}
