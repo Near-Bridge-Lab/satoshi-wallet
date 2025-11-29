@@ -3,8 +3,10 @@ import request from '@/utils/request';
 
 class RPCManager {
   private fastestNodeUrl: string | null = null;
+  private sortedNodeUrls: string[] = [];
   private intervalId: NodeJS.Timeout | null = null;
   private isInitialized = false;
+  private onNodeChangeCallbacks: Array<(nodeUrl: string) => void> = [];
 
   async ping(nodeUrl: string) {
     try {
@@ -36,14 +38,16 @@ class RPCManager {
     if (validNodes.length === 0) {
       console.warn('All RPC nodes ping failed, using default node');
       this.fastestNodeUrl = Object.values(NEAR_RPC_NODES)[0];
+      this.sortedNodeUrls = Object.values(NEAR_RPC_NODES);
       return;
     }
 
-    const fastest = validNodes.reduce((prev, current) =>
-      prev.delay < current.delay ? prev : current,
-    );
+    const sortedNodes = validNodes.sort((a, b) => a.delay - b.delay);
+    const fastest = sortedNodes[0];
 
+    const previousNodeUrl = this.fastestNodeUrl;
     this.fastestNodeUrl = fastest.url;
+    this.sortedNodeUrls = sortedNodes.map((node) => node.url);
 
     const allNodesStatus = results
       .map((n) => `${n.name}: ${n.delay === -1 ? 'failed' : `${n.delay}ms`}`)
@@ -52,10 +56,18 @@ class RPCManager {
     console.log(
       `Fastest RPC node: ${fastest.name} (${fastest.delay}ms) | All nodes: ${allNodesStatus}`,
     );
+
+    if (previousNodeUrl && previousNodeUrl !== this.fastestNodeUrl) {
+      this.onNodeChangeCallbacks.forEach((callback) => callback(this.fastestNodeUrl!));
+    }
   }
 
   getFastestNode() {
     return this.fastestNodeUrl || Object.values(NEAR_RPC_NODES)[0];
+  }
+
+  getSortedNodes() {
+    return this.sortedNodeUrls.length > 0 ? this.sortedNodeUrls : Object.values(NEAR_RPC_NODES);
   }
 
   startAutoUpdate() {
@@ -79,6 +91,10 @@ class RPCManager {
       this.intervalId = null;
       this.isInitialized = false;
     }
+  }
+
+  onNodeChange(callback: (nodeUrl: string) => void) {
+    this.onNodeChangeCallbacks.push(callback);
   }
 }
 

@@ -205,6 +205,18 @@ const Activity = dynamic(
 function Portfolio({ className }: { className?: string }) {
   const router = useRouter();
   const [current, setCurrent] = useState(portfolios[0].value);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { refreshAllBalances } = useTokenStore();
+
+  async function handleRefresh() {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshAllBalances();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   return (
     <div className={className}>
@@ -213,23 +225,41 @@ function Portfolio({ className }: { className?: string }) {
           aria-label=""
           selectedKey={current}
           items={portfolios}
-          classNames={{ tabList: 'gap-6', tab: 'text-xl font-bold px-0', cursor: 'hidden' }}
+          classNames={{ tabList: 'gap-6', tab: 'text-base font-bold px-0', cursor: 'hidden' }}
           variant="light"
           onSelectionChange={(v) => setCurrent(v.toString())}
         >
           {(item) => <Tab key={item.value} title={item.label}></Tab>}
         </Tabs>
         {current === 'tokens' && (
-          <Button
-            isIconOnly
-            variant="flat"
-            size="sm"
-            radius="full"
-            className="min-w-7 w-7 h-7 "
-            onClick={() => router.push('/tokens')}
-          >
-            <Icon icon="fluent:add-12-filled" className="text-base text-primary" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              isIconOnly
+              variant="flat"
+              size="sm"
+              radius="full"
+              className="min-w-7 w-7 h-7"
+              onClick={handleRefresh}
+              isDisabled={isRefreshing}
+              title="Refresh Tokens"
+            >
+              <Icon
+                icon="eva:refresh-fill"
+                className={`text-sm text-primary ${isRefreshing ? 'animate-spin' : ''}`}
+              />
+            </Button>
+            <Button
+              isIconOnly
+              variant="flat"
+              size="sm"
+              radius="full"
+              className="min-w-7 w-7 h-7 "
+              onClick={() => router.push('/tokens')}
+              title="Add Custom Token"
+            >
+              <Icon icon="fluent:add-12-filled" className="text-sm text-primary" />
+            </Button>
+          </div>
         )}
       </div>
 
