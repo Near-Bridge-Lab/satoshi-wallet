@@ -1,6 +1,7 @@
 import request from '@/utils/request';
 import { nearServices } from './near';
 import { safeBig } from '@/utils/big';
+import { formatAmount } from '@/utils/format';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_NETWORK === 'testnet'
@@ -23,6 +24,16 @@ const BLACKLIST_CONTRACTS = [
   'nearrewards.near',
   'nearreward.near',
   'meteor-points.near',
+  'aurora',
+];
+
+const BLACKLIST_NFT_CONTRACTS = [
+  'event-drop.near',
+  'claim-rewards.near',
+  'near-rewards.near',
+  'nft-rewards.near',
+  'nearrewards.near',
+  'blackdragonforevernft.near',
 ];
 
 // Transaction types
@@ -113,7 +124,11 @@ export const fastNearServices = {
           )
           .map(async (token) => {
             const metadata = await nearServices.queryTokenMetadata(token.contract_id);
-            return { contract_id: token.contract_id, metadata };
+            return {
+              contract_id: token.contract_id,
+              metadata,
+              balance: formatAmount(token.balance, metadata?.decimals),
+            };
           }),
       );
 
@@ -132,17 +147,19 @@ export const fastNearServices = {
       );
 
       const nfts = await Promise.all(
-        res.tokens.map(async (token) => {
-          const items = await nearServices.query<NFTMetadata[]>({
-            contractId: token.contract_id,
-            method: 'nft_tokens_for_owner',
-            args: { account_id: accountId },
-          });
-          items?.forEach((item) => {
-            item.contract_id = token.contract_id;
-          });
-          return items || [];
-        }),
+        res.tokens
+          .filter((token) => !BLACKLIST_NFT_CONTRACTS.includes(token.contract_id))
+          .map(async (token) => {
+            const items = await nearServices.query<NFTMetadata[]>({
+              contractId: token.contract_id,
+              method: 'nft_tokens_for_owner',
+              args: { account_id: accountId },
+            });
+            items?.forEach((item) => {
+              item.contract_id = token.contract_id;
+            });
+            return items || [];
+          }),
       );
 
       return nfts.flat();

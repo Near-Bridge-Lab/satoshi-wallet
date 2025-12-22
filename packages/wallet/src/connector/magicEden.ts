@@ -5,7 +5,7 @@ import type {
   SendBtcTransactionOptions,
   SignMessageOptions,
 } from 'sats-connect';
-import icon from '../icons/magicEden.png';
+import icon from '../icons/magicEden.svg';
 import { BaseConnector, type WalletMetadata } from './base';
 import { storageStore } from '../utils';
 

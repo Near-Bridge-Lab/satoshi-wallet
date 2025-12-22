@@ -8,6 +8,7 @@ import {
   BitgetConnector,
   MagicEdenConnector,
   BybitConnector,
+  GateConnector,
   // BinanceConnector,
 } from '../connector';
 import { useBTCProvider, useConnectModal } from '../hooks';
@@ -31,14 +32,16 @@ export function BtcWalletSelectorContextProvider({
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
+  //OKX，Bitget，bybit，Xverse，Unisat
   const connectors = [
-    new UnisatConnector(),
-    new XverseConnector(),
     new OKXConnector(),
     new BitgetConnector(),
-    // new BinanceConnector(),
-    new MagicEdenConnector(),
     new BybitConnector(),
+    new XverseConnector(),
+    new UnisatConnector(),
+    new MagicEdenConnector(),
+    new GateConnector(),
+    // new BinanceConnector(),
   ];
 
   const walletSelectorContextValue = useMemo(() => {
@@ -163,9 +166,8 @@ export function useBtcWalletSelector() {
     // Common connect method with two connection modes
     const connectWallet = async (useModal = false) => {
       if (connectModalOpen) return null;
-
-      const account = accounts?.[0];
-      if (account) return account;
+      // const account = accounts?.[0];
+      // if (account) return account;
 
       try {
         if (useModal) {

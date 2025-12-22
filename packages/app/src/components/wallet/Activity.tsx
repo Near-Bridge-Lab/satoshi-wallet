@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useInfiniteScroll, useRequest } from '@/hooks/useHooks';
 import Empty from '../basic/Empty';
-import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/tranction';
+import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/transaction';
 import Loading from '../basic/Loading';
 import dayjs from '@/utils/dayjs';
 import { formatAmount, formatExplorerUrl, formatFileUrl, formatSortAddress } from '@/utils/format';
@@ -271,7 +271,7 @@ export function MPCTransactions({ address }: { address?: string }) {
       classNames: { base: 'h-5', content: 'text-xs' },
     } as ChipProps;
 
-    const status = data.Status === 3 ? 'success' : data.Status >= 100 ? 'failed' : 'pending';
+    const status = data.Status === 3 ? 'success' : data.Status >= 50 ? 'failed' : 'pending';
 
     return (
       <Chip color={StatusMap[status].color as ChipProps['color']} {...props}>

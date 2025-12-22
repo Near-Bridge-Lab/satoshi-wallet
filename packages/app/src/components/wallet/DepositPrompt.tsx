@@ -2,7 +2,7 @@
 import { RUNTIME_NETWORK } from '@/config';
 import { useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
-import { transactionServices } from '@/services/tranction';
+import { transactionServices } from '@/services/transaction';
 import { useWalletStore } from '@/stores/wallet';
 import { rpcToWallet } from '@/utils/request';
 import { Icon } from '@iconify/react/dist/iconify.js';
@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { toast } from 'react-toastify';
 
 export default function DepositPrompt() {
-  const { accountId } = useWalletStore();
+  const { accountId, originalAccountId } = useWalletStore();
 
   const [isNewAccount, setIsNewAccount] = useState(false);
 
@@ -60,6 +60,7 @@ export default function DepositPrompt() {
       setActivateLoading(true);
       const { minDepositAmount } = await getDepositAmount('10000', {
         csna: accountId,
+        btcAccount: originalAccountId,
         env: RUNTIME_NETWORK,
         newAccountMinDepositAmount: true,
       });

@@ -5,14 +5,16 @@ export const NEAR_TOKEN_CONTRACT = IS_MAINNET ? 'wrap.near' : 'wrap.testnet';
 export const BTC_TOKEN_CONTRACT = process.env.NEXT_PUBLIC_BTC_TOKEN_CONTRACT;
 
 export const TOKEN_WHITE_LIST = [
+  'near',
   BTC_TOKEN_CONTRACT,
-  NEAR_TOKEN_CONTRACT,
   ...(IS_MAINNET
     ? [
         '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
         'usdt.tether-token.near',
+        'token.rhealab.near',
         '31761a152f1e96f966c041291644129144233b0b.factory.bridge.near',
-        'token.v2.ref-finance.near',
+        'token.publicailab.near',
+        NEAR_TOKEN_CONTRACT,
       ]
     : ['deltausdc.testnet', 'usdtt.fakes.testnet']),
 ];
@@ -20,14 +22,12 @@ export const TOKEN_WHITE_LIST = [
 export const NEAR_RPC_NODES = IS_MAINNET
   ? {
       Lava: 'https://near.lava.build',
-      Official: 'https://rpc.mainnet.near.org',
       Fastnear: 'https://free.rpc.fastnear.com',
-      Drpc: 'https://near.drpc.org',
+      Delta: 'https://nearinner.deltarpc.com',
     }
   : {
       Official: 'https://rpc.testnet.near.org',
-      // Lava: 'https://near-testnet.lava.build',
-      // Drpc: 'https://near-testnet.drpc.org',
+      Lava: 'https://neart.lava.build',
     };
 
 const envMap = {

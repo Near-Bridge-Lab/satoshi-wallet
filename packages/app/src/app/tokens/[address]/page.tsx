@@ -12,6 +12,7 @@ import Tools from '@/components/wallet/Tools';
 import Empty from '@/components/basic/Empty';
 import Activity from '@/components/wallet/Activity';
 import TokenIcon from '@/components/wallet/TokenIcon';
+import { safeBig } from '@/utils/big';
 
 export const runtime = 'edge';
 
@@ -25,7 +26,10 @@ export default function TokenDetailPage() {
     pollingInterval: 30000,
   });
   const balancesUSD = useMemo(
-    () => new Big(prices?.[address]?.price || 0).times(balance || 0).toNumber(),
+    () =>
+      safeBig(prices?.[address]?.price || 0)
+        .times(balance || 0)
+        .toFixed(),
     [balance, prices, address],
   );
 
@@ -43,7 +47,9 @@ export default function TokenDetailPage() {
           <div className="text-lg font-bold">
             {formatNumber(balance, { rm: Big.roundDown })} {formatToken(tm?.symbol)}
           </div>
-          <div className="text-default-500">${formatPrice(balancesUSD)}</div>
+          <div className="text-default-500">
+            {formatPrice(balancesUSD, { showSign: true, rm: Big.roundDown })}
+          </div>
         </div>
         <Tools address={address} actions={['send', 'receive']} />
         <div className="mt-8">

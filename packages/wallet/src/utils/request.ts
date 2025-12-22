@@ -61,6 +61,16 @@ export default async function request<T>(url: string, options?: RequestOptions<T
     }
   }
 
+  const setCacheAndReturn = (data: T) => {
+    if (cacheKey) {
+      cache.set(cacheKey, { timestamp: Date.now(), data });
+      setTimeout(() => {
+        cache.delete(cacheKey);
+      }, cacheTimeout);
+    }
+    return data;
+  };
+
   const newOptions: RequestInit = {
     ...options,
     headers,
@@ -82,35 +92,27 @@ export default async function request<T>(url: string, options?: RequestOptions<T
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
 
-    if (options?.shouldStopPolling) {
-      if (options.shouldStopPolling(data)) {
-        return data as T;
-      }
-      throw new Error('Polling should continue');
-    }
-
-    if (cacheKey) {
-      cache.set(cacheKey, { timestamp: Date.now(), data });
-      setTimeout(() => {
-        cache.delete(cacheKey);
-      }, cacheTimeout);
-    }
-
-    return data as T;
-  } catch (err) {
-    if (retryCount > 0) {
-      console.log(`Retrying... attempts left: ${retryCount}`);
-      return request(url, { ...options, retryCount: retryCount - 1 });
-    } else if (options?.pollingInterval && options?.maxPollingAttempts) {
-      if (options.maxPollingAttempts > 0) {
+    if (options?.shouldStopPolling && !options.shouldStopPolling(data)) {
+      if (
+        options?.pollingInterval &&
+        options?.maxPollingAttempts &&
+        options.maxPollingAttempts > 0
+      ) {
         console.log(`Polling... attempts left: ${options.maxPollingAttempts}`);
         await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
         return request(url, {
           ...options,
           maxPollingAttempts: options.maxPollingAttempts - 1,
-          retryCount: retryCount,
+          retryCount: options?.retryCount ?? 1,
         });
       }
+    }
+
+    return setCacheAndReturn(data);
+  } catch (err) {
+    if (retryCount > 0) {
+      console.log(`Retrying... attempts left: ${retryCount}`);
+      return request(url, { ...options, retryCount: retryCount - 1 });
     }
     console.error(err);
     return Promise.reject(err);

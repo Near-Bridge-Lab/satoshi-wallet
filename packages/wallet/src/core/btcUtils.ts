@@ -11,6 +11,8 @@ import {
   preReceiveDepositMsg,
   receiveDepositMsg,
   calculateGasLimit,
+  calculateGasStrategy,
+  hasBridgeTransaction,
 } from '../utils/satoshi';
 import { Dialog } from '../utils/Dialog';
 import type { FinalExecutionOutcome, Transaction } from '@near-wallet-selector/core';
@@ -19,8 +21,9 @@ import * as bitcoin from 'bitcoinjs-lib';
 import coinselect from 'coinselect';
 // @ts-ignore
 import * as ecc from '@bitcoinerlab/secp256k1';
+import bs58 from 'bs58';
 
-export { calculateGasLimit, checkBridgeTransactionStatus };
+export { calculateGasLimit, calculateGasStrategy, checkBridgeTransactionStatus };
 
 // init ecc lib
 bitcoin.initEccLib(ecc);
@@ -28,9 +31,9 @@ bitcoin.initEccLib(ecc);
 /** NEAR Storage Deposit Amount */
 const NEAR_STORAGE_DEPOSIT_AMOUNT = '1250000000000000000000';
 /** NBTC Storage Deposit Amount */
-const NBTC_STORAGE_DEPOSIT_AMOUNT = '3000';
+const NBTC_STORAGE_DEPOSIT_AMOUNT = 800;
 /** New account min deposit amount */
-const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = '1000';
+const NEW_ACCOUNT_MIN_DEPOSIT_AMOUNT = 1000;
 
 function getBtcProvider() {
   if (typeof window === 'undefined' || !window.btcContext) {
@@ -67,16 +70,23 @@ type CheckGasTokenDebtReturnType<T extends boolean> = T extends true
   ? void
   : { receiver_id: string; amount: string; msg: string } | undefined;
 
-export async function checkGasTokenDebt<T extends boolean>(
-  csna: string,
-  env: ENV,
-  autoDeposit?: T,
-): Promise<CheckGasTokenDebtReturnType<T>> {
+export async function checkGasTokenDebt<T extends boolean>({
+  csna,
+  btcAccount,
+  env,
+  autoDeposit,
+}: {
+  csna: string;
+  btcAccount: string;
+  env: ENV;
+  autoDeposit?: T;
+}): Promise<CheckGasTokenDebtReturnType<T>> {
+  const isNewAccount = await checkNewAccount({ csna, btcAccount, env });
   const accountInfo = await getAccountInfo({ csna, env });
   const debtAmount = new Big(accountInfo?.debt_info?.near_gas_debt_amount || 0)
     .plus(accountInfo?.debt_info?.protocol_fee_debt_amount || 0)
     .toString();
-  const relayerFeeAmount = !accountInfo?.nonce
+  const relayerFeeAmount = isNewAccount
     ? NBTC_STORAGE_DEPOSIT_AMOUNT
     : accountInfo?.relayer_fee?.amount || 0;
   const hasDebtArrears = new Big(debtAmount).gt(0);
@@ -132,14 +142,16 @@ interface DepositMsg {
   extra_msg?: string;
 }
 
-export async function getBtcGasPrice(): Promise<number> {
+export async function getBtcGasPrice(
+  type: 'fastest' | 'halfHour' | 'hour' | 'economy' | 'minimum' = 'halfHour',
+): Promise<number> {
   const network = await getNetwork();
   const defaultFeeRate = network === 'mainnet' ? 5 : 2500;
   try {
     const btcRpcUrl = await getBtcRpcUrl();
     const res = await fetch(`${btcRpcUrl}/v1/fees/recommended`).then((res) => res.json());
-    const feeRate = res.fastestFee;
-    return feeRate || defaultFeeRate;
+    const feeRate = res[type + 'Fee'] ? Number(res[type + 'Fee']) : defaultFeeRate;
+    return feeRate;
   } catch (error) {
     return defaultFeeRate;
   }
@@ -157,7 +169,7 @@ export async function calculateGasFee(account: string, amount: number, feeRate?:
   const _feeRate = feeRate || (await getBtcGasPrice());
   const utxos = await getBtcUtxos(account);
   const { fee } = coinselect(utxos, [{ address: account, value: amount }], Math.ceil(_feeRate));
-  console.log('calculateGasFee fee:', fee);
+  console.log('calculateGasFee fee:', fee, 'feeRate:', _feeRate);
   return fee;
 }
 
@@ -195,14 +207,62 @@ export async function getBtcBalance(account?: string) {
   };
 }
 
-export async function sendBitcoin(
-  address: string,
-  amount: number,
-  feeRate: number,
-): Promise<string> {
+export async function sendBitcoin(address: string, amount: number, feeRate: number) {
   const { sendBitcoin } = getBtcProvider();
   const txHash = await sendBitcoin(address, amount, { feeRate });
   return txHash;
+}
+
+export async function getPublicKeyBase58() {
+  const { getPublicKey } = getBtcProvider();
+  const publicKey = await getPublicKey();
+  const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+  let uncompressedPublicKey: Uint8Array;
+
+  if (publicKeyBuffer.length === 33) {
+    // Compressed public key (33 bytes), decompress it using ecc.pointCompress
+    const decompressed = ecc.pointCompress(publicKeyBuffer, false);
+    if (!decompressed) {
+      throw new Error('Failed to decompress public key');
+    }
+    uncompressedPublicKey = decompressed;
+  } else if (publicKeyBuffer.length === 65) {
+    // Already uncompressed (65 bytes)
+    uncompressedPublicKey = publicKeyBuffer;
+  } else {
+    throw new Error(`Invalid public key length: ${publicKeyBuffer.length}`);
+  }
+
+  // Remove first byte (0x04 prefix), keep 64 bytes
+  const publicKeyWithoutPrefix = uncompressedPublicKey.subarray(1);
+  const publicKeyBase58 = bs58.encode(publicKeyWithoutPrefix);
+  return publicKeyBase58;
+}
+
+export function getAddressByPublicKeyBase58(btcPublicKeyBase58: string) {
+  const publicKey = bs58.decode(btcPublicKeyBase58);
+  const uncompressedPublicKey = Buffer.concat([Buffer.from([0x04]), publicKey]);
+  // SegWit addresses (p2wpkh, p2wsh) require compressed public key
+  const compressedPublicKeyUint8 = ecc.pointCompress(uncompressedPublicKey, true);
+  const compressedPublicKey = Buffer.from(compressedPublicKeyUint8);
+
+  const p2pkh = bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }).address;
+  const p2sh = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: uncompressedPublicKey }),
+  }).address;
+  const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: compressedPublicKey }).address;
+  const p2wsh = bitcoin.payments.p2wsh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: compressedPublicKey }),
+  }).address;
+  return { p2pkh, p2sh, p2wpkh, p2wsh };
+}
+
+export async function signMessage(message: string) {
+  const { signMessage, getPublicKey } = getBtcProvider();
+  const publicKey = await getPublicKey();
+  const signature = await signMessage(message);
+
+  return { signature, publicKey };
 }
 
 /** estimate deposit receive amount, deduct protocol fee and repay amount */
@@ -219,6 +279,7 @@ export async function getDepositAmount(
   amount: string,
   option?: {
     csna?: string;
+    btcAccount?: string;
     env?: ENV;
     /** default is true, if true, new account minimum deposit amount 1000sat, otherwise 0 */
     newAccountMinDepositAmount?: boolean;
@@ -227,8 +288,9 @@ export async function getDepositAmount(
   const env = option?.env || 'mainnet';
   const _newAccountMinDepositAmount = option?.newAccountMinDepositAmount ?? true;
   const csna = option?.csna || (await getCsnaAccountId(env));
+  const btcAccount = option?.btcAccount || getBtcProvider().account;
   const accountInfo = await getAccountInfo({ csna, env });
-  const debtAction = await checkGasTokenDebt(csna, env, false);
+  const debtAction = await checkGasTokenDebt({ csna, btcAccount, env, autoDeposit: false });
   const repayAmount = debtAction?.amount || 0;
   const depositAmount = Number(amount);
   const {
@@ -282,6 +344,32 @@ export async function getCsnaAccountId(env: ENV) {
     },
   );
   return csna;
+}
+
+export async function checkNewAccount({
+  csna,
+  btcAccount,
+  env = 'mainnet',
+}: {
+  csna?: string;
+  btcAccount?: string;
+  env?: ENV;
+}) {
+  try {
+    const _csna = csna || (await getCsnaAccountId(env));
+    const _btcAccount = btcAccount || getBtcProvider().account;
+    if (!_csna || !_btcAccount) return false;
+    const accountInfo = await getAccountInfo({ csna: _csna, env });
+    const bridgeTransactions = await hasBridgeTransaction({
+      env,
+      btcAccount: _btcAccount,
+    });
+    const isNewAccount = !accountInfo?.nonce && !bridgeTransactions;
+    return isNewAccount;
+  } catch (error) {
+    console.error('checkNewAccount error:', error);
+    return false;
+  }
 }
 
 function checkDepositDisabledAddress() {
@@ -341,7 +429,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       registerContractId,
     });
     checkDepositDisabledAddress();
-    const { getPublicKey } = getBtcProvider();
+    const { getPublicKey, account: btcAccount } = getBtcProvider();
 
     const config = getWalletConfig(env);
 
@@ -382,7 +470,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
 
     const newActions = [];
 
-    const debtAction = await checkGasTokenDebt(csna, env, false);
+    const debtAction = await checkGasTokenDebt({ csna, btcAccount, env, autoDeposit: false });
 
     if (debtAction) {
       newActions.push({
@@ -450,11 +538,11 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
     // deposit amount detail
     console.table({
       'User Deposit Address': userDepositAddress,
-      'Deposit Amount': depositAmount,
-      'Protocol Fee': protocolFee,
-      'Repay Amount': repayAmount,
-      'Receive Amount': receiveAmount,
-      'Fee Rate': _feeRate,
+      'Deposit Amount': Number(depositAmount),
+      'Protocol Fee': Number(protocolFee),
+      'Repay Amount': Number(repayAmount),
+      'Receive Amount': Number(receiveAmount),
+      'Fee Rate': Number(_feeRate),
     });
 
     const postActionsStr = newActions.length > 0 ? JSON.stringify(newActions) : undefined;
@@ -465,6 +553,7 @@ export async function executeBTCDepositAndAction<T extends boolean = true>({
       depositType: postActionsStr || depositMsg.extra_msg ? 1 : 0,
       postActions: postActionsStr,
       extraMsg: depositMsg.extra_msg,
+      userDepositAddress,
     });
 
     const txHash = await sendBitcoin(userDepositAddress, depositAmount, _feeRate);
@@ -636,7 +725,7 @@ export async function getWithdrawTransaction({
             amount: fromAmount?.toString(),
             msg: JSON.stringify(msg),
           },
-          gas: '300000000000000', // 300 TGas
+          gas: '150000000000000', // 150 TGas
           deposit: '1', // 1 yoctoNEAR
         },
       },
@@ -703,7 +792,7 @@ export async function calculateWithdraw({
                   amount: '100',
                   msg: '',
                 },
-                gas: '300000000000000',
+                gas: '30000000000000', // 30 TGas
                 deposit: '1',
               },
             },
@@ -720,16 +809,38 @@ export async function calculateWithdraw({
 
     const brgConfig = await getBridgeConfig({ env });
 
-    const allUTXO = await nearCallFunction<
-      Record<
-        string,
-        {
-          vout: number;
-          balance: string;
-          script: string;
-        }
-      >
-    >(config.bridgeContractId, 'get_utxos_paged', {}, { network: config.network });
+    const { current_utxos_num } = await nearCallFunction<{ current_utxos_num: number }>(
+      config.bridgeContractId,
+      'get_metadata',
+      {},
+      { network: config.network },
+    );
+
+    const pageSize = 300;
+    const totalPages = Math.ceil(current_utxos_num / pageSize);
+
+    const utxoRequests = Array.from({ length: totalPages }, (_, index) => {
+      const fromIndex = index * pageSize;
+      const limit = Math.min(pageSize, current_utxos_num - fromIndex);
+      return nearCallFunction<
+        Record<
+          string,
+          {
+            vout: number;
+            balance: string;
+            script: string;
+          }
+        >
+      >(
+        config.bridgeContractId,
+        'get_utxos_paged',
+        { from_index: fromIndex, limit },
+        { network: config.network },
+      );
+    });
+
+    const utxoResults = await Promise.all(utxoRequests);
+    const allUTXO = utxoResults.reduce((acc, result) => ({ ...acc, ...result }), {});
 
     if (brgConfig.min_withdraw_amount) {
       if (Number(satoshis) < Number(brgConfig.min_withdraw_amount)) {
@@ -772,11 +883,26 @@ export async function calculateWithdraw({
     const userSatoshis = Number(satoshis);
     const maxBtcFee = Number(brgConfig.max_btc_gas_fee);
 
-    const { inputs, outputs, fee } = coinselect(
+    let { inputs, outputs, fee } = coinselect(
       utxos,
       [{ address: btcAddress, value: userSatoshis }],
       Math.ceil(feeRate),
     );
+
+    if (inputs && inputs.length > 10) {
+      const filteredUtxos = utxos.filter((utxo) => utxo.value >= userSatoshis);
+      console.log('filteredUtxos', filteredUtxos);
+      if (filteredUtxos.length > 0) {
+        const result = coinselect(
+          filteredUtxos,
+          [{ address: btcAddress, value: userSatoshis }],
+          Math.ceil(feeRate),
+        );
+        inputs = result.inputs;
+        outputs = result.outputs;
+        fee = result.fee;
+      }
+    }
 
     const newInputs = inputs;
     let newOutputs = outputs;

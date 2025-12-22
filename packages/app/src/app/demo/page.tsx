@@ -21,12 +21,13 @@ import {
   useBtcWalletSelector,
   type WalletSelectorModal,
   setupWalletSelectorModal,
+  signMessage,
 } from 'btc-wallet';
 
 import Loading from '@/components/basic/Loading';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { formatAmount, formatFileUrl, formatNumber, parseAmount } from '@/utils/format';
-import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, NEAR_TOKEN_CONTRACT, RUNTIME_NETWORK } from '@/config';
+import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, RUNTIME_NETWORK } from '@/config';
 import { btcBridgeServices } from '@/services/bridge';
 import { useTokenStore } from '@/stores/token';
 import { Image } from '@nextui-org/react';
@@ -188,6 +189,7 @@ function WalletPage() {
             />
 
             <BTCSwapNEAR btcAccount={btcProvider.account} nearAccount={accountId!} />
+            <SignMessage />
           </>
         )}
       </div>
@@ -375,7 +377,7 @@ function BTCSwapNEAR({ btcAccount, nearAccount }: { btcAccount: string; nearAcco
   const [amountIn, setAmountIn] = useState('');
   const [loading, setLoading] = useState(false);
   const [tokenIn, setTokenIn] = useState(BTC_TOKEN_CONTRACT);
-  const [tokenOut, setTokenOut] = useState(NEAR_TOKEN_CONTRACT);
+  const [tokenOut, setTokenOut] = useState('near');
 
   const {
     data: estimate,
@@ -423,7 +425,7 @@ function BTCSwapNEAR({ btcAccount, nearAccount }: { btcAccount: string; nearAcco
         nearAccount,
       });
       const swapAmount = btcBridgeRes.receiveAmount;
-      const action = await nearSwapServices.generateTransaction({
+      const action = await nearSwapServices.generateAction({
         tokenIn,
         tokenOut,
         amountIn: swapAmount,
@@ -536,6 +538,47 @@ function BTCSwapNEAR({ btcAccount, nearAccount }: { btcAccount: string; nearAcco
         >
           {estimate?.btcBridge.error || 'Confirm swap'}
         </Button>
+      </CardBody>
+    </Card>
+  );
+}
+
+function SignMessage() {
+  const [message, setMessage] = useState('');
+  const [signature, setSignature] = useState('');
+  const [publicKey, setPublicKey] = useState('');
+  async function handleSignMessage() {
+    const { signature, publicKey } = await signMessage(message);
+    setSignature(signature);
+    setPublicKey(publicKey);
+  }
+  return (
+    <Card>
+      <CardHeader className="font-bold text-lg">Sign Message</CardHeader>
+      <CardBody className="flex flex-col gap-4">
+        <Input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message"
+        />
+        <Button color="primary" onClick={handleSignMessage} isDisabled={!message}>
+          Sign Message
+        </Button>
+        <Snippet
+          symbol={<span className="text-xs text-default-500">Signature: </span>}
+          size="sm"
+          className="text-xs"
+        >
+          {signature}
+        </Snippet>
+        <Snippet
+          symbol={<span className="text-xs text-default-500">Public Key: </span>}
+          size="sm"
+          className="text-xs"
+        >
+          {publicKey}
+        </Snippet>
       </CardBody>
     </Card>
   );

@@ -3,9 +3,10 @@ import request, { rpcToWallet } from '@/utils/request';
 import { type FunctionCallAction, type Transaction } from '@near-wallet-selector/core';
 import { nearServices } from './near';
 import { formatAmount, parseAmount } from '@/utils/format';
-import { NEAR_TOKEN_CONTRACT } from '@/config';
 import { useTokenStore } from '@/stores/token';
 import Big from 'big.js';
+import { NEAR_TOKEN_CONTRACT } from '@/config';
+import { gasFeeService } from './gasFee';
 
 interface QuerySwapParams {
   tokenIn: string;
@@ -47,13 +48,22 @@ export const nearSwapServices = {
   }: QuerySwapParams) {
     if (new Big(amountIn).eq(0)) return { amountIn: 0, amountOut: 0, minAmountOut: 0 };
     const { tokenMeta } = useTokenStore.getState();
-    const tokenInDecimals = tokenMeta[tokenIn]?.decimals;
-    const tokenOutDecimals = tokenMeta[tokenOut]?.decimals;
+    const _tokenIn = tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn;
+    const _tokenOut = tokenOut === 'near' ? NEAR_TOKEN_CONTRACT : tokenOut;
+    if (_tokenIn === _tokenOut) {
+      return {
+        amountIn,
+        amountOut: amountIn,
+        minAmountOut: amountIn,
+      };
+    }
+    const tokenInDecimals = tokenMeta[_tokenIn]?.decimals;
+    const tokenOutDecimals = tokenMeta[_tokenOut]?.decimals;
     const parsedAmountIn = parseAmount(amountIn, tokenInDecimals);
     const { result_data } = await request<{ result_data: NearQuerySwapResponse }>(
       generateUrl(`${process.env.NEXT_PUBLIC_NEAR_SWAP_API}/findPath`, {
-        tokenIn,
-        tokenOut,
+        tokenIn: _tokenIn,
+        tokenOut: _tokenOut,
         amountIn: parsedAmountIn,
         pathDeep,
         slippage,
@@ -111,8 +121,7 @@ export const nearSwapServices = {
     console.log(`impact:${impact}=(${newPrice}-${oldPrice})/${newPrice}*100`);
     return impact || 0;
   },
-
-  async generateTransaction({
+  async generateAction({
     tokenIn,
     tokenOut,
     amountIn,
@@ -127,8 +136,8 @@ export const nearSwapServices = {
       result_data: { methodName, args, gas },
     } = await request<{ result_data: FunctionCallAction['params'] }>(
       generateUrl(`${process.env.NEXT_PUBLIC_NEAR_SWAP_API}/swapPath`, {
-        tokenIn,
-        tokenOut,
+        tokenIn: tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn,
+        tokenOut: tokenOut === 'near' ? NEAR_TOKEN_CONTRACT : tokenOut,
         amountIn: parsedAmountIn,
         pathDeep,
         slippage,
@@ -136,7 +145,7 @@ export const nearSwapServices = {
     );
     const parsedMsg = safeJSONParse<any>((args as any).msg);
     if (!parsedMsg?.actions.length) throw new Error('No swap path found');
-    if (tokenOut === NEAR_TOKEN_CONTRACT) {
+    if (tokenOut === 'near') {
       parsedMsg.skip_unwrap_near = false;
     }
     const newArgs = { ...args, msg: JSON.stringify(parsedMsg) };
@@ -147,42 +156,106 @@ export const nearSwapServices = {
       args: { ...newArgs, receiver_id: process.env.NEXT_PUBLIC_NEAR_SWAP_CONTRACT },
     };
   },
-  async swap(params: QuerySwapParams) {
+  async generateTransaction({
+    tokenIn,
+    tokenOut,
+    amountIn,
+    pathDeep = 3,
+    slippage = 0.005,
+    routerCount,
+  }: QuerySwapParams) {
     const accountId = nearServices.getNearAccountId();
     if (!accountId) throw new Error('Wallet not found');
-    const transaction = await this.generateTransaction(params);
-    const baseRegisterTransaction = await nearServices.registerToken(params.tokenIn);
-    const quoteRegisterTransaction = await nearServices.registerToken(params.tokenOut);
+
+    if (tokenIn === 'near' && tokenOut === NEAR_TOKEN_CONTRACT) {
+      return [
+        {
+          signerId: accountId,
+          receiverId: NEAR_TOKEN_CONTRACT,
+          actions: [
+            {
+              type: 'FunctionCall',
+              params: {
+                methodName: 'near_deposit',
+                args: {},
+                deposit: parseAmount(amountIn, 24),
+                gas: parseAmount(100, 12),
+              },
+            },
+          ],
+        },
+      ] as Transaction[];
+    }
+    if (tokenIn === NEAR_TOKEN_CONTRACT && tokenOut === 'near') {
+      return [
+        {
+          signerId: accountId,
+          receiverId: NEAR_TOKEN_CONTRACT,
+          actions: [
+            {
+              type: 'FunctionCall',
+              params: {
+                methodName: 'near_withdraw',
+                args: {
+                  amount: parseAmount(amountIn, 24),
+                },
+                deposit: '1',
+                gas: parseAmount(100, 12),
+              },
+            },
+          ],
+        },
+      ] as Transaction[];
+    }
+
+    const swapAction = await this.generateAction({
+      tokenIn,
+      tokenOut,
+      amountIn,
+      pathDeep,
+      slippage,
+    });
+
+    const baseRegisterTransaction = await nearServices.registerToken(tokenIn);
+    const quoteRegisterTransaction = await nearServices.registerToken(tokenOut);
+
     const transactions: Transaction[] = [
       {
         signerId: accountId,
-        receiverId: params.tokenIn,
+        receiverId: tokenIn === 'near' ? NEAR_TOKEN_CONTRACT : tokenIn,
         actions: [
           {
             type: 'FunctionCall',
-            params: transaction,
+            params: swapAction,
           },
         ],
       },
     ];
-    if (params.tokenIn === NEAR_TOKEN_CONTRACT) {
+
+    if (tokenIn === 'near') {
       (transactions[0].actions[0] as FunctionCallAction).params.gas = parseAmount(200, 12);
       transactions[0].actions.unshift({
         type: 'FunctionCall',
         params: {
           methodName: 'near_deposit',
           args: {},
-          deposit: parseAmount(params.amountIn, 24),
+          deposit: parseAmount(amountIn, 24),
           gas: parseAmount(100, 12),
         },
       });
     }
+
     if (baseRegisterTransaction) {
       transactions.unshift(baseRegisterTransaction);
     }
     if (quoteRegisterTransaction) {
       transactions.unshift(quoteRegisterTransaction);
     }
+
+    return transactions;
+  },
+  async swap(params: QuerySwapParams) {
+    const transactions = await this.generateTransaction(params);
     console.log('transactions', transactions);
     const res = await rpcToWallet('signAndSendTransactions', {
       transactions,
@@ -190,5 +263,10 @@ export const nearSwapServices = {
     console.log('sendTransactions outcomes', res);
     const transformedRes = nearServices.handleTransactionResult(res);
     return transformedRes;
+  },
+  async calculateGasFee(params: QuerySwapParams) {
+    const transactions = await this.generateTransaction(params);
+    const res = await gasFeeService.calculateGasFee(transactions);
+    return res;
   },
 };

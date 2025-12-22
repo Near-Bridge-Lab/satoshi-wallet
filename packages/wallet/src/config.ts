@@ -55,7 +55,7 @@ export const walletConfig: Record<
     nearTokenDecimals: 24,
     accountContractId: 'acc.ref-labs.near',
     bridgeContractId: 'btc-connector.bridge.near',
-    walletUrl: 'https://wallet.satoshibridge.top',
+    walletUrl: 'https://wallet.satos.network',
     bridgeUrl: 'https://ramp.satos.network',
   },
 };
@@ -70,12 +70,7 @@ export function getWalletConfig(env: ENV) {
 }
 
 export const nearRpcUrls = {
-  mainnet: [
-    'https://near.lava.build',
-    'https://rpc.mainnet.near.org',
-    'https://free.rpc.fastnear.com',
-    'https://near.drpc.org',
-  ],
+  mainnet: ['https://near.lava.build', 'https://free.rpc.fastnear.com'],
   testnet: ['https://rpc.testnet.near.org'],
 };
 

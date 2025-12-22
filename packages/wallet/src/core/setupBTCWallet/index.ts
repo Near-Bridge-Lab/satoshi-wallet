@@ -134,13 +134,15 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
         const btcPublicKey = await btcContext.getPublicKey();
         if (btcPublicKey) {
           await getNearAccountByBtcPublicKey(btcPublicKey);
-          removeWalletButton();
-          setupWalletButton({
-            env,
-            nearWallet: wallet as any,
-            btcWallet: btcContext,
-            walletUrl: (metadata as any).walletUrl,
-          });
+          if (!window.enableCustomWalletSelectorModal) {
+            removeWalletButton();
+            setupWalletButton({
+              env,
+              nearWallet: wallet as any,
+              btcWallet: btcContext,
+              walletUrl: (metadata as any).walletUrl,
+            });
+          }
         }
       } else {
         connectionUpdateTimeout = setTimeout(() => {
@@ -254,7 +256,9 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
 
     state.clear();
     window.localStorage.removeItem('near-wallet-selector:selectedWalletId');
-    removeWalletButton();
+    if (!window.enableCustomWalletSelectorModal) {
+      removeWalletButton();
+    }
   }
 
   function isSignedIn() {
@@ -296,7 +300,7 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     const accountInfo = await getAccountInfo({ csna, env });
 
     // check gas token arrears
-    await checkGasTokenDebt(csna, env, true);
+    await checkGasTokenDebt({ csna, env, btcAccount: btcContext.account, autoDeposit: true });
 
     const trans = [...params.transactions];
     console.log('signAndSendTransactions raw trans:', trans);

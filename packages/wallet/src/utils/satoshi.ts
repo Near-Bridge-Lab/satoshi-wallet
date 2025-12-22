@@ -1,4 +1,4 @@
-import { toHex } from '.';
+import { getUrlQuery, toHex } from '.';
 import request from './request';
 import type { AccessKeyViewRaw } from 'near-api-js/lib/providers/provider';
 import { actionCreators } from '@near-js/transactions';
@@ -66,6 +66,7 @@ interface ReceiveDepositMsgParams {
   depositType?: number;
   postActions?: string;
   extraMsg?: string;
+  userDepositAddress?: string;
 }
 
 export async function preReceiveDepositMsg({
@@ -74,13 +75,14 @@ export async function preReceiveDepositMsg({
   depositType = 1,
   postActions,
   extraMsg,
+  userDepositAddress,
 }: Omit<ReceiveDepositMsgParams, 'txHash'>) {
   const config = getWalletConfig(env);
   const { result_code, result_message, result_data } = await request<RequestResult<any>>(
     `${config.base_url}/v1/preReceiveDepositMsg`,
     {
       method: 'POST',
-      body: { btcPublicKey, depositType, postActions, extraMsg },
+      body: { btcPublicKey, depositType, postActions, extraMsg, userDepositAddress },
     },
   );
   console.log('preReceiveDepositMsg resp:', { result_code, result_message, result_data });
@@ -111,6 +113,19 @@ export async function receiveDepositMsg({
     throw new Error(result_message);
   }
   return result_data;
+}
+
+export async function hasBridgeTransaction({ env, btcAccount }: { env: ENV; btcAccount: string }) {
+  try {
+    const config = getWalletConfig(env);
+    const { result_data = [] } = await request<RequestResult<any[]>>(
+      `${config.base_url}/v1/history?fromChainId=0&fromAddress=${btcAccount}&page=1&pageSize=1`,
+    );
+    return result_data?.length > 0;
+  } catch (error) {
+    console.error('hasBridgeTransaction error:', error);
+    return false;
+  }
 }
 
 export async function checkBridgeTransactionStatus({
@@ -446,6 +461,10 @@ export async function calculateGasStrategy({
   console.log('available gas token balance:', gasTokenBalance);
   console.log('gas strategy:', gasStrategy);
 
+  if (nearAvailableBalance < 0.25) {
+    throw new Error('NEAR balance is insufficient, please deposit more NEAR');
+  }
+
   const convertTx = await Promise.all(
     transactions.map((transaction, index) =>
       convertTransactionToTxHex({
@@ -621,7 +640,7 @@ async function getPredictedGasAmount({
     : '0';
 
   const predictedGasAmount = new Big(predictedGas).mul(1.2).toFixed(0);
-  const miniGasAmount = 200 * transactions.length;
+  const miniGasAmount = 100 * transactions.length;
   const gasAmount = Math.max(Number(predictedGasAmount), miniGasAmount);
   console.log('predictedGas:', predictedGasAmount);
   return gasAmount.toString();

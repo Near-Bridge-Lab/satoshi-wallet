@@ -3,7 +3,9 @@ import Loading from '@/components/basic/Loading';
 import ChainSelector from '@/components/wallet/Chains';
 import DepositPrompt from '@/components/wallet/DepositPrompt';
 import Tools from '@/components/wallet/Tools';
-import { useClient } from '@/hooks/useHooks';
+import OnboardingModal from '@/components/wallet/OnboardingModal';
+import { RUNTIME_NETWORK } from '@/config';
+import { useClient, useRequest } from '@/hooks/useHooks';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { safeBig } from '@/utils/big';
@@ -28,6 +30,7 @@ import {
   Link,
 } from '@nextui-org/react';
 import Big from 'big.js';
+import { checkNewAccount } from 'btc-wallet';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -49,6 +52,7 @@ export default function Home() {
           SatoshiProtocol
         </Link>
       </footer>
+      <OnboardingModal />
     </main>
   );
 }
@@ -74,8 +78,18 @@ function Header({ className }: { className?: string }) {
 }
 
 function Account() {
-  const { accountId, originalAccountId } = useWalletStore();
+  const { accountId, originalAccountId, originalPublicKey } = useWalletStore();
+
   const { isClient } = useClient();
+
+  const { data: isNewCsnaAccount } = useRequest(
+    () => checkNewAccount({ csna: accountId, btcAccount: originalAccountId, env: RUNTIME_NETWORK }),
+    {
+      refreshDeps: [accountId, originalAccountId],
+      before: () => !!accountId && !!originalAccountId,
+    },
+  );
+
   return (
     isClient && (
       <div className="flex flex-col gap-2 items-center">
@@ -95,6 +109,8 @@ function Account() {
                   classNames={{ base: 'bg-transparent p-0' }}
                   codeString={accountId}
                   hideSymbol
+                  tooltipProps={{ content: 'Copy Near Account' }}
+                  disableCopy={isNewCsnaAccount}
                 >
                   {formatSortAddress(accountId)}
                 </Snippet>
@@ -106,8 +122,22 @@ function Account() {
                     classNames={{ base: 'bg-transparent p-0' }}
                     codeString={originalAccountId}
                     hideSymbol
+                    tooltipProps={{ content: 'Copy BTC Account' }}
                   >
                     {formatSortAddress(originalAccountId)}
+                  </Snippet>
+                </div>
+              )}
+              {originalPublicKey && (
+                <div className="flex items-center justify-between gap-5">
+                  <Icon icon="tabler:code-circle-filled" className="w-6 h-6" />
+                  <Snippet
+                    classNames={{ base: 'bg-transparent p-0' }}
+                    codeString={originalPublicKey}
+                    hideSymbol
+                    tooltipProps={{ content: 'Copy BTC Public Key' }}
+                  >
+                    {formatSortAddress(originalPublicKey)}
                   </Snippet>
                 </div>
               )}
@@ -121,16 +151,16 @@ function Account() {
 
 function Balance({ className }: { className?: string }) {
   const { isClient } = useClient();
-  const { balances, prices, tokenMeta, displayableTokens } = useTokenStore();
+  const { balances, prices, tokenMeta, displayTokens } = useTokenStore();
   const totalBalanceUSD = useMemo(() => {
     return Object.entries(balances ?? {}).reduce((acc, [token, balance]) => {
-      if (!displayableTokens?.includes(token)) {
+      if (!displayTokens?.includes(token)) {
         return acc;
       }
       return acc.plus(
         safeBig(balance)
           .times(safeBig(prices?.[token]?.price || 0))
-          .toNumber(),
+          .toFixed(),
       );
     }, safeBig(0));
   }, [balances, prices, tokenMeta]);
@@ -139,7 +169,11 @@ function Balance({ className }: { className?: string }) {
     isClient && (
       <div className={`flex flex-col items-center justify-center gap-2 ${className ?? ''}`}>
         <div className="text-4xl font-bold">
-          ${formatPrice(totalBalanceUSD.toFixed(2, Big.roundDown), { useUnit: false })}
+          {formatPrice(totalBalanceUSD.toFixed(), {
+            useUnit: false,
+            showSign: true,
+            rm: Big.roundDown,
+          })}
         </div>
       </div>
     )
@@ -171,6 +205,18 @@ const Activity = dynamic(
 function Portfolio({ className }: { className?: string }) {
   const router = useRouter();
   const [current, setCurrent] = useState(portfolios[0].value);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { refreshAllBalances } = useTokenStore();
+
+  async function handleRefresh() {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshAllBalances();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   return (
     <div className={className}>
@@ -179,23 +225,41 @@ function Portfolio({ className }: { className?: string }) {
           aria-label=""
           selectedKey={current}
           items={portfolios}
-          classNames={{ tabList: 'gap-6', tab: 'text-xl font-bold px-0', cursor: 'hidden' }}
+          classNames={{ tabList: 'gap-6', tab: 'text-base font-bold px-0', cursor: 'hidden' }}
           variant="light"
           onSelectionChange={(v) => setCurrent(v.toString())}
         >
           {(item) => <Tab key={item.value} title={item.label}></Tab>}
         </Tabs>
         {current === 'tokens' && (
-          <Button
-            isIconOnly
-            variant="flat"
-            size="sm"
-            radius="full"
-            className="min-w-7 w-7 h-7 "
-            onClick={() => router.push('/tokens')}
-          >
-            <Icon icon="fluent:add-12-filled" className="text-base text-primary" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              isIconOnly
+              variant="flat"
+              size="sm"
+              radius="full"
+              className="min-w-7 w-7 h-7"
+              onClick={handleRefresh}
+              isDisabled={isRefreshing}
+              title="Refresh Tokens"
+            >
+              <Icon
+                icon="eva:refresh-fill"
+                className={`text-sm text-primary ${isRefreshing ? 'animate-spin' : ''}`}
+              />
+            </Button>
+            <Button
+              isIconOnly
+              variant="flat"
+              size="sm"
+              radius="full"
+              className="min-w-7 w-7 h-7 "
+              onClick={() => router.push('/tokens')}
+              title="Add Custom Token"
+            >
+              <Icon icon="fluent:add-12-filled" className="text-sm text-primary" />
+            </Button>
+          </div>
         )}
       </div>
 
