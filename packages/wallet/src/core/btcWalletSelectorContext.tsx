@@ -149,9 +149,17 @@ export function useBtcWalletSelector() {
       eventCache.lastProcessedAccount = accountKey;
       eventCache.lastProcessedTime = now;
 
-      getPublicKey().then((res) => {
-        context.emit('updatePublicKey', res);
-      });
+      getPublicKey()
+        .then((res) => {
+          context.emit('updatePublicKey', res);
+        })
+        .catch((error) => {
+          console.error('[BTC Wallet] getPublicKey failed in accountsChanged:', error);
+          if (error.message?.includes('is not install')) {
+            disconnect?.();
+            context.emit('btcLogOut');
+          }
+        });
     };
 
     connector?.on('accountsChanged', handleAccountsChanged);
@@ -188,7 +196,6 @@ export function useBtcWalletSelector() {
 
         return account || null;
       } catch (error) {
-        console.error('btcLoginError', error);
         context.emit('btcLoginError');
         return null;
       }

@@ -173,7 +173,6 @@ const BTCWallet: WalletBehaviourFactory<InjectedWallet> = async ({
     });
 
     context.on('btcLoginError', async () => {
-      // console.log('btcLoginError');
       // state.clear();
       // emitter.emit('accountsChanged', { accounts: [] });
       // await handleConnectionUpdate();

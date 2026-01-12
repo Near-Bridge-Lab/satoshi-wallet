@@ -139,8 +139,17 @@ export const ConnectProvider = ({
     if (!connector) {
       throw new Error('Wallet not connected!');
     }
-    const pubKey = await connector.getPublicKey();
-    return pubKey;
+    try {
+      const pubKey = await connector.getPublicKey();
+      return pubKey;
+    } catch (error: any) {
+      console.error('[BTC Wallet] getPublicKey error:', error);
+      if (error.message?.includes('is not install')) {
+        setConnectorId(undefined);
+        setAccounts([]);
+      }
+      throw error;
+    }
   }, [getConnector]);
 
   const signMessage = useCallback(
@@ -170,8 +179,17 @@ export const ConnectProvider = ({
     if (!connector) {
       throw new Error('Wallet not connected!');
     }
-    const network = await connector.getNetwork();
-    return network;
+    try {
+      const network = await connector.getNetwork();
+      return network;
+    } catch (error: any) {
+      console.error('[BTC Wallet] getNetwork error:', error);
+      if (error.message?.includes('is not install')) {
+        setConnectorId(undefined);
+        setAccounts([]);
+      }
+      throw error;
+    }
   }, [connector]);
 
   const switchNetwork = useCallback(
@@ -216,30 +234,49 @@ export const ConnectProvider = ({
 
   const requestAccount = useCallback(
     async (connector: BaseConnector) => {
-      let accounts = await connector.getAccounts();
-      if (accounts.length === 0 && autoConnect) {
-        accounts = await connector.requestAccounts();
+      try {
+        let accounts = await connector.getAccounts();
+        if (accounts.length === 0 && autoConnect) {
+          accounts = await connector.requestAccounts();
+        }
+        setAccounts(accounts);
+      } catch (error: any) {
+        console.error('[BTC Wallet] requestAccount error:', error);
+        if (error.message?.includes('is not install')) {
+          setConnectorId(undefined);
+        }
+        setAccounts([]);
+        throw error;
       }
-      setAccounts(accounts);
     },
     [autoConnect],
   );
 
   const requestDirectAccount = useCallback(async (connector: BaseConnector) => {
-    let accounts = await connector.getAccounts();
-    if (accounts.length === 0) {
-      accounts = await connector.requestAccounts();
+    try {
+      let accounts = await connector.getAccounts();
+      if (accounts.length === 0) {
+        accounts = await connector.requestAccounts();
+      }
+      setAccounts(accounts);
+      return accounts;
+    } catch (error: any) {
+      console.error('[BTC Wallet] requestDirectAccount error:', error);
+      if (error.message?.includes('is not install')) {
+        setConnectorId(undefined);
+        setAccounts([]);
+      }
+      throw error;
     }
-    setAccounts(accounts);
-
-    return accounts;
   }, []);
 
   useEffect(() => {
     if (connector) {
       requestAccount(connector).catch((e: any) => {
-        console.error('get account error', e);
-
+        console.error('[BTC Wallet] requestAccount error:', e);
+        if (e.message?.includes('is not install')) {
+          setConnectorId(undefined);
+        }
         setAccounts([]);
       });
     } else {
