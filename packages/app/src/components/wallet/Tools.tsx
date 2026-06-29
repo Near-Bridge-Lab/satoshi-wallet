@@ -54,11 +54,10 @@ export default function Tools({
   }
 
   function handleBridge() {
-    if (isNearWallet) {
-      window.open('https://dex.rhea.finance/bridge', '_blank');
-    } else {
-      router.push('/bridge');
-    }
+    window.open(
+      isNearWallet ? 'https://app.rhea.finance/bridge' : 'https://ramp.satos.network/',
+      '_blank',
+    );
   }
 
   return (
