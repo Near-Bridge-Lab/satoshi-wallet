@@ -1,5 +1,5 @@
 'use client';
-import { BTC_TOKEN_CONTRACT } from '@/config';
+import { BTC_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
 import { useDebouncedMemo, useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
 import { useTokenStore } from '@/stores/token';
@@ -37,6 +37,8 @@ export function useTokenSelector() {
   return { open };
 }
 
+const LOW_VALUE_THRESHOLD_USD = 0.1;
+
 export function Tokens({
   mode,
   search,
@@ -50,6 +52,7 @@ export function Tokens({
   const { displayTokens = [], tokenMeta, prices, balances } = useTokenStore();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [showLowValue, setShowLowValue] = useState(false);
 
   useEffect(() => {
     if (displayTokens.every((token) => tokenMeta[token]?.icon || tokenMeta[token]?.symbol)) {
@@ -84,51 +87,106 @@ export function Tokens({
   }, [balances, prices, displayTokens]);
 
   const sortedTokens = useMemo(() => {
-    return filteredTokens?.sort((a, b) => {
-      // if near is the first token
+    return (filteredTokens || []).slice().sort((a, b) => {
+      // BTC wallet pins the BTC token to the top
       if (!isNearWallet) {
         if (a === BTC_TOKEN_CONTRACT) return -1;
         if (b === BTC_TOKEN_CONTRACT) return 1;
       }
       return new Big(balancesUSD?.[b] || 0).minus(balancesUSD?.[a] || 0).toNumber();
     });
-  }, [balancesUSD, filteredTokens]);
+  }, [balancesUSD, filteredTokens, isNearWallet]);
+
+  // Low value grouping only applies to the NEAR home list, not the select modal
+  const enableLowValueGroup = isNearWallet && mode !== 'select';
+
+  const { mainTokens, lowValueTokens } = useMemo(() => {
+    if (!enableLowValueGroup) {
+      return { mainTokens: sortedTokens, lowValueTokens: [] as string[] };
+    }
+    const main: string[] = [];
+    const low: string[] = [];
+    sortedTokens.forEach((token) => {
+      const keepInMain =
+        TOKEN_WHITE_LIST.includes(token) ||
+        new Big(balancesUSD?.[token] || 0).gte(LOW_VALUE_THRESHOLD_USD);
+      (keepInMain ? main : low).push(token);
+    });
+    return { mainTokens: main, lowValueTokens: low };
+  }, [enableLowValueGroup, sortedTokens, balancesUSD]);
 
   if (isLoading) {
     return <Loading className="flex items-center justify-center min-h-[200px]" />;
   }
 
+  const gapClass = mode === 'select' ? 'gap-1' : 'gap-4';
+
   return (
-    <div className={`flex flex-col ${mode === 'select' ? 'gap-1' : 'gap-4'}`}>
-      {sortedTokens?.map((token, index) => (
-        <div
-          key={token}
-          className={`card cursor-pointer text-sm ${mode === 'select' ? 'bg-transparent' : ''}`}
-          onClick={() => onClick?.(token)}
-        >
-          <div className="flex items-center gap-2">
-            <TokenIcon address={token} width={30} height={30} />
-            <div>
-              <div className="text-base font-bold">
-                {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
-              </div>
-              <div className="text-xs text-default-500">
-                {tokenMeta[token]?.symbol
-                  ? `${formatPrice(prices?.[token]?.price, { showSign: true })}`
-                  : '-'}
-              </div>
-            </div>
+    <div className={`flex flex-col ${gapClass}`}>
+      {mainTokens.map((token) => (
+        <TokenRow key={token} token={token} mode={mode} onClick={onClick} />
+      ))}
+
+      {lowValueTokens.length > 0 && (
+        <div className={`flex flex-col ${gapClass}`}>
+          <button
+            type="button"
+            className="flex items-center justify-center gap-1 py-1 text-sm text-default-500 hover:text-default-700"
+            onClick={() => setShowLowValue((v) => !v)}
+          >
+            <span>Low value tokens ({lowValueTokens.length})</span>
+            <Icon
+              icon="solar:alt-arrow-down-bold"
+              className={`text-xs transition-transform ${showLowValue ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {showLowValue &&
+            lowValueTokens.map((token) => (
+              <TokenRow key={token} token={token} mode={mode} onClick={onClick} />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TokenRow({
+  token,
+  mode,
+  onClick,
+}: {
+  token: string;
+  mode?: 'select' | 'manage';
+  onClick?: (token: string) => void;
+}) {
+  const { tokenMeta, prices, balances } = useTokenStore();
+  const valueUSD = new Big(prices?.[token]?.price || 0).times(balances?.[token] || 0).toFixed();
+  return (
+    <div
+      className={`card cursor-pointer text-sm ${mode === 'select' ? 'bg-transparent' : ''}`}
+      onClick={() => onClick?.(token)}
+    >
+      <div className="flex items-center gap-2">
+        <TokenIcon address={token} width={30} height={30} />
+        <div>
+          <div className="text-base font-bold">
+            {formatToken(tokenMeta[token]?.symbol || formatSortAddress(token))}
           </div>
-          <div>
-            <div className="text-base font-bold text-right">
-              {formatNumber(balances?.[token], { rm: Big.roundDown })}
-            </div>
-            <div className="text-xs text-default-500 text-right">
-              ≈ {formatPrice(balancesUSD?.[token], { showSign: true })}
-            </div>
+          <div className="text-xs text-default-500">
+            {tokenMeta[token]?.symbol
+              ? `${formatPrice(prices?.[token]?.price, { showSign: true })}`
+              : '-'}
           </div>
         </div>
-      ))}
+      </div>
+      <div>
+        <div className="text-base font-bold text-right">
+          {formatNumber(balances?.[token], { rm: Big.roundDown })}
+        </div>
+        <div className="text-xs text-default-500 text-right">
+          ≈ {formatPrice(valueUSD, { showSign: true })}
+        </div>
+      </div>
     </div>
   );
 }
