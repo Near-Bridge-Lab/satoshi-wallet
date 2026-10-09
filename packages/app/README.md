@@ -115,7 +115,7 @@ Responses carry `X-Content-Type-Options`, `Referrer-Policy` and `Access-Control-
 
 `wrangler.jsonc` enables [Workers Cache](https://developers.cloudflare.com/workers/cache/), which answers requests from Cloudflare's edge cache before the Worker runs. Prerendered pages are sent with `Cache-Control: s-maxage=31536000`, so they stay cached until the next deployment.
 
-- Every Worker version and every Preview has its own cache, so a deployment starts cold and never serves responses written by an older version. Keep `cross_version_cache` disabled: with it enabled, old HTML can outlive a deployment and reference chunk files that the new version no longer serves.
+- Every Worker version has its own cache, so a deployment starts cold and never serves responses written by an older version. Keep `cross_version_cache` disabled: with it enabled, old HTML can outlive a deployment and reference chunk files that the new version no longer serves.
 - The cache key ignores the hostname, so every domain and the `workers.dev` URL share one cache. Do not vary responses by hostname.
 - While the cache is enabled, static asset requests are billed at the standard Workers request rate.
 
