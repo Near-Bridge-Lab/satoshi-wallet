@@ -14,8 +14,6 @@ import Activity from '@/components/wallet/Activity';
 import TokenIcon from '@/components/wallet/TokenIcon';
 import { safeBig } from '@/utils/big';
 
-export const runtime = 'edge';
-
 export default function TokenDetailPage() {
   const { isClient } = useClient();
   const { address } = useParams<{ address: string }>();

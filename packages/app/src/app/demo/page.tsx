@@ -2,12 +2,12 @@
 import { useDebouncedEffect, useRequest } from '@/hooks/useHooks';
 import { nearServices } from '@/services/near';
 import {
-  AccountState,
+  type AccountState,
   setupWalletSelector,
-  Wallet,
-  WalletSelector,
+  type Wallet,
+  type WalletSelector,
 } from '@near-wallet-selector/core';
-import { SignMessageMethod } from '@near-wallet-selector/core/src/lib/wallet';
+import { type SignMessageMethod } from '@near-wallet-selector/core/src/lib/wallet';
 import { Suspense, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Button, Card, CardBody, CardHeader, Input, Snippet } from '@nextui-org/react';
@@ -60,8 +60,8 @@ function WalletPage() {
   const [wallet, setWallet] = useState<NearWallet>();
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [accountId, setAccountId] = useState<string>();
-  const walletSelectorRef = useRef<WalletSelector>();
-  const subscriptionRef = useRef<any>();
+  const walletSelectorRef = useRef<WalletSelector>(undefined);
+  const subscriptionRef = useRef<any>(undefined);
 
   const btcProvider = useBtcWalletSelector();
 

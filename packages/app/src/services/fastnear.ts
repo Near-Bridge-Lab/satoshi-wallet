@@ -8,6 +8,13 @@ const BASE_URL =
     ? 'https://test.api.fastnear.com'
     : 'https://api.fastnear.com';
 
+const TX_BASE_URL =
+  process.env.NEXT_PUBLIC_NETWORK === 'testnet'
+    ? 'https://tx.test.fastnear.com'
+    : 'https://tx.main.fastnear.com';
+
+const TRANSACTIONS_PAGE_SIZE = 10;
+
 const BLACKLIST_CONTRACTS = [
   'kusama-airdrop.near',
   'adtoken.near',
@@ -37,14 +44,6 @@ const BLACKLIST_NFT_CONTRACTS = [
 ];
 
 // Transaction types
-export interface AccountTx {
-  account_id: string;
-  signer_id: string;
-  transaction_hash: string;
-  tx_block_height: number;
-  tx_block_timestamp: number;
-}
-
 interface FunctionCallAction {
   FunctionCall: {
     args: string;
@@ -68,7 +67,8 @@ interface DelegateAction {
   };
 }
 
-type Action = FunctionCallAction | TransferAction | DelegateAction;
+/** Unit variants such as `CreateAccount` are serialized as plain strings. */
+type Action = 'CreateAccount' | FunctionCallAction | TransferAction | DelegateAction;
 
 interface TransactionInfo {
   actions: Action[];
@@ -101,10 +101,13 @@ export interface Transaction {
   data_receipts?: any[];
 }
 
-export interface TransactionResponse {
-  account_txs: AccountTx[];
+interface AccountTransactionsResponse {
+  account_txs: { transaction_hash: string }[];
+  resume_token?: string;
+}
+
+interface TransactionsResponse {
   transactions: Transaction[];
-  txs_count: number;
 }
 
 export const fastNearServices = {
@@ -168,19 +171,29 @@ export const fastNearServices = {
     }
   },
 
-  async queryTransactions(accountId: string) {
+  /** Returns one page of the newest transactions first; `resumeToken` is set while older ones remain. */
+  async queryTransactions(accountId: string, resumeToken?: string) {
     if (!accountId) return;
 
     try {
-      const res = await request<TransactionResponse>(
-        `https://explorer.main.fastnear.com/v0/account`,
+      const { account_txs, resume_token } = await request<AccountTransactionsResponse>(
+        `${TX_BASE_URL}/v0/account`,
         {
           method: 'POST',
-          body: { account_id: accountId },
+          body: { account_id: accountId, limit: TRANSACTIONS_PAGE_SIZE, resume_token: resumeToken },
+        },
+      );
+      if (!account_txs.length) return { transactions: [] };
+
+      const { transactions } = await request<TransactionsResponse>(
+        `${TX_BASE_URL}/v0/transactions`,
+        {
+          method: 'POST',
+          body: { tx_hashes: account_txs.map((tx) => tx.transaction_hash) },
         },
       );
 
-      return res;
+      return { transactions, resumeToken: resume_token };
     } catch (error) {
       console.error('Failed to fetch transactions from FastNear:', error);
     }

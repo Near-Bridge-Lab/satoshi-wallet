@@ -1,4 +1,4 @@
-import { create, StoreApi } from 'zustand';
+import { create, type StoreApi } from 'zustand';
 import { priceServices } from '@/services/price';
 import { NEAR_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
 import { storageStore } from '@/utils/common';
@@ -6,7 +6,10 @@ import { isEqual } from 'lodash-es';
 import { nearServices } from '@/services/near';
 import { fastNearServices } from '@/services/fastnear';
 import { formatFileUrl } from '@/utils/format';
+import { MAX_CONCURRENT_REQUESTS } from '@/services/rpcProvider';
+import { pollWhileVisible } from '@/utils/polling';
 import { useWalletStore } from '@/stores/wallet';
+import { useVisibilityStore, waitForFirstShow } from '@/stores/visibility';
 
 const tokensStorage = storageStore('SATOSHI_WALLET_UI_TOKENS');
 
@@ -27,14 +30,14 @@ type State = {
   setTokenMeta: (tokenMeta?: Record<string, TokenMetadata | undefined>) => void;
   prices: Record<string, { price: string; symbol: string; decimal: number }>;
   balances?: Record<string, string>;
-  refreshBalance: (token: string) => void;
-  refreshAllBalances: (batchDelay?: number) => Promise<void>;
+  refreshBalance: (token: string) => Promise<void>;
+  refreshAllBalances: () => Promise<void>;
 };
 
 type NFTState = {
   nfts: NFTMetadata[];
   setNFTs: (nfts: NFTMetadata[]) => void;
-  refreshNFTs: () => void;
+  refreshNFTs: () => Promise<void>;
 };
 
 export const useNFTStore = create<NFTState>((set, get) => ({
@@ -61,6 +64,24 @@ export const useNFTStore = create<NFTState>((set, get) => ({
     }
   },
 }));
+
+let refreshingAllBalances: Promise<void> | undefined;
+
+/** Refreshes balances with bounded concurrency and stops once the wallet is hidden. */
+async function refreshBalancesWhileVisible(
+  tokens: string[],
+  refreshBalance: (token: string) => Promise<void>,
+) {
+  const pendingTokens = [...tokens];
+  const worker = async () => {
+    while (useVisibilityStore.getState().isVisible) {
+      const token = pendingTokens.shift();
+      if (!token) return;
+      await refreshBalance(token);
+    }
+  };
+  await Promise.all(Array.from({ length: MAX_CONCURRENT_REQUESTS }, worker));
+}
 
 export const useTokenStore = create<State>((set, get) => ({
   tokens: TOKEN_WHITE_LIST,
@@ -112,61 +133,25 @@ export const useTokenStore = create<State>((set, get) => ({
     const accountId = getCurrentAccountId();
     if (!accountId) return;
 
-    nearServices.getBalance(token).then((balance) => {
-      set((state) => {
-        const updatedBalances = {
-          ...state.balances,
-          [token]: balance,
-        };
-
-        const storage = getAccountStorage(accountId);
-        storage?.set('balances', updatedBalances);
-
-        return { balances: updatedBalances };
-      });
-    });
-  },
-  refreshAllBalances: async (batchDelay = 1000) => {
-    const accountId = getCurrentAccountId();
-    const { displayTokens } = get();
-
-    if (!displayTokens?.length || !accountId) return;
-
     try {
-      const batchSize = 5;
+      const balance = await nearServices.getBalance(token);
+      if (getCurrentAccountId() !== accountId) return;
 
-      for (let i = 0; i < displayTokens.length; i += batchSize) {
-        const batch = displayTokens.slice(i, i + batchSize);
-
-        try {
-          const balanceRes = await Promise.all(
-            batch.map((token: string) => nearServices.getBalance(token)),
-          );
-
-          const batchBalances = batch.reduce(
-            (acc: Record<string, string>, token: string, index: number) => {
-              acc[token] = balanceRes[index];
-              return acc;
-            },
-            {} as Record<string, string>,
-          );
-
-          const updatedBalances = { ...get().balances, ...batchBalances };
-          set({ balances: updatedBalances });
-
-          const storage = getAccountStorage(accountId);
-          storage?.set('balances', updatedBalances);
-
-          if (i + batchSize < displayTokens.length) {
-            await new Promise((resolve) => setTimeout(resolve, batchDelay));
-          }
-        } catch (error) {
-          console.error(`Failed to fetch batch ${i / batchSize + 1} token balances:`, error);
-        }
-      }
+      const updatedBalances = { ...get().balances, [token]: balance };
+      set({ balances: updatedBalances });
+      getAccountStorage(accountId)?.set('balances', updatedBalances);
     } catch (error) {
-      console.error('Failed to fetch token balances:', error);
+      console.error(`Failed to refresh ${token} balance:`, error);
     }
+  },
+  refreshAllBalances: () => {
+    refreshingAllBalances ??= refreshBalancesWhileVisible(
+      get().displayTokens ?? [],
+      get().refreshBalance,
+    ).finally(() => {
+      refreshingAllBalances = undefined;
+    });
+    return refreshingAllBalances;
   },
 }));
 
@@ -279,35 +264,24 @@ async function subscribeTokensChange(store: StoreApi<State>) {
   });
 }
 
-async function pollingQueryPrice(store: StoreApi<State>) {
-  const { tokenMeta } = store.getState();
-  if (tokenMeta) {
-    const prices = await priceServices.queryPrices();
-    store.setState({ prices });
-  }
-  setTimeout(() => pollingQueryPrice(store), 30000);
-}
+const BALANCE_POLL_INTERVAL = 2 * 60 * 1000;
+const BALANCE_REFRESH_MIN_GAP = 10 * 1000;
+const PRICE_POLL_INTERVAL = 30 * 1000;
 
-async function pollingQueryBalance(store: StoreApi<State>) {
-  await store.getState().refreshAllBalances(5000);
-  setTimeout(() => pollingQueryBalance(store), 120000);
-}
-
-async function pollingQueryNFTs(store: StoreApi<NFTState>) {
-  const accountId = getCurrentAccountId();
-  if (accountId) {
-    store.getState().refreshNFTs();
-  }
-  setTimeout(() => pollingQueryNFTs(store), 600000);
+async function refreshPrices() {
+  useTokenStore.setState({ prices: await priceServices.queryPrices() });
 }
 
 async function initializeStore() {
   try {
     subscribeWalletChange();
+    await waitForFirstShow();
+    pollWhileVisible(refreshPrices, { interval: PRICE_POLL_INTERVAL });
     await subscribeTokensChange(useTokenStore);
-    pollingQueryBalance(useTokenStore);
-    pollingQueryPrice(useTokenStore);
-    pollingQueryNFTs(useNFTStore);
+    pollWhileVisible(() => useTokenStore.getState().refreshAllBalances(), {
+      interval: BALANCE_POLL_INTERVAL,
+      minGap: BALANCE_REFRESH_MIN_GAP,
+    });
   } catch (error) {
     console.error('initialize store failed:', error);
   }

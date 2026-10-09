@@ -1,4 +1,4 @@
-import { Wallet } from '@near-wallet-selector/core';
+import { type Wallet } from '@near-wallet-selector/core';
 interface RequestOptions<T> extends RequestInit {
   body?: RequestInit['body'] | any;
   retryCount?: number;
@@ -12,6 +12,15 @@ interface RequestOptions<T> extends RequestInit {
 const cache = new Map<string, { timestamp: number; data: any }>();
 
 const defaultCacheTimeout = 3000;
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    statusText: string,
+  ) {
+    super(statusText);
+  }
+}
 
 export default async function request<T>(url: string, options?: RequestOptions<T>): Promise<T> {
   const defaultHeaders = {
@@ -59,7 +68,7 @@ export default async function request<T>(url: string, options?: RequestOptions<T
       clearTimeout(timeoutId),
     );
 
-    if (!res.ok) throw new Error(res.statusText);
+    if (!res.ok) throw new HttpError(res.status, res.statusText);
     const data = await res.json();
 
     if (cacheKey) {
@@ -88,7 +97,8 @@ export default async function request<T>(url: string, options?: RequestOptions<T
     return data as T;
   } catch (err) {
     console.error(err);
-    if (retryCount > 0) {
+    const isRateLimited = err instanceof HttpError && err.status === 429;
+    if (retryCount > 0 && !isRateLimited) {
       console.log(`Retrying... attempts left: ${retryCount}`);
       return request(url, { ...options, retryCount: retryCount - 1 });
     }

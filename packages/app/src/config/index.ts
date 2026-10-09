@@ -21,13 +21,11 @@ export const TOKEN_WHITE_LIST = [
 
 export const NEAR_RPC_NODES = IS_MAINNET
   ? {
-      // Lava: 'https://near.lava.build',
       Fastnear: 'https://free.rpc.fastnear.com',
       Delta: 'https://nearinner.deltarpc.com',
     }
   : {
       Official: 'https://rpc.testnet.near.org',
-      Lava: 'https://neart.lava.build',
     };
 
 const envMap = {

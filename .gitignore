@@ -35,14 +35,14 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*.local
 
-# vercel
-.vercel
+# opennext
+.open-next
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.wrangler/*
+.wrangler/
 
 .cursorrules
 .cursor

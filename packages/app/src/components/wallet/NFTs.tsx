@@ -9,15 +9,10 @@ export function NFTs() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    refreshNFTs();
-    if (nfts.length) {
-      setIsLoading(false);
-    }
-    const timer = setTimeout(() => setIsLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, [nfts.length, refreshNFTs]);
+    refreshNFTs().finally(() => setIsLoading(false));
+  }, [refreshNFTs]);
 
-  if (isLoading) {
+  if (isLoading && !nfts.length) {
     return <Loading className="flex items-center justify-center min-h-[200px]" />;
   }
 
