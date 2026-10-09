@@ -1,4 +1,4 @@
-import { create, StoreApi } from 'zustand';
+import { create, type StoreApi } from 'zustand';
 import { priceServices } from '@/services/price';
 import { NEAR_TOKEN_CONTRACT, TOKEN_WHITE_LIST } from '@/config';
 import { storageStore } from '@/utils/common';

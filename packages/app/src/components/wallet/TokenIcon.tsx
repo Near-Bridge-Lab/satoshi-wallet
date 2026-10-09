@@ -1,6 +1,6 @@
 'use client';
 import { useMemo } from 'react';
-import { cn, ImageProps, Image } from '@nextui-org/react';
+import { cn, type ImageProps, Image } from '@nextui-org/react';
 import { useTokenStore } from '@/stores/token';
 import { NEAR_TOKEN_CONTRACT } from '@/config';
 import { formatFileUrl } from '@/utils/format';

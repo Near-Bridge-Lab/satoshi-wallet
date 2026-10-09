@@ -6,7 +6,6 @@ import { PublicKey } from 'near-api-js/lib/utils/key_pair';
 import { encodeTransaction } from 'near-api-js/lib/transaction';
 import { baseDecode } from '@near-js/utils';
 import bs58 from 'bs58';
-// @ts-ignore
 import { sha256 } from 'js-sha256';
 import type { Transaction } from '@near-wallet-selector/core';
 import { getNearProvider, nearCallFunction } from './nearUtils';

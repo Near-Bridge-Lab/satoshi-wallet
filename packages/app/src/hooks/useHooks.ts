@@ -218,7 +218,7 @@ export function useTime(step?: 'second' | 'minute') {
 }
 
 export function useInterval(callback: () => void, delay: number) {
-  const savedCallback = useRef<() => void>();
+  const savedCallback = useRef<() => void>(undefined);
   const intervalId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -295,7 +295,7 @@ export function useInfiniteScroll(props: UseInfiniteScrollProps = {}) {
     loaderRef,
   } = props;
 
-  const previousY = useRef<number>();
+  const previousY = useRef<number>(undefined);
   const previousRatio = useRef<number>(0);
 
   useLayoutEffect(() => {

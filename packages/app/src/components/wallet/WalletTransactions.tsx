@@ -4,7 +4,7 @@ import { Icon } from '@iconify/react';
 import Empty from '../basic/Empty';
 import TokenIcon from './TokenIcon';
 import { useRequest } from '@/hooks/useHooks';
-import { fastNearServices, Transaction } from '@/services/fastnear';
+import { fastNearServices, type Transaction } from '@/services/fastnear';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import dayjs from '@/utils/dayjs';

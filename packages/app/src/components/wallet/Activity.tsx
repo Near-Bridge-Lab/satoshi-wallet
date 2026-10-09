@@ -1,11 +1,15 @@
 import { useCallback, useState } from 'react';
 import { useInfiniteScroll, useRequest } from '@/hooks/useHooks';
 import Empty from '../basic/Empty';
-import { BridgeTransaction, RawTransaction, transactionServices } from '@/services/transaction';
+import {
+  type BridgeTransaction,
+  type RawTransaction,
+  transactionServices,
+} from '@/services/transaction';
 import Loading from '../basic/Loading';
 import dayjs from '@/utils/dayjs';
 import { formatAmount, formatExplorerUrl, formatFileUrl, formatSortAddress } from '@/utils/format';
-import { Chip, ChipProps, Image, Link, Tab, Tabs } from '@nextui-org/react';
+import { Chip, type ChipProps, Image, Link, Tab, Tabs } from '@nextui-org/react';
 import { Icon } from '@iconify/react';
 import Big from 'big.js';
 import Tooltip from '../basic/Tooltip';

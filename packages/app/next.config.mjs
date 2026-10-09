@@ -1,18 +1,18 @@
-/** @type {import('next').NextConfig} */
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const PRODUCTION_BRANCH = 'main';
+const { BUILD_ENV, WORKERS_CI_BRANCH } = process.env;
 
-const { parsed: localEnv } = process.env.BUILD_ENV
-  ? dotenv.config({
-      path: `.env.${process.env.BUILD_ENV}`,
-    })
-  : {};
+// An explicit BUILD_ENV wins; otherwise Workers Builds non-production branches use `.env.stg`.
+const isPreviewBranch = WORKERS_CI_BRANCH && WORKERS_CI_BRANCH !== PRODUCTION_BRANCH;
+const buildEnv = BUILD_ENV || (isPreviewBranch ? 'stg' : undefined);
 
+const { parsed: localEnv } = buildEnv ? dotenv.config({ path: `.env.${buildEnv}` }) : {};
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Stops `next dev` from generating AGENTS.md and CLAUDE.md when it detects an AI agent.
+  agentRules: false,
   reactStrictMode: true,
   output: 'standalone',
   env: {
@@ -27,25 +27,6 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    config.module.rules.push({
-      test: /satoshi-wellet/,
-      use: [
-        {
-          loader: 'ts-loader',
-          options: {
-            compilerOptions: { noEmit: false },
-            onlyCompileBundledFiles: true,
-            allowTsInNodeModules: true,
-          },
-        },
-      ],
-    });
-    config.resolve.alias = {
-      ...config.resolve.alias,
-    };
-    return config;
   },
 };
 
