@@ -111,6 +111,14 @@ The Worker is connected to this repository through Workers Builds:
 
 Responses carry `X-Content-Type-Options`, `Referrer-Policy` and `Access-Control-Allow-Origin`. Cloudflare serves static assets without invoking the Worker, so the headers are defined twice and must be kept in sync: `headers()` in `next.config.mjs` covers the responses rendered by the Worker, and the `/*` rule in `public/_headers` covers the static assets.
 
+### Workers Cache
+
+`wrangler.jsonc` enables [Workers Cache](https://developers.cloudflare.com/workers/cache/), which answers requests from Cloudflare's edge cache before the Worker runs. Prerendered pages are sent with `Cache-Control: s-maxage=31536000`, so they stay cached until the next deployment.
+
+- Every Worker version and every Preview has its own cache, so a deployment starts cold and never serves responses written by an older version. Keep `cross_version_cache` disabled: with it enabled, old HTML can outlive a deployment and reference chunk files that the new version no longer serves.
+- The cache key ignores the hostname, so every domain and the `workers.dev` URL share one cache. Do not vary responses by hostname.
+- While the cache is enabled, static asset requests are billed at the standard Workers request rate.
+
 ### Version constraints
 
 - Next.js is pinned to 16.3.8. `@opennextjs/cloudflare@1.20.9` does not inline the `preview-props.json` manifest that Next.js 16.4.0 emits, which makes every server-rendered route fail ([opennextjs-cloudflare#1355](https://github.com/opennextjs/opennextjs-cloudflare/issues/1355)). Bump it once the adapter ships the fix.
