@@ -1,4 +1,4 @@
-import { BTC_TOKEN_CONTRACT, NEAR_RPC_NODES, NEAR_TOKEN_CONTRACT } from '@/config';
+import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatAmount, formatFileUrl, parseAmount } from '@/utils/format';
@@ -8,12 +8,20 @@ import { connect, keyStores, Near, providers } from 'near-api-js';
 import { FinalExecutionOutcome, QueryResponseKind } from 'near-api-js/lib/providers/provider';
 import { toast } from 'react-toastify';
 import { rpcManager } from './rpcManager';
+import { ThrottledJsonRpcProvider } from './rpcProvider';
+
+type CallFunctionParams = {
+  contractId: string;
+  method: string;
+  args?: any;
+  network?: NetworkId;
+};
 
 export const nearServices = {
   getNearConnectionConfig(network = process.env.NEXT_PUBLIC_NETWORK) {
     const nodeUrl = rpcManager.getFastestNode();
     const sortedNodes = rpcManager.getSortedNodes();
-    const jsonRpcProvider = sortedNodes.map((url) => new providers.JsonRpcProvider({ url }));
+    const jsonRpcProvider = sortedNodes.map((url) => new ThrottledJsonRpcProvider({ url }));
     const provider = new providers.FailoverRpcProvider(jsonRpcProvider);
     return network === 'testnet'
       ? {
@@ -48,37 +56,27 @@ export const nearServices = {
     this.near[network] = near;
     return near;
   },
-  async query<T = any>({
-    contractId,
-    method,
-    args = {},
-    network,
-  }: {
-    contractId: string;
-    method: string;
-    args?: any;
-    gas?: string;
-    deposit?: string;
-    network?: NetworkId;
-  }) {
+  /** Calls a view method and throws when the RPC request fails. */
+  async callFunction<T = any>({ contractId, method, args = {}, network }: CallFunctionParams) {
+    const { connection } = await this.nearConnect(network);
+    const res = await connection.provider.query({
+      request_type: 'call_function',
+      account_id: contractId,
+      method_name: method,
+      args_base64: Buffer.from(JSON.stringify(args)).toString('base64'),
+      finality: 'final',
+    });
+    return JSON.parse(
+      Buffer.from((res as QueryResponseKind & { result: number[] }).result).toString(),
+    ) as T;
+  },
+  /** Calls a view method and resolves to `undefined` when the call fails. */
+  async query<T = any>(params: CallFunctionParams) {
     try {
       if (typeof window === 'undefined') return;
-      const { connection } = await this.nearConnect(network);
-      // console.log(`${method} args`, args);
-      const res = await connection.provider.query({
-        request_type: 'call_function',
-        account_id: contractId,
-        method_name: method,
-        args_base64: Buffer.from(JSON.stringify(args)).toString('base64'),
-        finality: 'final',
-      });
-      const result = JSON.parse(
-        Buffer.from((res as QueryResponseKind & { result: number[] }).result).toString(),
-      ) as T;
-      // console.log(`${method} ${contractId} result`, result);
-      return result;
+      return await this.callFunction<T>(params);
     } catch (error) {
-      console.error(`${method} error`, error);
+      console.error(`${params.method} error`, error);
     }
   },
   async queryTokenMetadata<T extends string | string[]>(token: T) {
@@ -144,35 +142,28 @@ export const nearServices = {
     const accountId = useWalletStore.getState().accountId;
     return accountId;
   },
-  /** get balance, if tokenAddress is undefined, get NEAR balance */
+  /** Gets the balance of a token ('near' for the native one). Throws when an RPC request fails. */
   async getBalance(address: string) {
-    try {
-      const { accountId } = useWalletStore.getState();
-      const { tokenMeta } = useTokenStore.getState();
-      if (!address || !accountId) return '0';
+    const { accountId } = useWalletStore.getState();
+    if (!address || !accountId) return '0';
+
+    let balance: string;
+    if (address === 'near') {
       const near = await this.nearConnect();
       const account = await near.account(accountId);
-      let balance = '0';
-      if (address === 'near') {
-        balance = (await account.getAccountBalance()).available;
-      } else {
-        balance =
-          (await this.query<string>({
-            contractId: address,
-            method: 'ft_balance_of',
-            args: { account_id: accountId },
-          })) || '0';
-      }
-      let decimals = tokenMeta[address]?.decimals;
-      if (!decimals) {
-        const res = await this.queryTokenMetadata(address);
-        decimals = res?.decimals;
-      }
-      return formatAmount(balance, decimals);
-    } catch (error) {
-      console.error(error);
-      return '0';
+      balance = (await account.getAccountBalance()).available;
+    } else {
+      balance =
+        (await this.callFunction<string>({
+          contractId: address,
+          method: 'ft_balance_of',
+          args: { account_id: accountId },
+        })) || '0';
     }
+    const decimals =
+      useTokenStore.getState().tokenMeta[address]?.decimals ??
+      (await this.queryTokenMetadata(address))?.decimals;
+    return formatAmount(balance, decimals);
   },
   getAvailableBalance(token: string, balance?: string) {
     if (!balance || !token) return '0';

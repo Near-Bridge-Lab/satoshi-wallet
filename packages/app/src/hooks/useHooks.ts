@@ -13,6 +13,7 @@ import {
 import { debounce, type DebounceSettings } from 'lodash-es';
 import { safeJSONParse, safeJSONStringify, storageStore } from '../utils/common';
 import dayjs from '@/utils/dayjs';
+import { useVisibilityStore } from '@/stores/visibility';
 
 export function useClient() {
   const [isClient, setIsClient] = useState(false);
@@ -105,15 +106,19 @@ export function useRequest<T>(request: () => Promise<T>, options?: RequestOption
     retryInterval,
   ]);
 
+  const hasShown = useVisibilityStore((state) => state.hasShown);
+  const isVisible = useVisibilityStore((state) => state.isVisible);
+  const isPaused = !!pollingInterval && !isVisible;
+
   useDebouncedEffect(
     () => {
-      if (manual) return;
+      if (manual || !hasShown || isPaused) return;
       if (before && !before()) return;
       clearPolling();
       run();
       return () => clearPolling();
     },
-    [...refreshDeps, clearPolling],
+    [...refreshDeps, clearPolling, hasShown, isPaused],
     debounceOptions,
   );
 

@@ -1,11 +1,12 @@
 import { NEAR_RPC_NODES } from '@/config';
 import request from '@/utils/request';
+import { pollWhileVisible } from '@/utils/polling';
+
+const PING_INTERVAL = 5 * 60 * 1000;
 
 class RPCManager {
   private fastestNodeUrl: string | null = null;
   private sortedNodeUrls: string[] = [];
-  private intervalId: NodeJS.Timeout | null = null;
-  private isInitialized = false;
   private onNodeChangeCallbacks: Array<(nodeUrl: string) => void> = [];
 
   async ping(nodeUrl: string) {
@@ -45,7 +46,7 @@ class RPCManager {
     const sortedNodes = validNodes.sort((a, b) => a.delay - b.delay);
     const fastest = sortedNodes[0];
 
-    const previousNodeUrl = this.fastestNodeUrl;
+    const previousNodeUrl = this.getFastestNode();
     this.fastestNodeUrl = fastest.url;
     this.sortedNodeUrls = sortedNodes.map((node) => node.url);
 
@@ -57,7 +58,7 @@ class RPCManager {
       `Fastest RPC node: ${fastest.name} (${fastest.delay}ms) | All nodes: ${allNodesStatus}`,
     );
 
-    if (previousNodeUrl && previousNodeUrl !== this.fastestNodeUrl) {
+    if (previousNodeUrl !== this.fastestNodeUrl) {
       this.onNodeChangeCallbacks.forEach((callback) => callback(this.fastestNodeUrl!));
     }
   }
@@ -70,29 +71,6 @@ class RPCManager {
     return this.sortedNodeUrls.length > 0 ? this.sortedNodeUrls : Object.values(NEAR_RPC_NODES);
   }
 
-  startAutoUpdate() {
-    if (typeof window === 'undefined' || this.isInitialized) return;
-
-    this.isInitialized = true;
-
-    this.pingAll();
-
-    this.intervalId = setInterval(
-      () => {
-        this.pingAll();
-      },
-      1 * 60 * 1000,
-    );
-  }
-
-  stopAutoUpdate() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      this.isInitialized = false;
-    }
-  }
-
   onNodeChange(callback: (nodeUrl: string) => void) {
     this.onNodeChangeCallbacks.push(callback);
   }
@@ -101,5 +79,5 @@ class RPCManager {
 export const rpcManager = new RPCManager();
 
 if (typeof window !== 'undefined') {
-  rpcManager.startAutoUpdate();
+  pollWhileVisible(() => rpcManager.pingAll(), { interval: PING_INTERVAL });
 }
