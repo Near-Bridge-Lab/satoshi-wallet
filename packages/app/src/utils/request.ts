@@ -1,4 +1,4 @@
-import { Wallet } from '@near-wallet-selector/core';
+import { type Wallet } from '@near-wallet-selector/core';
 interface RequestOptions<T> extends RequestInit {
   body?: RequestInit['body'] | any;
   retryCount?: number;

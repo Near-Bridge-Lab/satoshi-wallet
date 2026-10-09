@@ -3,7 +3,7 @@ import { rpcToWallet } from '@/utils/request';
 import { parseAmount } from '@/utils/format';
 import { gasFeeService } from './gasFee';
 import { useTokenStore } from '@/stores/token';
-import { Transaction } from '@near-wallet-selector/core';
+import { type Transaction } from '@near-wallet-selector/core';
 
 interface SendParams {
   token: string;

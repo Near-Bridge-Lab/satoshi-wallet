@@ -9,7 +9,7 @@ import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatNumber, formatToken, formatValidNumber, parseAmount } from '@/utils/format';
 import { Icon } from '@iconify/react';
-import { Alert, Button, Divider, Image, Input, InputProps } from '@nextui-org/react';
+import { Alert, Button, Divider, Image, Input, type InputProps } from '@nextui-org/react';
 import Big from 'big.js';
 import { get } from 'lodash-es';
 import { useSearchParams } from 'next/navigation';

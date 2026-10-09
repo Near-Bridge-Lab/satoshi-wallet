@@ -2,10 +2,13 @@ import { BTC_TOKEN_CONTRACT, NEAR_TOKEN_CONTRACT } from '@/config';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
 import { formatAmount, formatFileUrl, parseAmount } from '@/utils/format';
-import { Transaction } from '@near-wallet-selector/core';
+import { type Transaction } from '@near-wallet-selector/core';
 import Big from 'big.js';
-import { connect, keyStores, Near, providers } from 'near-api-js';
-import { FinalExecutionOutcome, QueryResponseKind } from 'near-api-js/lib/providers/provider';
+import { connect, keyStores, type Near, providers } from 'near-api-js';
+import {
+  type FinalExecutionOutcome,
+  type QueryResponseKind,
+} from 'near-api-js/lib/providers/provider';
 import { toast } from 'react-toastify';
 import { rpcManager } from './rpcManager';
 import { ThrottledJsonRpcProvider } from './rpcProvider';

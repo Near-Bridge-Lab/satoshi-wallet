@@ -7,6 +7,8 @@
     "dev:wallet": "pnpm --filter=btc-wallet dev",
     "build": "pnpm -r build",
     "build:cloudflare": "pnpm -r build:cloudflare",
+    "deploy:cloudflare": "pnpm -r deploy:cloudflare",
+    "upload:cloudflare": "pnpm -r upload:cloudflare",
     "start": "pnpm -r start",
     "clean": "pnpm -r run clean",
     "lint": "pnpm -r lint",
@@ -30,8 +32,8 @@
     "@types/big.js": "^6.2.2",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^22.7.5",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "@typescript-eslint/parser": "^8.14.0",
     "dotenv": "^16.4.7",
@@ -78,6 +80,13 @@
       "ws@>=8.0.0 <8.20.1": ">=8.20.1 <9",
       "yaml@>=1.0.0 <1.10.3": ">=1.10.3 <2",
       "yaml@>=2.0.0 <2.8.3": ">=2.8.3 <3"
+    },
+    "packageExtensions": {
+      "@opennextjs/cloudflare": {
+        "dependencies": {
+          "esbuild": "0.25.4"
+        }
+      }
     }
   }
 }
