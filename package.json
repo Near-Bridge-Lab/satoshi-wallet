@@ -27,6 +27,7 @@
   },
   "author": "Satoshi Team",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.4",
   "devDependencies": {
     "@types/big.js": "^6.2.2",
     "@types/lodash-es": "^4.17.12",
