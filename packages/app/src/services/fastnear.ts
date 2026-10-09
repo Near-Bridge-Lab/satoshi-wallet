@@ -67,7 +67,8 @@ interface DelegateAction {
   };
 }
 
-type Action = FunctionCallAction | TransferAction | DelegateAction;
+/** Unit variants such as `CreateAccount` are serialized as plain strings. */
+type Action = 'CreateAccount' | FunctionCallAction | TransferAction | DelegateAction;
 
 interface TransactionInfo {
   actions: Action[];

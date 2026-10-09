@@ -7,12 +7,23 @@ import { useRequest } from '@/hooks/useHooks';
 import { fastNearServices, Transaction } from '@/services/fastnear';
 import { useTokenStore } from '@/stores/token';
 import { useWalletStore } from '@/stores/wallet';
-import { NEAR_TOKEN_CONTRACT } from '@/config';
 import dayjs from '@/utils/dayjs';
 import { formatAmount, formatExplorerUrl, formatSortAddress } from '@/utils/format';
 
 /** Older pages that can be loaded in the wallet before pointing users to the explorer. */
 const MAX_LOAD_MORE_COUNT = 2;
+
+/** Decodes `ft_transfer` arguments from untrusted chain data; undefined unless well-formed. */
+const parseFtTransferArgs = (encodedArgs: string) => {
+  try {
+    const { receiver_id: receiverId, amount } = JSON.parse(atob(encodedArgs));
+    return typeof receiverId === 'string' && typeof amount === 'string' && /^\d+$/.test(amount)
+      ? { receiverId, amount }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 // Get transaction action type and details
 const getTransactionAction = (tx: Transaction) => {
@@ -25,6 +36,20 @@ const getTransactionAction = (tx: Transaction) => {
   const action = tx.transaction.actions?.[0];
   const isSender = tx.transaction.signer_id === accountId;
 
+  if (typeof action === 'string') {
+    return action === 'CreateAccount'
+      ? {
+          type: 'Create Account',
+          details: `Created ${formatSortAddress(tx.transaction.receiver_id)}`,
+        }
+      : { type: 'Other', details: action };
+  }
+
+  const ftTransferArgs =
+    'FunctionCall' in action && action.FunctionCall.method_name === 'ft_transfer'
+      ? parseFtTransferArgs(action.FunctionCall.args)
+      : undefined;
+
   if ('Transfer' in action) {
     const amount = formatAmount(action.Transfer.deposit);
 
@@ -34,21 +59,18 @@ const getTransactionAction = (tx: Transaction) => {
         isSender ? tx.transaction.receiver_id : tx.transaction.signer_id,
       )}`,
       amount,
-      token: NEAR_TOKEN_CONTRACT,
+      token: 'near',
       isReceived: !isSender,
     };
-  } else if ('FunctionCall' in action && action.FunctionCall.method_name === 'ft_transfer') {
-    const args = JSON.parse(atob(action.FunctionCall.args));
+  } else if (ftTransferArgs) {
     const token = tx.transaction.receiver_id;
-    const receiverId = args.receiver_id;
-    const _tokenMeta = tokenMeta[token];
-    const decimals = _tokenMeta?.decimals || 24;
-    const amount = formatAmount(args?.amount || 0, decimals);
+    const decimals = tokenMeta[token]?.decimals || 24;
+    const amount = formatAmount(ftTransferArgs.amount, decimals);
 
     return {
       type: isSender ? 'Sent' : 'Received',
       details: `${isSender ? 'to' : 'from'} ${formatSortAddress(
-        isSender ? receiverId : tx.transaction.signer_id,
+        isSender ? ftTransferArgs.receiverId : tx.transaction.signer_id,
       )}`,
       amount,
       token,
@@ -108,6 +130,8 @@ const getTransactionIcon = (actionType: string) => {
       return <Icon icon="ph:arrow-down-bold" className="text-success-500 text-2xl" />;
     case 'Delegation':
       return <Icon icon="mdi:account-key" className="text-warning-500 text-2xl" />;
+    case 'Create Account':
+      return <Icon icon="mdi:account-plus" className="text-success-500 text-2xl" />;
     case 'Add Key':
       return <Icon icon="mdi:key-plus" className="text-success-500 text-2xl" />;
     case 'Delete Key':
@@ -128,7 +152,7 @@ export function WalletTransactions() {
 }
 
 function TransactionList({ accountId }: { accountId: string }) {
-  const { tokenMeta } = useTokenStore.getState();
+  const tokenMeta = useTokenStore((state) => state.tokenMeta);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [resumeToken, setResumeToken] = useState<string>();
   const [loadMoreCount, setLoadMoreCount] = useState(0);

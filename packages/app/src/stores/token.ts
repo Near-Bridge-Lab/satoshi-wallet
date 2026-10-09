@@ -37,7 +37,7 @@ type State = {
 type NFTState = {
   nfts: NFTMetadata[];
   setNFTs: (nfts: NFTMetadata[]) => void;
-  refreshNFTs: () => void;
+  refreshNFTs: () => Promise<void>;
 };
 
 export const useNFTStore = create<NFTState>((set, get) => ({
