@@ -31,6 +31,7 @@ const selector = await setupWalletSelector({
       autoConnect?: boolean,    // optional: enable auto-connect, defaults to true
       syncLogOut?: boolean,     // optional: sync logout across tabs, defaults to true
       env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+      walletUrl?: string,       // optional: wallet app URL loaded in the iframe, defaults to the URL of `env` (see below)
       gasStrategy?: 'auto' | 'near' | 'btc', // optional: specify gas payment strategy, defaults to 'auto'
                                            // 'auto': use NEAR if balance > 0.5, otherwise use BTC token
                                            // 'near': force use NEAR for gas payment
@@ -48,6 +49,7 @@ setupWalletSelectorModal(selector, {
   showChainGroups?: boolean,    // optional: show chain group selection, defaults to true
   showWalletUIForNearAccount?: boolean, // optional: show wallet UI for regular NEAR accounts, defaults to true
   env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+  walletUrl?: string,           // optional: wallet app URL loaded in the iframe, defaults to the URL of `env` (see below)
   draggable?: boolean,          // optional: enable button dragging, defaults to true
   initialPosition?: { right: string; bottom: string }, // optional: initial button position, defaults to { right: '20px', bottom: '20px' }
   buttonSize?: string,          // optional: button size, defaults to '60px'
@@ -66,6 +68,15 @@ function App() {
   );
 }
 ```
+
+When `walletUrl` is omitted, the wallet iframe loads the URL of the selected `env`:
+
+| `env`             | Wallet URL                              |
+| ----------------- | --------------------------------------- |
+| `mainnet`         | `https://wallet.satos.network`          |
+| `private_mainnet` | `https://stg.wallet.satoshibridge.top`  |
+| `testnet`         | `https://wallet-test.satoshibridge.top` |
+| `dev`             | `https://wallet-dev.satoshibridge.top`  |
 
 ### `executeBTCDepositAndAction`
 
