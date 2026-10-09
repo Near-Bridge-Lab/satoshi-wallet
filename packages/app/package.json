@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "build:cloudflare": "npx @cloudflare/next-on-pages@1",
+    "build:cloudflare": "next-on-pages",
     "start": "next start",
     "lint": "next lint"
   },
@@ -33,11 +33,14 @@
     "zustand": "5.0.0-rc.2"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "1.13.16",
     "@near-wallet-selector/core": "^9.3.0",
     "dotenv": "^16.4.5",
     "eslint-config-next": "14.2.35",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
-    "ts-loader": "^9.5.1"
+    "ts-loader": "^9.5.1",
+    "vercel": "47.0.4",
+    "wrangler": "4.149.0"
   }
 }
