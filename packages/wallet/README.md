@@ -30,7 +30,7 @@ const selector = await setupWalletSelector({
       deprecated?: boolean,     // optional: mark as deprecated
       autoConnect?: boolean,    // optional: enable auto-connect, defaults to true
       syncLogOut?: boolean,     // optional: sync logout across tabs, defaults to true
-      env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+      env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to 'mainnet'
       walletUrl?: string,       // optional: wallet app URL loaded in the iframe, defaults to the URL of `env` (see below)
       gasStrategy?: 'auto' | 'near' | 'btc', // optional: specify gas payment strategy, defaults to 'auto'
                                            // 'auto': use NEAR if balance > 0.5, otherwise use BTC token
@@ -48,7 +48,7 @@ setupWalletSelectorModal(selector, {
   contractId: 'xxx.near',
   showChainGroups?: boolean,    // optional: show chain group selection, defaults to true
   showWalletUIForNearAccount?: boolean, // optional: show wallet UI for regular NEAR accounts, defaults to true
-  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to NEAR network environment
+  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // optional: defaults to 'mainnet'
   walletUrl?: string,           // optional: wallet app URL loaded in the iframe, defaults to the URL of `env` (see below)
   draggable?: boolean,          // optional: enable button dragging, defaults to true
   initialPosition?: { right: string; bottom: string }, // optional: initial button position, defaults to { right: '20px', bottom: '20px' }
@@ -96,7 +96,7 @@ interface ExecuteBTCDepositAndActionParams<T extends boolean = true> {
 
   // Common optional parameters
   feeRate?: number; // optional: custom fee rate for the BTC transaction
-  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to NEAR network environment
+  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev'; // optional: defaults to 'mainnet'
   pollResult?: T; // optional: whether to poll for transaction result
   registerDeposit?: string; // optional: whether to register deposit,default 0.000125 NEAR
   newAccountMinDepositAmount?: boolean; // default is true, if true, new account minimum deposit BTC amount 1000sat, otherwise 0
@@ -142,7 +142,7 @@ import { getDepositAmount } from 'btc-wallet';
 const result = await getDepositAmount(
   amount: string,           // Amount in satoshi units
   options?: {
-    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // Optional: Defaults to NEAR network environment
+    env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev', // Optional: Defaults to 'mainnet'
     newAccountMinDepositAmount?: boolean  // default is true, if true, new account minimum deposit amount 1000sat, otherwise 0
   }
 );
@@ -172,7 +172,7 @@ import { getWithdrawTransaction } from 'btc-wallet';
 const transaction = await getWithdrawTransaction({
   btcAddress: string,      // Target bitcoin address
   amount: string,          // Amount to withdraw in satoshi units
-  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // Optional: Defaults to NEAR network environment
+  env?: 'mainnet' | 'testnet' | 'private_mainnet' | 'dev' // Optional: Defaults to 'mainnet'
 });
 ```
 
