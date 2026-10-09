@@ -8,5 +8,6 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "cache": { "enabled": true },
   "previews": {}
 }
