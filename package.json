@@ -8,7 +8,6 @@
     "build": "pnpm -r build",
     "build:cloudflare": "pnpm -r build:cloudflare",
     "deploy:cloudflare": "pnpm -r deploy:cloudflare",
-    "upload:cloudflare": "pnpm -r upload:cloudflare",
     "start": "pnpm -r start",
     "clean": "pnpm -r run clean",
     "lint": "pnpm -r lint",

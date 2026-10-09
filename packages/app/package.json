@@ -4,10 +4,9 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "build:cloudflare": "opennextjs-cloudflare build",
+    "build:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare populateCache local",
     "preview:cloudflare": "opennextjs-cloudflare preview",
     "deploy:cloudflare": "opennextjs-cloudflare deploy",
-    "upload:cloudflare": "opennextjs-cloudflare upload",
     "start": "next start",
     "lint": "eslint ."
   },
