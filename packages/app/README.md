@@ -25,12 +25,12 @@ The pages live in `src/app` (Next.js App Router) and auto-update as you edit the
 
 Each environment has its own env file in this directory, and `NEXT_PUBLIC_RUNTIME_ENV` selects the wallet network:
 
-| Environment                                 | Env file           | `NEXT_PUBLIC_RUNTIME_ENV` | Wallet network    |
-| ------------------------------------------- | ------------------ | ------------------------- | ----------------- |
-| Production (`main`)                         | `.env`             | `production`              | `mainnet`         |
-| Staging (every other Workers Builds branch) | `.env.stg`         | `stg`                     | `private_mainnet` |
-| Test                                        | `.env.test`        | `test`                    | `testnet`         |
-| Development (`pnpm dev`)                    | `.env.development` | `development`             | `dev`             |
+| Environment                          | Env file           | `NEXT_PUBLIC_RUNTIME_ENV` | Wallet network    |
+| ------------------------------------ | ------------------ | ------------------------- | ----------------- |
+| Production (`main`)                  | `.env`             | `production`              | `mainnet`         |
+| Preview (every branch except `main`) | `.env.stg`         | `stg`                     | `private_mainnet` |
+| Test                                 | `.env.test`        | `test`                    | `testnet`         |
+| Development (`pnpm dev`)             | `.env.development` | `development`             | `dev`             |
 
 `next.config.mjs` picks the env file for a build:
 
@@ -104,7 +104,7 @@ The Worker is connected to this repository through Workers Builds:
 | Non-production command (Worker Previews) | `pnpm --filter @satoshi-wallet/app exec wrangler preview` |
 
 - `main` updates the production Worker, which serves `https://wallet.satos.network`.
-- Every other branch is deployed as a Worker Preview at `https://<branch>.wallet.satoshibridge.top`, where `/` in the branch name becomes `-`: `stg` is served at `https://stg.wallet.satoshibridge.top` and `feat/foo` at `https://feat-foo.wallet.satoshibridge.top`.
+- Every other branch is deployed as a Worker Preview at `https://<branch>.wallet.satoshibridge.top`, where `/` in the branch name becomes `-`, so `feat/foo` is served at `https://feat-foo.wallet.satoshibridge.top`.
 - `wrangler.jsonc` must keep its empty `previews` block, which `wrangler preview` requires.
 
 ### Response headers
@@ -118,4 +118,4 @@ Responses carry `X-Content-Type-Options`, `Referrer-Policy` and `Access-Control-
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.

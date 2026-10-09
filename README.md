@@ -46,7 +46,7 @@ pnpm lint
 
 ## Deployment
 
-The app is deployed to Cloudflare Workers with OpenNext. Pushes to `main` update the production Worker, and every other branch is deployed as a Worker Preview (`stg` is served at `https://stg.wallet.satoshibridge.top`). See [packages/app](packages/app/README.md#deployment) for the build commands, the Cloudflare setup and how the environment is selected.
+The app is deployed to Cloudflare Workers with OpenNext. Pushes to `main` update the production Worker, and every other branch is deployed as a Worker Preview at `https://<branch>.wallet.satoshibridge.top`. See [packages/app](packages/app/README.md#deployment) for the build commands, the Cloudflare setup and how the environment is selected.
 
 ## Wallet Features
 
@@ -67,4 +67,4 @@ Sotashi Wallet provides the following main functions:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
